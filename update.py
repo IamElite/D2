@@ -73,13 +73,21 @@ if UPGRADE_PACKAGES.lower() == 'true':
     packages = [dist.project_name for dist in working_set]
     scall("uv pip install --system " + ' '.join(packages), shell=True)
 
+# yt-dlp needs to stay fresh - YouTube breaks old versions constantly (PO Token/format
+# extraction failures). Force-upgrade it on every boot, regardless of UPGRADE_PACKAGES,
+# using --pre + the curl-cffi extra for better anti-bot resilience.
+try:
+    scall("uv pip install --system --pre -U 'yt-dlp[default,curl-cffi]'", shell=True)
+except Exception as e:
+    log_error(f"yt-dlp auto-upgrade failed: {e}")
+
 UPSTREAM_REPO = environ.get('UPSTREAM_REPO', '')
 if len(UPSTREAM_REPO) == 0:
-    UPSTREAM_REPO = "https://github.com/Tamilupdates/KPSML-X"
+    UPSTREAM_REPO = "https://github.com/Sourovislam637/Project-X"
 
 UPSTREAM_BRANCH = environ.get('UPSTREAM_BRANCH', '')
 if len(UPSTREAM_BRANCH) == 0:
-    UPSTREAM_BRANCH = 'kpsmlx'
+    UPSTREAM_BRANCH = 'main'
 
 if UPSTREAM_REPO is not None:
     if ospath.exists('.git'):
