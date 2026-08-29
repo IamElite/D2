@@ -106,7 +106,9 @@ if UPSTREAM_REPO:
 UPDATE_PKGS = str(config_file.get("UPDATE_PKGS", "True")).strip().lower()
 if UPDATE_PKGS == "true":
     if path.exists("requirements.txt"):
-        scall("uv pip install -U -r requirements.txt", shell=True)
-        log_info("Successfully Updated all the Packages !")
+        log_info("Updating packages... This might take a minute.")
+        update_cmd = "uv pip install --system -U -r requirements.txt || pip install -U -r requirements.txt"
+        scall(update_cmd, shell=True)
+        log_info("Successfully Updated all the Packages!")
     else:
         log_info("requirements.txt not found in repo. Skipping package update.")
