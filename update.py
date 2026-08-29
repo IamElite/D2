@@ -18,22 +18,6 @@ basicConfig(format="[%(asctime)s] [%(levelname)s] - %(message)s",
             handlers=[FileHandler('log.txt'), StreamHandler()],
             level=INFO)
 
-CONFIG_FILE_URL = environ.get('CONFIG_FILE_URL')
-try:
-    if len(CONFIG_FILE_URL) == 0:
-        raise TypeError
-    try:
-        res = rget(CONFIG_FILE_URL)
-        if res.status_code == 200:
-            with open('config.env', 'wb+') as f:
-                f.write(res.content)
-        else:
-            log_error(f"Failed to download config.env {res.status_code}")
-    except Exception as e:
-        log_error(f"CONFIG_FILE_URL: {e}")
-except:
-    pass
-
 load_dotenv('config.env', override=True)
 
 try:
@@ -73,39 +57,31 @@ if UPGRADE_PACKAGES.lower() == 'true':
     packages = [dist.project_name for dist in working_set]
     scall("uv pip install --system " + ' '.join(packages), shell=True)
 
-# yt-dlp needs to stay fresh - YouTube breaks old versions constantly (PO Token/format
-# extraction failures). Force-upgrade it on every boot, regardless of UPGRADE_PACKAGES,
-# using --pre + the curl-cffi extra for better anti-bot resilience.
-try:
-    scall("uv pip install --system --pre -U 'yt-dlp[default,curl-cffi]'", shell=True)
-except Exception as e:
-    log_error(f"yt-dlp auto-upgrade failed: {e}")
-
 UPSTREAM_REPO = environ.get('UPSTREAM_REPO', '')
 if len(UPSTREAM_REPO) == 0:
-    UPSTREAM_REPO = "https://github.com/Sourovislam637/Project-X"
+    UPSTREAM_REPO = "https://github.com/IamElite/D2.git"
 
 UPSTREAM_BRANCH = environ.get('UPSTREAM_BRANCH', '')
 if len(UPSTREAM_BRANCH) == 0:
-    UPSTREAM_BRANCH = 'main'
+    UPSTREAM_BRANCH = 'srmlx'
 
 if UPSTREAM_REPO is not None:
     if ospath.exists('.git'):
         srun(["rm", "-rf", ".git"])
-
     update = srun([f"git init -q \
-                     && git config --global user.email kpstorrent@gmail.com \
-                     && git config --global user.name kpsbots \
+                     && git config --global user.email syntaxrealm@gmail.com \
+                     && git config --global user.name syntaxrealm \
                      && git add . \
                      && git commit -sm update -q \
                      && git remote add origin {UPSTREAM_REPO} \
                      && git fetch origin -q \
                      && git reset --hard origin/{UPSTREAM_BRANCH} -q"], shell=True)
-
     repo = UPSTREAM_REPO.split('/')
     UPSTREAM_REPO = f"https://github.com/{repo[-2]}/{repo[-1]}"
     if update.returncode == 0:
         log_info('Successfully updated with latest commits !!')
     else:
         log_error('Something went Wrong ! Retry or Ask Support !')
-    log_info(f'UPSTREAM_REPO: {UPSTREAM_REPO} | UPSTREAM_BRANCH: {UPSTREAM_BRANCH}')
+        if ospath.exists('.git'):
+            srun(["rm", "-rf", ".git"])
+    log_info(f'UPSTREAM_REPO: {"https://" + UPSTREAM_REPO.split("@")[-1] if "@" in UPSTREAM_REPO else UPSTREAM_REPO} | UPSTREAM_BRANCH: {UPSTREAM_BRANCH}')
