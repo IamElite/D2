@@ -2,6 +2,7 @@ from sys import exit
 from importlib import import_module
 from logging import FileHandler, StreamHandler, INFO, basicConfig, error as log_error, info as log_info, getLogger, ERROR
 from os import path, remove, environ
+from dotenv import load_dotenv
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from subprocess import run as srun, call as scall
@@ -26,6 +27,8 @@ basicConfig(
     level=INFO,
 )
 
+load_dotenv('config.env', override=True)
+
 config_file = {}
 try:
     settings = import_module("config")
@@ -44,7 +47,7 @@ env_updates = {
 if env_updates:
     config_file.update(env_updates)
 
-log_info("Config loaded from config.py and/or ENVs!")
+log_info("Config loaded from config.env, config.py and/or ENVs!")
 
 BOT_TOKEN = config_file.get("BOT_TOKEN", "")
 if not BOT_TOKEN:
