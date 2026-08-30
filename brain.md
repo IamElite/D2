@@ -276,6 +276,18 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-T` — `-i` multi WZML-style (OLD: S incomplete)
+**Galti:** `__run_multi` abhi bhi `nextmsg.id` bina Message check. `message.reply` wzgram pe `chat.type`. User `/cmd -i 3` 3 videos.
+**Fix:** `sendMessage` = `bot.send_message` (no `.reply`). Multi = WZML `isinstance(Message)` + next media `reply_id+1`.
+
+---
+
+### `260830-U` — NameError `Message` in `__run_multi` (OLD: T)
+**Galti:** `from pyrogram.types import Message` file me nahi raha; `isinstance(nextmsg, Message)` crash.
+**Fix:** `_is_tg_msg()` — `id` hai aur str nahi. Import nahi.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.

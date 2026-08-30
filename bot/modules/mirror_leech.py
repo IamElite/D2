@@ -1,6 +1,10 @@
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
 from html import escape
+
+
+def _is_tg_msg(m):
+    return m is not None and not isinstance(m, str) and getattr(m, "id", None) is not None
 from traceback import format_exc
 from base64 import b64encode
 from re import match as re_match
@@ -131,14 +135,14 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         b_msg = input_list[:1]
         b_msg.append(f'{bulk[0]} -i {len(bulk)}')
         nextmsg = await sendMessage(message, " ".join(b_msg))
-        if not isinstance(nextmsg, Message):
+        if not _is_tg_msg(nextmsg):
             LOGGER.error("bulk sendMessage failed: %s", nextmsg)
             return
         if not getattr(message, "chat", None):
             LOGGER.error("bulk: message.chat is None")
             return
         fetched = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
-        if isinstance(fetched, Message) and not getattr(fetched, "empty", False):
+        if _is_tg_msg(fetched) and not getattr(fetched, "empty", False):
             nextmsg = fetched
         nextmsg.from_user = message.from_user
         _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
@@ -170,14 +174,14 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                     nextmsg = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
                 else:
                     nextmsg = message
-                if not isinstance(nextmsg, Message) or getattr(nextmsg, "empty", False):
+                if not _is_tg_msg(nextmsg) or getattr(nextmsg, "empty", False):
                     nextmsg = message
                 nextmsg = await sendMessage(nextmsg, " ".join(msg))
-            if not isinstance(nextmsg, Message) or not getattr(nextmsg, "id", None):
+            if not _is_tg_msg(nextmsg):
                 LOGGER.error("multi sendMessage failed: %r", nextmsg)
                 return
             fetched = await client.get_messages(chat_id=chat.id, message_ids=nextmsg.id)
-            if isinstance(fetched, Message) and not getattr(fetched, "empty", False):
+            if _is_tg_msg(fetched) and not getattr(fetched, "empty", False):
                 nextmsg = fetched
             if folder_name and sameDir is not None:
                 sameDir['tasks'].add(nextmsg.id)
