@@ -198,6 +198,19 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 
 ---
 
+### `260830-I` — Kurigram try (user still 9 MB/s)  
+**Git:** (push ke baad)  
+**OLD:** `260830-H` pyrofork 2.2.11 + user client; UL still ~9 MB/s.
+
+**User:** labs 20+; Kurigram ek baar try.
+
+**Fix:** `requirements` **pyrofork → kurigram** (import `pyrogram` same). Queue+**8 workers** patch. Status engine **Kurigram**. Bot fallback pe log warning.
+
+**Heroku:** `USER_SESSION_STRING` + logs me `by User Client`. Agar `by Bot Client` → session fail, 9 MB/s guaranteed.  
+**Do not** full WZML-X on Heroku.
+
+---
+
 ### `260830-F` — dost 29MB/s @ 27% CPU vs hum 20MB/s @ 95%  
 **Git:** `1a65b9` (`1a65b9d`)  
 **Date:** 2026-08-30  

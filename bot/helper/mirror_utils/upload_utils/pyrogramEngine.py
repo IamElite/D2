@@ -284,6 +284,8 @@ class TgUploader:
         else:
             self.__client = user if user else bot
         who = "User" if self.__client is user and user else "Bot"
+        if who == "Bot":
+            LOGGER.warning("Leech via Bot API (~8-12 MB/s). Set USER_SESSION_STRING for ~20 MB/s")
         LOGGER.info(f'Uploading Media {">" if self.__prm_media else "<"} 2GB by {who} Client')
 
     async def __send_media_group(self, subkey, key, msgs):

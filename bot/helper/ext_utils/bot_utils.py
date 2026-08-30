@@ -170,9 +170,12 @@ def get_all_versions():
         vpy = get_distribution('pyrogram').version
     except DistributionNotFound:
         try:
-            vpy = get_distribution('pyrofork').version
+            vpy = get_distribution('kurigram').version
         except DistributionNotFound:
-            vpy = "2.xx.xx"
+            try:
+                vpy = get_distribution('pyrofork').version
+            except DistributionNotFound:
+                vpy = "2.xx.xx"
     bot_cache['eng_versions'] = {'p7zip':vp, 'ffmpeg': vf, 'rclone': vr,
                                     'aria': aria2.client.get_version()['version'],
                                     'aiohttp': get_distribution('aiohttp').version,
@@ -193,7 +196,7 @@ class EngineStatus:
         self.STATUS_GD = f"Google-API v{version_cache['gapi']}"
         self.STATUS_MEGA = f"MegaSDK v{version_cache['mega']}"
         self.STATUS_QB = f"qBit {version_cache['qbit']}"
-        self.STATUS_TG = f"PyroMulti v{version_cache['pyro']}"
+        self.STATUS_TG = f"Kurigram v{version_cache['pyro']}"
         self.STATUS_YT = f"yt-dlp v{version_cache['ytdlp']}"
         self.STATUS_EXT = "pExtract v2"
         self.STATUS_SPLIT_MERGE = f"ffmpeg v{version_cache['ffmpeg']}"

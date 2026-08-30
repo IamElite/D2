@@ -32,7 +32,8 @@ psutil
 pybase64
 pycountry
 pymongo
-pyrofork==2.2.11
+# drop-in pyrogram fork (pip: kurigram, import: pyrogram)
+kurigram
 python-dotenv
 python-magic
 qbittorrent-api

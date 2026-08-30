@@ -33,10 +33,13 @@ def _patch_tg_upload_queue(depth=8):
             return
         with open(path, 'r', encoding='utf-8') as fh:
             src = fh.read()
-        if 'Queue(1)' not in src:
+        orig = src
+        src = src.replace('Queue(1)', f'Queue({depth})')
+        src = src.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 2')
+        if src == orig:
             return
         with open(path, 'w', encoding='utf-8') as fh:
-            fh.write(src.replace('Queue(1)', f'Queue({depth})', 1))
+            fh.write(src)
         importlib_reload(sf)
         log_info(f"TG upload pipeline Queue({depth})")
     except Exception as e:
