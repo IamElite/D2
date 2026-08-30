@@ -237,6 +237,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-N` — NameError `r` is not defined (boot crash)
+**Galti:** `__init__.py` last line duplicate `r(timezone=...)` (scheduler ka broken leftover).
+**Fix:** woh line hata. `pyroutils.MIN_*` try/except (wzgram).
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.

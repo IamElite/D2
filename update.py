@@ -107,8 +107,16 @@ UPDATE_PKGS = str(config_file.get("UPDATE_PKGS", "True")).strip().lower()
 if UPDATE_PKGS == "true":
     if path.exists("requirements.txt"):
         log_info("Updating packages... This might take a minute.")
-        update_cmd = "uv pip install --system -U -r requirements.txt || pip install -U -r requirements.txt"
-        scall(update_cmd, shell=True)
-        log_info("Successfully Updated all the Packages!")
+        py = environ.get("PYTHON", "") or "python3"
+        update_cmd = (
+            f"UV_SYSTEM_PYTHON=1 uv pip install --system --python {py} -U -r requirements.txt "
+            f"|| {py} -m pip install -U -r requirements.txt "
+            f"|| pip3 install -U -r requirements.txt"
+        )
+        rc = scall(update_cmd, shell=True)
+        if rc == 0:
+            log_info("Successfully Updated all the Packages!")
+        else:
+            log_error("Package update failed (uv venv / pip). Bot will continue with existing packages.")
     else:
         log_info("requirements.txt not found in repo. Skipping package update.")
