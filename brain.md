@@ -255,6 +255,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-Q` — wzgram `start()` coroutine (`bot.loop` AttributeError)
+**Galti:** wzgram `Client.start()` await-able; `.start()` se coroutine, `.loop` nahi.
+**Fix:** `_start_tg()` sync+async dono. Duplicate tail `__init__` hata.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.

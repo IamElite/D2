@@ -21,7 +21,7 @@ from natsort import natsorted
 from aioshutil import copy
 
 from .... import config_dict, user_data, GLOBAL_EXTENSION_FILTER, bot, user, IS_PREMIUM_USER
-from ...ext_utils.hyperul_utils import pick_upload_client
+from ...ext_utils.hyperul_utils import pick_upload_client, HypertgUpload
 from ...telegram_helper.tg_transfer import release_hyper_client
 from ...themes import BotTheme
 from ...telegram_helper.button_build import ButtonMaker
@@ -180,7 +180,7 @@ class TgUploader:
             if not self.__is_cancelled:
                 LOGGER.error(f"Failed To Send in User Dump:\n{str(err)}")
 
-    async def __upload_progress(self, current, total):
+    async def __upload_progress(self, current, total, *args):
         if self.__is_cancelled:
             raise StopTransmission
         chunk_size = current - self.__last_uploaded
