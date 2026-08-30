@@ -243,6 +243,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-O` — uv: No virtual environment found
+**Galti:** `uv pip install` Heroku pe venv maangta hai; `--system` ignore / fail, boot spam.
+**Fix:** `UV_SYSTEM_PYTHON=1` + `--python python3` + pip fallback; fail pe bot **continue**.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
