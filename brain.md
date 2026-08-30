@@ -156,9 +156,26 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 ## Next (pending)
 
 - [x] `brain.md` ko `arnv1` pe push (`260830-E`)
-- [ ] User idle CPU number after `arnv1` deploy
-- [ ] Agar Mongo overwrite confirm ho to DB clear steps
-- [ ] Heroku config: `UPSTREAM_BRANCH=arnv1` (warna `update.py` srmlx pe wipe)
+- [x] After F: ~26MB/s @ 42% CPU / 51% RAM (Jaadugar). SG-1 1.3MB/s = 2 seeders.
+- [ ] Heroku config: `UPSTREAM_BRANCH=arnv1`
+- [ ] 102GB packs `/btsel` or queue — 2X pe saath mat
+
+---
+
+### `260830-G` — max useful speed, ultra-low waste CPU/RAM  
+**Git:** (push ke baad)  
+**OLD:** `260830-F` (5 active, 64MiB cache, 200 conn — extra sockets, dead 102GB pipe share)
+
+**User:** 26MB/s @ 42% CPU but “speed kam, CPU/RAM zyada”; Heroku “2 Gbps”.
+
+**Sach:** 26 MB/s ≈ 210 Mbps. 2X pe BT SHA-1 ke saath 2 Gbps (250 MB/s) **nahi** milta. 102GB @ 1.3 MB/s **2 seeders**, config nahi. Doosra torrent fast wale ka pipe khaata hai.
+
+**Fix (efficiency, not fake 2Gbps):**
+- qBit **max 2 active DL**, slow (<100 KiB/s, 120s) queue
+- cache **32MiB**, conn **120/60**
+- aria2 concurrent **2**, mmap off, cache 32M
+
+**Expect:** 1 strong swarm ~20–40 MB/s, CPU ~30–50%, RAM ~35–50%. 5 dead torrents = slow + CPU.
 
 ---
 

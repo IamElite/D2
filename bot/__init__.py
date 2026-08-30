@@ -867,24 +867,28 @@ try:
     qb_client.app_set_preferences({
         'async_io_threads': 2,
         'hashing_threads': 2,
-        'disk_cache': 64,
+        'disk_cache': 32,
         'disk_io_type': 0,
-        'max_connec': 200,
-        'max_connec_per_torrent': 80,
-        'max_uploads': 8,
-        'max_uploads_per_torrent': 4,
+        'max_connec': 120,
+        'max_connec_per_torrent': 60,
+        'max_uploads': 4,
+        'max_uploads_per_torrent': 2,
         'lsd': False,
         'dht': True,
         'pex': True,
         'queueing_enabled': True,
-        'max_active_downloads': 5,
-        'max_active_torrents': 8,
-        'max_active_uploads': 2,
+        'max_active_downloads': 2,
+        'max_active_torrents': 3,
+        'max_active_uploads': 1,
+        'ignore_slow_torrents': True,
+        'slow_torrent_dl_rate_threshold': 100,
+        'slow_torrent_inactive_timer': 120,
         'preallocate_all': False,
         'recheck_completed_torrents': False,
-        'current_network_interface': '',
+        'up_limit': 256,
+        'dl_limit': 0,
     })
-    log_info("qBit runtime prefs: default disk IO, 2 hash threads, 200 conn")
+    log_info("qBit runtime: 2 active DL, 32MiB cache, 120 conn")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
