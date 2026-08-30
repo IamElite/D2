@@ -131,7 +131,16 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         b_msg = input_list[:1]
         b_msg.append(f'{bulk[0]} -i {len(bulk)}')
         nextmsg = await sendMessage(message, " ".join(b_msg))
+        if not hasattr(nextmsg, "id"):
+            LOGGER.error("bulk sendMessage failed: %s", nextmsg)
+            return
+        if not getattr(message, "chat", None):
+            LOGGER.error("bulk: message.chat is None")
+            return
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
+        if not nextmsg or getattr(nextmsg, "empty", False):
+            LOGGER.error("bulk get_messages empty")
+            return
         nextmsg.from_user = message.from_user
         _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
         return

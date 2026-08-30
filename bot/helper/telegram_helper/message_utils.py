@@ -20,6 +20,23 @@ from ..ext_utils.exceptions import TgLinkException
 
 async def sendMessage(message, text, buttons=None, photo=None, **kwargs):
     try:
+        if message is None or isinstance(message, str):
+            LOGGER.error("sendMessage: bad message %r", message)
+            return str(message)
+        if getattr(message, "chat", None) is None:
+            cid = kwargs.pop("chat_id", None)
+            if cid is None and getattr(message, "from_user", None) is not None:
+                cid = message.from_user.id
+            if cid is None:
+                LOGGER.error("sendMessage: message.chat is None")
+                return "message.chat is None"
+            try:
+                return await bot.send_message(
+                    chat_id=cid, text=text, disable_web_page_preview=True,
+                    disable_notification=True, reply_markup=buttons, **kwargs)
+            except Exception as e:
+                LOGGER.error(format_exc())
+                return str(e)
         if photo:
             try:
                 if photo == 'IMAGES':

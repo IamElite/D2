@@ -261,6 +261,21 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-R` — WZML HypertgTransfer + HypertgUpload (not shortcut)
+**OLD:** `260830-L` stubs. User 17.57 MB/s ek bot; maanta hai shortcut ki wajah 20+ nahi.
+
+**Sach (WZML wzv3 source):** `_hyper_send` = **ek** client `send_video/document` + least-load helpers. Chunk-split upload **nahi**. 17 MB/s ek bot pe already typical ceiling ke paas.
+
+**Fix:** WZML `tg_transfer.py` (MtprotoPool, HypertgTransfer) + `hyperul_utils.HypertgUpload` (`_hyper_send` / `_direct_send` / flood retry). Main bot client `0`. Engine `send_media` isi path se. Extra speed = `HELPER_TOKENS` (LEECH_LOG admin).
+
+---
+
+### `260830-S` — sendMessage chat=None + multi nextmsg str
+**Galti:** wzgram `Message.reply` `self.chat.type`; `chat` None. `sendMessage` error pe `str` return; `__run_multi` `nextmsg.id` → `'str' has no attribute id`.
+**Fix:** chat None → `bot.send_message`. Multi/bulk: `hasattr(nextmsg,'id')` check.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
