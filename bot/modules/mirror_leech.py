@@ -131,16 +131,15 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         b_msg = input_list[:1]
         b_msg.append(f'{bulk[0]} -i {len(bulk)}')
         nextmsg = await sendMessage(message, " ".join(b_msg))
-        if not hasattr(nextmsg, "id"):
+        if not isinstance(nextmsg, Message):
             LOGGER.error("bulk sendMessage failed: %s", nextmsg)
             return
         if not getattr(message, "chat", None):
             LOGGER.error("bulk: message.chat is None")
             return
-        nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
-        if not nextmsg or getattr(nextmsg, "empty", False):
-            LOGGER.error("bulk get_messages empty")
-            return
+        fetched = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
+        if isinstance(fetched, Message) and not getattr(fetched, "empty", False):
+            nextmsg = fetched
         nextmsg.from_user = message.from_user
         _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
         return
@@ -153,22 +152,41 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         if multi <= 1:
             return
         await sleep(5)
-        if len(bulk) != 0:
-            msg = input_list[:1]
-            msg.append(f'{bulk[0]} -i {multi - 1}')
-            nextmsg = await sendMessage(message, " ".join(msg))
-        else:
-            msg = [s.strip() for s in input_list]
-            index = msg.index('-i')
-            msg[index+1] = f"{multi - 1}"
-            nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
-            nextmsg = await sendMessage(nextmsg, " ".join(msg))
-        nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
-        if folder_name:
-            sameDir['tasks'].add(nextmsg.id)
-        nextmsg.from_user = message.from_user
-        await sleep(5)
-        _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
+        chat = getattr(message, "chat", None)
+        if chat is None:
+            LOGGER.error("multi: message.chat is None")
+            return
+        try:
+            if len(bulk) != 0:
+                msg = input_list[:1]
+                msg.append(f'{bulk[0]} -i {multi - 1}')
+                nextmsg = await sendMessage(message, " ".join(msg))
+            else:
+                msg = [s.strip() for s in input_list]
+                index = msg.index('-i')
+                msg[index + 1] = f"{multi - 1}"
+                reply_id = message.reply_to_message_id
+                if reply_id is not None:
+                    nextmsg = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
+                else:
+                    nextmsg = message
+                if not isinstance(nextmsg, Message) or getattr(nextmsg, "empty", False):
+                    nextmsg = message
+                nextmsg = await sendMessage(nextmsg, " ".join(msg))
+            if not isinstance(nextmsg, Message) or not getattr(nextmsg, "id", None):
+                LOGGER.error("multi sendMessage failed: %r", nextmsg)
+                return
+            fetched = await client.get_messages(chat_id=chat.id, message_ids=nextmsg.id)
+            if isinstance(fetched, Message) and not getattr(fetched, "empty", False):
+                nextmsg = fetched
+            if folder_name and sameDir is not None:
+                sameDir['tasks'].add(nextmsg.id)
+            if message.from_user:
+                nextmsg.from_user = message.from_user
+            await sleep(5)
+            _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
+        except Exception:
+            LOGGER.error("multi failed:\n%s", format_exc())
 
     __run_multi()
 

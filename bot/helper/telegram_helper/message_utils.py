@@ -9,7 +9,7 @@ from cryptography.fernet import InvalidToken
 
 from pyrogram import Client
 from pyrogram.enums import ParseMode
-from pyrogram.types import InputMediaPhoto
+from pyrogram.types import InputMediaPhoto, Message
 from pyrogram.errors import ReplyMarkupInvalid, FloodWait, PeerIdInvalid, ChannelInvalid, RPCError, UserNotParticipant, MessageNotModified, MessageEmpty, PhotoInvalidDimensions, WebpageCurlFailed, MediaEmpty
 
 from ... import config_dict, user_data, categories_dict, bot_cache, LOGGER, bot_name, status_reply_dict, status_reply_dict_lock, Interval, bot, user, download_dict_lock
@@ -18,43 +18,50 @@ from .button_build import ButtonMaker
 from ..ext_utils.exceptions import TgLinkException
 
 
+def _chat_id_of(message):
+    chat = getattr(message, "chat", None)
+    cid = getattr(chat, "id", None)
+    if cid is not None:
+        return cid
+    if getattr(message, "from_user", None) is not None:
+        return message.from_user.id
+    return None
+
+
 async def sendMessage(message, text, buttons=None, photo=None, **kwargs):
     try:
         if message is None or isinstance(message, str):
             LOGGER.error("sendMessage: bad message %r", message)
-            return str(message)
-        if getattr(message, "chat", None) is None:
-            cid = kwargs.pop("chat_id", None)
-            if cid is None and getattr(message, "from_user", None) is not None:
-                cid = message.from_user.id
-            if cid is None:
-                LOGGER.error("sendMessage: message.chat is None")
-                return "message.chat is None"
-            try:
-                return await bot.send_message(
-                    chat_id=cid, text=text, disable_web_page_preview=True,
-                    disable_notification=True, reply_markup=buttons, **kwargs)
-            except Exception as e:
-                LOGGER.error(format_exc())
-                return str(e)
+            return None
+        cid = kwargs.pop("chat_id", None) or _chat_id_of(message)
+        mid = getattr(message, "id", None)
+        if cid is None:
+            LOGGER.error("sendMessage: no chat id")
+            return None
         if photo:
             try:
                 if photo == 'IMAGES':
                     photo = rchoice(config_dict['IMAGES'])
-                return await message.reply_photo(photo=photo, reply_to_message_id=message.id,
-                                                 caption=text, reply_markup=buttons, disable_notification=True, **kwargs)
+                return await bot.send_photo(
+                    chat_id=cid, photo=photo, caption=text, reply_markup=buttons,
+                    reply_to_message_id=mid, disable_notification=True, **kwargs)
             except IndexError:
                 pass
             except (PhotoInvalidDimensions, WebpageCurlFailed, MediaEmpty):
                 des_dir = await download_image_url(photo)
-                await sendMessage(message, text, buttons, des_dir)
+                sent = await sendMessage(message, text, buttons, des_dir)
                 await aioremove(des_dir)
-                return
-            except Exception as e:
+                return sent
+            except Exception:
                 LOGGER.error(format_exc())
-        return await message.reply(text=text, quote=True, disable_web_page_preview=True, disable_notification=True,
-                                    reply_markup=buttons, reply_to_message_id=rply.id if (rply := message.reply_to_message) and not rply.text and not rply.caption else None,
-                                    **kwargs)
+        rply = getattr(message, "reply_to_message", None)
+        reply_id = mid
+        if rply and not rply.text and not rply.caption:
+            reply_id = rply.id
+        return await bot.send_message(
+            chat_id=cid, text=text, disable_web_page_preview=True,
+            disable_notification=True, reply_markup=buttons,
+            reply_to_message_id=reply_id, **kwargs)
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
@@ -63,9 +70,9 @@ async def sendMessage(message, text, buttons=None, photo=None, **kwargs):
         return await sendMessage(message, text, None, photo)
     except MessageEmpty:
         return await sendMessage(message, text, parse_mode=ParseMode.DISABLED)
-    except Exception as e:
+    except Exception:
         LOGGER.error(format_exc())
-        return str(e)
+        return None
 
 
 async def sendCustomMsg(chat_id, text, buttons=None, photo=None, debug=False):
@@ -328,7 +335,13 @@ async def sendStatusMessage(msg):
     if progress is None:
         return
     async with status_reply_dict_lock:
-        chat_id = msg.chat.id
+        chat = getattr(msg, "chat", None)
+        chat_id = getattr(chat, "id", None)
+        if chat_id is None and getattr(msg, "from_user", None) is not None:
+            chat_id = msg.from_user.id
+        if chat_id is None:
+            LOGGER.error("sendStatusMessage: no chat")
+            return
         if chat_id in list(status_reply_dict.keys()):
             message = status_reply_dict[chat_id][0]
             await deleteMessage(message)
