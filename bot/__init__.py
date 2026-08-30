@@ -217,7 +217,7 @@ if len(EXCEP_CHATS) == 0:
 
 def wztgClient(*args, **kwargs):
     if 'max_concurrent_transmissions' in signature(tgClient.__init__).parameters:
-        kwargs['max_concurrent_transmissions'] = 1000
+        kwargs['max_concurrent_transmissions'] = 16
     return tgClient(*args, **kwargs)
 
 # --- Add this block to ensure an event loop exists ---
@@ -328,7 +328,7 @@ BOT_MAX_TASKS = int(BOT_MAX_TASKS) if BOT_MAX_TASKS.isdigit() else ''
 
 STATUS_UPDATE_INTERVAL = environ.get('STATUS_UPDATE_INTERVAL', '')
 if len(STATUS_UPDATE_INTERVAL) == 0:
-    STATUS_UPDATE_INTERVAL = 2
+    STATUS_UPDATE_INTERVAL = 6
 else:
     STATUS_UPDATE_INTERVAL = int(STATUS_UPDATE_INTERVAL)
 
@@ -770,7 +770,11 @@ if ospath.exists('shorteners.txt'):
                 shorteners_list.append({'domain': temp[0],'api_key': temp[1]})
 
 PORT = environ.get('PORT')
-Popen(f"gunicorn web.wserver:app --bind 0.0.0.0:{PORT} --worker-class gevent", shell=True)
+Popen(
+    f"gunicorn web.wserver:app --bind 0.0.0.0:{PORT} --workers 1 "
+    f"--worker-class gevent --worker-connections 100 --timeout 120",
+    shell=True,
+)
 
 bot_cache['pkgs'] = ['zetra', 'xon-bit', 'ggrof', 'cross-suck', 'zetra|xon-bit|ggrof|cross-suck']
 
@@ -780,7 +784,12 @@ if not ospath.exists('.netrc'):
         pass
 srun(["chmod", "600", ".netrc"])
 srun(["cp", ".netrc", "/root/.netrc"])
-trackers = check_output("curl -Ns https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/all.txt https://ngosang.github.io/trackerslist/trackers_all_http.txt https://newtrackon.com/api/all https://raw.githubusercontent.com/hezhijie0327/Trackerslist/main/trackerslist_tracker.txt | awk '$0' | tr '\n\n' ','", shell=True).decode('utf-8').rstrip(',')
+trackers = check_output(
+    "curl -Ns https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt "
+    "https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/best.txt "
+    "| awk 'NF' | tr '\\n' ','",
+    shell=True,
+).decode('utf-8').rstrip(',')
 with open("a2c.conf", "a+") as a:
     if TORRENT_TIMEOUT:
         a.write(f"bt-stop-timeout={TORRENT_TIMEOUT}\n")
@@ -810,9 +819,9 @@ def get_client():
                             'timeout': (30, 60)
                 },
                 HTTPADAPTER_ARGS={
-                            "pool_maxsize": 500,
-                            "max_retries": 10,
-                            "pool_block": True,
+                            "pool_maxsize": 32,
+                            "max_retries": 3,
+                            "pool_block": False,
                 },
     )
 
@@ -820,19 +829,13 @@ def get_client():
 def aria2c_init():
     try:
         log_info("Initializing Aria2c")
-        link = "https://linuxmint.com/torrents/lmde-5-cinnamon-64bit.iso.torrent"
-        dire = DOWNLOAD_DIR.rstrip("/")
-        aria2.add_uris([link], {'dir': dire})
-        sleep(3)
-        downloads = aria2.get_downloads()
-        sleep(10)
-        aria2.remove(downloads, force=True, files=True, clean=True)
+        aria2.get_global_options()
     except Exception as e:
         log_error(f"Aria2c initializing error: {e}")
 
 
 Thread(target=aria2c_init).start()
-sleep(1.5)
+sleep(0.5)
 
 aria2c_global = ['bt-max-open-files', 'download-result', 'keep-unfinished-download-result', 'log', 'log-level',
                  'max-concurrent-downloads', 'max-download-result', 'max-overall-download-limit', 'save-session',
@@ -860,7 +863,7 @@ else:
     qb_client.app_set_preferences(qb_opt)
 
 log_info("Creating client from BOT_TOKEN")
-bot = wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=1000,
+bot = wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=32,
                parse_mode=enums.ParseMode.HTML).start()
 bot_loop = bot.loop
 bot_name = bot.me.username

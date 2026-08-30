@@ -110,24 +110,27 @@ async def __qb_listener():
     while True:
         async with qb_listener_lock:
             try:
-                if len(await sync_to_async(client.torrents_info)) == 0:
+                torrents = await sync_to_async(client.torrents_info)
+                if len(torrents) == 0:
                     QbInterval.clear()
                     await sync_to_async(client.auth_log_out)
                     break
-                for tor_info in await sync_to_async(client.torrents_info):
+                now = time()
+                for tor_info in torrents:
                     tag = tor_info.tags
                     if tag not in QbTorrents:
                         continue
                     state = tor_info.state
                     if state == "metaDL":
                         TORRENT_TIMEOUT = config_dict['TORRENT_TIMEOUT']
-                        QbTorrents[tag]['stalled_time'] = time()
-                        if TORRENT_TIMEOUT and time() - tor_info.added_on >= TORRENT_TIMEOUT:
+                        QbTorrents[tag]['stalled_time'] = now
+                        if TORRENT_TIMEOUT and now - tor_info.added_on >= TORRENT_TIMEOUT:
                             __onDownloadError("Dead Torrent!", tor_info)
-                        else:
+                        elif now - QbTorrents[tag].get('last_reannounce', 0) >= 60:
+                            QbTorrents[tag]['last_reannounce'] = now
                             await sync_to_async(client.torrents_reannounce, torrent_hashes=tor_info.hash)
                     elif state == "downloading":
-                        QbTorrents[tag]['stalled_time'] = time()
+                        QbTorrents[tag]['stalled_time'] = now
                         if config_dict['STOP_DUPLICATE'] and not QbTorrents[tag]['stop_dup_check']:
                             QbTorrents[tag]['stop_dup_check'] = True
                             __stop_duplicate(tor_info)
@@ -143,9 +146,10 @@ async def __qb_listener():
                             LOGGER.warning(msg)
                             await sync_to_async(client.torrents_recheck, torrent_hashes=tor_info.hash)
                             QbTorrents[tag]['rechecked'] = True
-                        elif TORRENT_TIMEOUT and time() - QbTorrents[tag]['stalled_time'] >= TORRENT_TIMEOUT:
+                        elif TORRENT_TIMEOUT and now - QbTorrents[tag]['stalled_time'] >= TORRENT_TIMEOUT:
                             __onDownloadError("Dead Torrent!", tor_info)
-                        else:
+                        elif now - QbTorrents[tag].get('last_reannounce', 0) >= 60:
+                            QbTorrents[tag]['last_reannounce'] = now
                             await sync_to_async(client.torrents_reannounce, torrent_hashes=tor_info.hash)
                     elif state == "missingFiles":
                         await sync_to_async(client.torrents_recheck, torrent_hashes=tor_info.hash)
