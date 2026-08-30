@@ -426,7 +426,7 @@ if len(UPSTREAM_REPO) == 0:
 
 UPSTREAM_BRANCH = environ.get('UPSTREAM_BRANCH', '')
 if len(UPSTREAM_BRANCH) == 0:
-    UPSTREAM_BRANCH = 'srmlx'
+    UPSTREAM_BRANCH = 'arnv1'
     
 UPGRADE_PACKAGES = environ.get('UPGRADE_PACKAGES', '')
 UPGRADE_PACKAGES = UPGRADE_PACKAGES.lower() == 'true'
@@ -861,6 +861,32 @@ else:
         if v in ["", "*"]:
             del qb_opt[k]
     qb_client.app_set_preferences(qb_opt)
+
+# Overlay after Mongo so DB cannot restore mmap/1-hash-thread (CPU spike, slow DL)
+try:
+    qb_client.app_set_preferences({
+        'async_io_threads': 2,
+        'hashing_threads': 2,
+        'disk_cache': 64,
+        'disk_io_type': 0,
+        'max_connec': 200,
+        'max_connec_per_torrent': 80,
+        'max_uploads': 8,
+        'max_uploads_per_torrent': 4,
+        'lsd': False,
+        'dht': True,
+        'pex': True,
+        'queueing_enabled': True,
+        'max_active_downloads': 5,
+        'max_active_torrents': 8,
+        'max_active_uploads': 2,
+        'preallocate_all': False,
+        'recheck_completed_torrents': False,
+        'current_network_interface': '',
+    })
+    log_info("qBit runtime prefs: default disk IO, 2 hash threads, 200 conn")
+except Exception as e:
+    log_error(f"qBit runtime prefs failed: {e}")
 
 log_info("Creating client from BOT_TOKEN")
 bot = wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=32,

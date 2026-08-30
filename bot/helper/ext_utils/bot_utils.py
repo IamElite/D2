@@ -34,7 +34,7 @@ from ..telegram_helper.button_build import ButtonMaker
 from .telegraph_helper import telegraph
 from .shortners import short_url
 
-THREADPOOL   = ThreadPoolExecutor(max_workers=1000)
+THREADPOOL   = ThreadPoolExecutor(max_workers=24)
 MAGNET_REGEX = r'magnet:\?xt=urn:(btih|btmh):[a-zA-Z0-9]*\s*'
 URL_REGEX    = r'^(?!\/)(rtmps?:\/\/|mms:\/\/|rtsp:\/\/|https?:\/\/|ftp:\/\/)?([^\/:]+:[^\/@]+@)?(www\.)?(?=[^\/:\s]+\.[^\/:\s]+)([^\/:\s]+\.[^\/:\s]+)(:\d+)?(\/[^#\s]*[\s\S]*)?(\?[^#\s]*)?(#.*)?$'
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']

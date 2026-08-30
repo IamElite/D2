@@ -158,3 +158,29 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 - [x] `brain.md` ko `arnv1` pe push (`260830-E`)
 - [ ] User idle CPU number after `arnv1` deploy
 - [ ] Agar Mongo overwrite confirm ho to DB clear steps
+- [ ] Heroku config: `UPSTREAM_BRANCH=arnv1` (warna `update.py` srmlx pe wipe)
+
+---
+
+### `260830-F` — dost 29MB/s @ 27% CPU vs hum 20MB/s @ 95%  
+**Git:** (push ke baad)  
+**Date:** 2026-08-30  
+**OLD:** `260830-A` + `260830-B` (mmap DiskIOType=4, HashingThreads=1, conn cap, aur **srmlx reset**)
+
+**Galti (scan):**
+1. `start.sh` → `update.py` **har boot** `git reset --hard origin/srmlx` — `arnv1` fixes live pe apply hi nahi ho rahe the (Mongo/env default `srmlx`).
+2. `DiskIOType=4` mmap extra CPU, speed nahi.
+3. `HashingThreadsCount=1` SHA-1 ek core pe 100% + DL wait = slow + 95% CPU.
+4. `THREADPOOL max_workers=1000` (bot_utils) — same class ki galti jo pyrogram 1000 thi.
+5. Mongo `qbit_options` boot pe conf overwrite.
+
+**Fix:**
+- Default `UPSTREAM_BRANCH=arnv1` (`update.py` + `__init__.py`)
+- qBit DiskIO **0 (default)**, hashing **2**, connections **200/80** (speed dost jaisa)
+- Runtime `app_set_preferences` Mongo ke **baad** overlay
+- THREADPOOL **24**
+- mmap / CoalesceReadWrite hata
+
+**Heroku pe zaroor:** config var `UPSTREAM_BRANCH=arnv1` (Mongo me purana `srmlx` ho to overwrite). Restart.
+
+**Note:** Dost ke 27% pe 29MB/s = zyada vCPU ya alag host ho sakta hai (F: 175GB vs 253GB). Phir bhi srmlx-wipe + mmap + 1 hash thread hamare 95% explain karta hai.

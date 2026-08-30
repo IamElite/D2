@@ -64,14 +64,14 @@ if DATABASE_URL := config_file.get("DATABASE_URL", "").strip():
         config_dict = db.settings.config.find_one({"_id": BOT_ID})
         if (old_config is not None and old_config == config_file or old_config is None) and config_dict is not None:
             config_file["UPSTREAM_REPO"] = config_dict["UPSTREAM_REPO"]
-            config_file["UPSTREAM_BRANCH"] = config_dict.get("UPSTREAM_BRANCH", "srmlx")
+            config_file["UPSTREAM_BRANCH"] = config_dict.get("UPSTREAM_BRANCH", "arnv1")
             config_file["UPDATE_PKGS"] = config_dict.get("UPDATE_PKGS", "True")
         conn.close()
     except Exception as e:
         log_error(f"Database ERROR: {e}")
 
 UPSTREAM_REPO = str(config_file.get("UPSTREAM_REPO", "")).strip()
-UPSTREAM_BRANCH = str(config_file.get("UPSTREAM_BRANCH", "")).strip() or "srmlx"
+UPSTREAM_BRANCH = str(config_file.get("UPSTREAM_BRANCH", "")).strip() or "arnv1"
 
 if UPSTREAM_REPO and "github.com" in UPSTREAM_REPO and "@" in UPSTREAM_REPO:
     if "x-access-token:" not in UPSTREAM_REPO:
