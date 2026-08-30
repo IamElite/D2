@@ -163,7 +163,7 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 ---
 
 ### `260830-F` — dost 29MB/s @ 27% CPU vs hum 20MB/s @ 95%  
-**Git:** (push ke baad)  
+**Git:** `1a65b9` (`1a65b9d`)  
 **Date:** 2026-08-30  
 **OLD:** `260830-A` + `260830-B` (mmap DiskIOType=4, HashingThreads=1, conn cap, aur **srmlx reset**)
 
