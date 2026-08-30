@@ -249,6 +249,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-P` — pyrogramEngine rewrite (wzgram)
+**User:** 9 MB/s, sochta hai old engine Bot API 20+ nahi de sakta.
+**Sach:** Telegram bot MTProto ~8–12 MB/s typical; 20+ **user/helper**. Engine phir bhi 0 se: signature-filter send_*, FloodWait loop, tenacity-restart hata, thumb/caption/remux/log/PM/dump/media-group same.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.

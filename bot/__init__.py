@@ -6,7 +6,7 @@ from inspect import signature
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import Client as tgClient, enums, utils as pyroutils
 from pymongo import MongoClient
-from asyncio import Lock, get_event_loop, new_event_loop, set_event_loop
+from asyncio import Lock, get_event_loop, new_event_loop, set_event_loop, iscoroutine
 from dotenv import load_dotenv, dotenv_values
 from threading import Thread
 from time import sleep, time
@@ -248,6 +248,21 @@ def wztgClient(*args, **kwargs):
         kwargs['max_concurrent_transmissions'] = 8
     return tgClient(*args, **kwargs)
 
+
+def _start_tg(client):
+    """pyrofork Client.start() is sync; wzgram returns a coroutine."""
+    started = client.start()
+    if iscoroutine(started):
+        try:
+            loop = get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('closed')
+        except Exception:
+            loop = new_event_loop()
+            set_event_loop(loop)
+        return loop.run_until_complete(started)
+    return client if started is None else started
+
 # --- Add this block to ensure an event loop exists ---
 # try:
 #     loop = get_event_loop()
@@ -261,8 +276,8 @@ USER_SESSION_STRING = environ.get('USER_SESSION_STRING', '')
 if len(USER_SESSION_STRING) != 0:
     log_info("Creating client from USER_SESSION_STRING")
     try:
-        user = wztgClient('user', TELEGRAM_API, TELEGRAM_HASH, session_string=USER_SESSION_STRING,
-                        parse_mode=enums.ParseMode.HTML, no_updates=True).start()
+        user = _start_tg(wztgClient('user', TELEGRAM_API, TELEGRAM_HASH, session_string=USER_SESSION_STRING,
+                        parse_mode=enums.ParseMode.HTML, no_updates=True))
         IS_PREMIUM_USER = user.me.is_premium
     except Exception as e:
         log_error(f"Failed making client from USER_SESSION_STRING : {e}")
@@ -926,8 +941,8 @@ except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=32,
-               parse_mode=enums.ParseMode.HTML).start()
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=32,
+               parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 bot_name = bot.me.username
 scheduler = AsyncIOScheduler(timezone=str(get_localzone()), event_loop=bot_loop)
