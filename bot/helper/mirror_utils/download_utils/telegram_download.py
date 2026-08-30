@@ -5,6 +5,7 @@ from asyncio import Lock
 from pyrogram import Client, StopTransmission
 
 from .... import LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock, bot, user, IS_PREMIUM_USER
+from ...ext_utils.hyperdl_utils import pick_download_client
 from ..status_utils.telegram_status import TelegramStatus
 from ..status_utils.queue_status import QueueStatus
 from ...telegram_helper.message_utils import sendStatusMessage, sendMessage, delete_links
@@ -97,13 +98,15 @@ class TelegramDownloadHelper:
 
     async def add_download(self, message, path, filename, session, decrypter):
         if session == 'user':
-            self.__client = user
+            self.__client = pick_download_client('user')
             if not self.__listener.isSuperGroup:
                 await sendMessage(message, 'Use SuperGroup to download this Link with User!')
                 return
         elif session == 'user_sess':
             self.__client = None
             self.__decrypter = decrypter
+        else:
+            self.__client = pick_download_client('bot')
 
         media = getattr(message, message.media.value) if message.media else None
         

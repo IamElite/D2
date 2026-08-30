@@ -15,6 +15,8 @@ from natsort import natsorted
 from aioshutil import copy
 
 from .... import config_dict, user_data, GLOBAL_EXTENSION_FILTER, bot, user, IS_PREMIUM_USER
+from ...ext_utils.hyperul_utils import pick_upload_client
+from ...telegram_helper.tg_transfer import release_hyper_client
 from ...themes import BotTheme
 from ...telegram_helper.button_build import ButtonMaker
 from ...telegram_helper.message_utils import sendCustomMsg, editReplyMarkup, sendMultiMessage, chat_info, deleteMessage, get_tg_link_content
@@ -48,6 +50,7 @@ class TgUploader:
         self.__last_msg_in_group = False
         self.__prm_media = False
         self.__client = bot
+        self.__hyper_idx = None
         self.__up_path = ''
         self.__mediainfo = False
         self.__as_doc = False
@@ -278,14 +281,19 @@ class TgUploader:
         return rlist
 
     async def __switching_client(self):
-        # <2GB bot API ~8-12 MB/s; user session MTProto on DC often ~15-25 without Premium
-        if self.__prm_media:
-            self.__client = user if IS_PREMIUM_USER else bot
+        release_hyper_client(self.__hyper_idx)
+        try:
+            fsize = await aiopath.getsize(self.__up_path) if self.__up_path else 0
+        except Exception:
+            fsize = 0
+        if self.__prm_media and not IS_PREMIUM_USER:
+            self.__client, self.__hyper_idx = bot, None
         else:
-            self.__client = user if user else bot
-        who = "User" if self.__client is user and user else "Bot"
+            self.__client, self.__hyper_idx = pick_upload_client(
+                prefer_user_for_small=True, file_size=fsize)
+        who = "User" if self.__client is user and user else ("Hyper" if self.__hyper_idx else "Bot")
         if who == "Bot":
-            LOGGER.warning("Leech via Bot API (~8-12 MB/s). Set USER_SESSION_STRING for ~20 MB/s")
+            LOGGER.warning("Leech via Bot API (~8-12 MB/s). Set USER_SESSION_STRING or HELPER_TOKENS")
         LOGGER.info(f'Uploading Media {">" if self.__prm_media else "<"} 2GB by {who} Client')
 
     async def __send_media_group(self, subkey, key, msgs):
@@ -568,5 +576,6 @@ class TgUploader:
 
     async def cancel_download(self):
         self.__is_cancelled = True
+        release_hyper_client(self.__hyper_idx)
         LOGGER.info(f"Cancelling Upload: {self.name}")
         await self.__listener.onUploadError('Your Upload has been Stopped!')

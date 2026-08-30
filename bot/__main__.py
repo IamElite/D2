@@ -244,6 +244,10 @@ async def log_check():
 
 async def main():
     await gather(start_cleanup(), torrent_search.initiate_search_tools(), restart_notification(), search_images(), set_commands(bot), log_check())
+    try:
+        await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
+    except Exception as e:
+        LOGGER.error(f"HyperUP helpers skipped: {e}")
     await sync_to_async(start_aria2_listener, wait=False)
     
     bot.add_handler(MessageHandler(
