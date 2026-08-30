@@ -45,7 +45,7 @@ def _patch_tg_upload_queue(depth=8):
     except Exception as e:
         log_warning(f"TG upload queue patch skipped: {e}")
 
-_patch_tg_upload_queue(8)
+_patch_tg_upload_queue(4)
 
 pyroutils.MIN_CHAT_ID = -999999999999
 pyroutils.MIN_CHANNEL_ID = -100999999999999

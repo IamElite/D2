@@ -32,8 +32,8 @@ psutil
 pybase64
 pycountry
 pymongo
-# drop-in pyrogram fork (pip: kurigram, import: pyrogram)
-kurigram
+# WZML-X wzv3 engine (drop-in pyrogram). HyperUL needs extra helper bots — see brain.md
+wzgram
 python-dotenv
 python-magic
 qbittorrent-api
