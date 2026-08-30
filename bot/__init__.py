@@ -584,6 +584,10 @@ SHOW_EXTRA_CMDS = SHOW_EXTRA_CMDS.lower() == 'true'
 TOKEN_TIMEOUT = environ.get('TOKEN_TIMEOUT', '')
 TOKEN_TIMEOUT = int(TOKEN_TIMEOUT) if TOKEN_TIMEOUT.isdigit() else ''
 
+HELPER_TOKENS = environ.get('HELPER_TOKENS', '')
+if len(HELPER_TOKENS) == 0:
+    HELPER_TOKENS = ''
+
 LOGIN_PASS = environ.get('LOGIN_PASS', '')
 if len(LOGIN_PASS) == 0:
     LOGIN_PASS = None

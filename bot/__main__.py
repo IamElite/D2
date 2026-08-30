@@ -22,6 +22,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from . import bot, user, bot_name, config_dict, user_data, botStartTime, LOGGER, Interval, DATABASE_URL, QbInterval, INCOMPLETE_TASK_NOTIFIER, scheduler, bot_cache
 from .version import get_version
 from .helper.ext_utils.fs_utils import start_cleanup, clean_all, exit_clean_up
+from .helper.ext_utils.hyperul_utils import start_helper_bots
 from .helper.ext_utils.bot_utils import get_readable_time, cmd_exec, sync_to_async, new_task, set_commands, update_user_ldata, get_stats
 from .helper.ext_utils.db_handler import DbManger
 from .helper.telegram_helper.bot_commands import BotCommands
@@ -269,6 +270,11 @@ async def main():
     LOGGER.info(f"KPSML-X Bot [@{bot_name}] Started!")
     if user:
         LOGGER.info(f"KPSML-X User [@{user.me.username}] Ready!")
+    from .helper.telegram_helper.tg_transfer import helper_bots
+    if helper_bots:
+        LOGGER.info(f"HyperUP helpers online: {len(helper_bots)}")
+    else:
+        LOGGER.info("HyperUP helpers: none (set HELPER_TOKENS for extra bots)")
     signal(SIGINT, exit_clean_up)
 
 async def stop_signals():

@@ -33,12 +33,22 @@ async def start_helper_bots(tokens: str):
             await h.start()
             helper_bots[no] = h
             helper_loads[no] = 0
-            LOGGER.info("HyperUP helper [@%s] started", h.me.username)
+            uname = getattr(h.me, "username", None) or h.me.first_name
+            ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
         except Exception as e:
-            LOGGER.error("HyperUP helper %s failed (ignored): %s", no, e)
+            ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
 
     toks = [t for t in str(tokens).split() if t.strip()]
+    ROOT.info(f"HyperUP: starting {len(toks)} helper bot(s) from HELPER_TOKENS")
     await gather(*(_one(i, t) for i, t in enumerate(toks, start=1)))
+    if helper_bots:
+        names = ", ".join(
+            f"#{n} @{getattr(b.me, 'username', None) or b.me.first_name}"
+            for n, b in helper_bots.items()
+        )
+        ROOT.info(f"HyperUP ready: {len(helper_bots)} helper(s) — {names}")
+    else:
+        ROOT.warning("HyperUP: no helper bots running — upload uses main bot/user")
 
 
 def pick_upload_client(prefer_user_for_small=True, file_size=0):

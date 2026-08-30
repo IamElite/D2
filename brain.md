@@ -224,6 +224,13 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 
 ---
 
+### `260830-L` — HyperUP/HyperDL files (crash-safe, WZML trimmed)
+**Files:** `tg_transfer.py`, `hyperul_utils.py`, `hyperdl_utils.py`; wired in `pyrogramEngine`, `telegram_download`, `__main__`.
+
+WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Extra `HELPER_TOKENS` (space-separated bot tokens, sab LEECH_LOG/group me admin). Bina tokens: user session → bot, **boot crash nahi**.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
