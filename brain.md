@@ -179,6 +179,25 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 
 ---
 
+### `260830-H` — leech upload 9.5 MB/s → user-session + pipeline  
+**Git:** (push ke baad)  
+**OLD:** har <2GB file **bot client** (`__switching_client`); pyrogram `Queue(1)` ek chunk.
+
+**User:** DL 84 MB/s, UL **9.57 MB/s** PyroMulti; dost **20+** bina Premium. Kurigram / WZML-X wzv3 soch.
+
+**Mat karo:** poora WZML-X Heroku pe — user kehte hain **Heroku account uda deta hai**. Kurigram drop-in nahi (pyrofork 2.2.11 API); rewrite + risk, speed ka source library name nahi.
+
+**Asli bottleneck:** `<2GB` hamesha **Bot API**. User session MTProto DC se 15–25 MB/s common.
+
+**Fix:**
+- `user` session ho to **saari <2GB leech user client** se
+- `sleep_threshold=60`, concurrent TX 8
+- `save_file` `Queue(1)` → `Queue(8)` pipeline
+
+**Zaroor:** Heroku `USER_SESSION_STRING` (user us chat/LEECH_LOG me ho). Premium sirf **>2GB** ke liye.
+
+---
+
 ### `260830-F` — dost 29MB/s @ 27% CPU vs hum 20MB/s @ 95%  
 **Git:** `1a65b9` (`1a65b9d`)  
 **Date:** 2026-08-30  
