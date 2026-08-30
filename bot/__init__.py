@@ -47,8 +47,11 @@ def _patch_tg_upload_queue(depth=8):
 
 _patch_tg_upload_queue(4)
 
-pyroutils.MIN_CHAT_ID = -999999999999
-pyroutils.MIN_CHANNEL_ID = -100999999999999
+try:
+    pyroutils.MIN_CHAT_ID = -999999999999
+    pyroutils.MIN_CHANNEL_ID = -100999999999999
+except Exception:
+    pass
 
 botStartTime = time()
 
@@ -928,4 +931,3 @@ bot = wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, worker
 bot_loop = bot.loop
 bot_name = bot.me.username
 scheduler = AsyncIOScheduler(timezone=str(get_localzone()), event_loop=bot_loop)
-r(timezone=str(get_localzone()), event_loop=bot_loop)

@@ -231,6 +231,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260830-M` — NameError HELPER_TOKENS + helper logs
+**Crash:** `config_dict['HELPER_TOKENS']` tha, variable define nahi.
+**Fix:** `HELPER_TOKENS = environ.get(...)` pehle. `__main__` me `start_helper_bots` import. Logger: `HyperUP Helper Bot #N [@user] ID=... Started!`
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
