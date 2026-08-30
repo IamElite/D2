@@ -278,8 +278,13 @@ class TgUploader:
         return rlist
 
     async def __switching_client(self):
-        LOGGER.info(f'Uploading Media {">" if self.__prm_media else "<"} 2GB by {"User" if self.__prm_media else "Bot"} Client')
-        self.__client = user if (self.__prm_media and IS_PREMIUM_USER) else bot
+        # <2GB bot API ~8-12 MB/s; user session MTProto on DC often ~15-25 without Premium
+        if self.__prm_media:
+            self.__client = user if IS_PREMIUM_USER else bot
+        else:
+            self.__client = user if user else bot
+        who = "User" if self.__client is user and user else "Bot"
+        LOGGER.info(f'Uploading Media {">" if self.__prm_media else "<"} 2GB by {who} Client')
 
     async def __send_media_group(self, subkey, key, msgs):
         msgs_list = await msgs[0].reply_to_message.reply_media_group(media=self.__get_input_media(subkey, key),

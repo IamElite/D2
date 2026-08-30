@@ -18,10 +18,31 @@ from faulthandler import enable as faulthandler_enable
 from socket import setdefaulttimeout
 from logging import getLogger, Formatter, FileHandler, StreamHandler, INFO, ERROR, basicConfig, error as log_error, info as log_info, warning as log_warning
 from uvloop import install
+from importlib import reload as importlib_reload
 
 faulthandler_enable()
 install()
 setdefaulttimeout(600)
+
+def _patch_tg_upload_queue(depth=8):
+    """Pyrogram save_file uses Queue(1) = 1 chunk in flight. Depth 8 pipelines MTProto parts."""
+    try:
+        from pyrogram.methods.advanced import save_file as sf
+        path = getattr(sf, '__file__', None)
+        if not path:
+            return
+        with open(path, 'r', encoding='utf-8') as fh:
+            src = fh.read()
+        if 'Queue(1)' not in src:
+            return
+        with open(path, 'w', encoding='utf-8') as fh:
+            fh.write(src.replace('Queue(1)', f'Queue({depth})', 1))
+        importlib_reload(sf)
+        log_info(f"TG upload pipeline Queue({depth})")
+    except Exception as e:
+        log_warning(f"TG upload queue patch skipped: {e}")
+
+_patch_tg_upload_queue(8)
 
 pyroutils.MIN_CHAT_ID = -999999999999
 pyroutils.MIN_CHANNEL_ID = -100999999999999
@@ -216,8 +237,9 @@ if len(EXCEP_CHATS) == 0:
     EXCEP_CHATS = ''
 
 def wztgClient(*args, **kwargs):
+    kwargs.setdefault('sleep_threshold', 60)
     if 'max_concurrent_transmissions' in signature(tgClient.__init__).parameters:
-        kwargs['max_concurrent_transmissions'] = 16
+        kwargs['max_concurrent_transmissions'] = 8
     return tgClient(*args, **kwargs)
 
 # --- Add this block to ensure an event loop exists ---
