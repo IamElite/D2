@@ -211,6 +211,14 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 
 ---
 
+### `260830-J` — requirements.txt extension
+**Git:** (push ke baad)
+**OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
+**Fix:** `git mv requirements requirements.txt`.
+
+
+---
+
 ### `260830-F` — dost 29MB/s @ 27% CPU vs hum 20MB/s @ 95%  
 **Git:** `1a65b9` (`1a65b9d`)  
 **Date:** 2026-08-30  
