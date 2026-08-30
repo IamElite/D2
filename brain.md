@@ -211,6 +211,19 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 
 ---
 
+### `260830-K` — WZML HyperUL/HyperDL scan; wzgram; Kurigram 5 MB/s  
+**OLD:** `260830-I` Kurigram → UL **5.1 MB/s** (worse than pyrofork 9).
+
+**WZML-X wzv3 (checked):**
+- Engine: **`wzgram`** (not kurigram)
+- Speed: `hyperul_utils.py` + `hyperdl_utils.py` + `tg_transfer.py` **HypertgTransfer**
+- **HyperUP = multi-bot / helper_bots + helper_users** parallel MTProto (`USE_HYPER`, extra tokens). 1 bot = no Hyper.
+- Poora WZML Heroku pe **mat** (account ban).
+
+**Fix this repo:** `kurigram` → **`wzgram`**. Queue patch 8→4 (flood). Hyper multi-bot baad me extra `BOT_TOKEN`s chahiye.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
