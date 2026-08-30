@@ -119,7 +119,7 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 ---
 
 ### `260830-E` — brain.md git pe (local delete se bachao)  
-**Git:** (push ke baad yahan short hash)  
+**Git:** `94e15e` (`94e15eb`)  
 **Date:** 2026-08-30  
 **Files:** `brain.md`
 
@@ -155,6 +155,6 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 
 ## Next (pending)
 
-- [ ] `brain.md` ko `arnv1` pe push (naya PAT; purana revoke)
+- [x] `brain.md` ko `arnv1` pe push (`260830-E`)
 - [ ] User idle CPU number after `arnv1` deploy
 - [ ] Agar Mongo overwrite confirm ho to DB clear steps
