@@ -322,6 +322,10 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 **Galti:** `stream_media(limit=5)` = ~5MB start. MP4 `moov` file ke **end** pe → sirf General, Video/Audio gayab. Dost ke file pe moov start pe tha.
 **Fix:** head 16MB + tail 16MB (HTTP Range / stream offset). Full file ≤50MB download. `/mi7` crash-safe.
 
+### `260831-J` — TG 19 MB/s lock (HyperDL stub + UL Queue 4)
+**Galti:** hyperdl 22-line stub; engine `send_video` HyperUL skip; `Queue(4)`.
+**Fix:** parallel GetFile 6 media sessions; engine `HypertgUpload.send_media`; save_file Queue 16 / workers 16; concurrent TX 16. 30+ DC/user-session pe depend.
+
 ### `260831-I` — MP4 `-c copy` stream Title uda deta (terminal test)
 **Test:** `ffmpeg -map 0 -c copy` orig.mp4 → Video/Audio **Title gayab**. Comment rehta.
 **Fix:** ffprobe tags copy + `-metadata:s:v:N`/`s:a:N` phir user METADATA overlay. `edit_metadata` + remux.
