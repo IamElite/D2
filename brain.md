@@ -459,3 +459,7 @@ Leech Type default MEDIA (as_doc False, no AS_DOCUMENT force).
 Bot PM default Enabled; button Enabled [✅ Bot PM] / Disabled [ Bot PM ]; user can off (no config force).
 Reset: Are you sure... 1 Confirm / 2 No (1 col). Confirm reset+home, No home no reset.
 
+
+### 260831-W — Leech caption Bot PM (no brackets)
+Caption: Enabled - ✅ Bot PM / Disabled Bot PM. Toggle buttons Enable/Disable Bot PM.
+

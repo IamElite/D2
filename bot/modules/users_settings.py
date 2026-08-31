@@ -109,8 +109,8 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         u_sess = 'Exists' if user_dict.get('usess', False) else 'Not Exists'
         buttons.ibutton(f"{'✅️' if u_sess != 'Not Exists' else ''} User Session", f"userset {user_id} usess")
         bot_pm_on = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
-        bot_pm = "Enabled" if bot_pm_on else "Disabled"
-        buttons.ibutton('Enabled [✅ Bot PM]' if bot_pm_on else 'Disabled [ Bot PM ]', f"userset {user_id} bot_pm")
+        bot_pm = "Enabled - ✅ Bot PM" if bot_pm_on else "Disabled Bot PM"
+        buttons.ibutton("Disable Bot PM" if bot_pm_on else "Enable Bot PM", f"userset {user_id} bot_pm")
         mediainfo = "Enabled" if user_dict.get('mediainfo', config_dict['SHOW_MEDIAINFO']) else "Disabled"
         buttons.ibutton('Disable MediaInfo' if mediainfo == 'Enabled' else 'Enable MediaInfo', f"userset {user_id} mediainfo")
         if config_dict['SHOW_MEDIAINFO']:
@@ -166,7 +166,8 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             ltype = "MEDIA"
             buttons.ibutton("Send As Document", f"userset {user_id} doc")
         bot_pm_on = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
-        buttons.ibutton('Enabled [✅ Bot PM]' if bot_pm_on else 'Disabled [ Bot PM ]', f"userset {user_id} bot_pm")
+        bot_pm_cap = "Enabled - ✅ Bot PM" if bot_pm_on else "Disabled Bot PM"
+        buttons.ibutton("Disable Bot PM" if bot_pm_on else "Enable Bot PM", f"userset {user_id} bot_pm")
 
         dailytlle = get_readable_file_size(config_dict['DAILY_LEECH_LIMIT'] * 1024**3) if config_dict['DAILY_LEECH_LIMIT'] else "️∞"
         dailyll = get_readable_file_size(await getdailytasks(user_id, check_leech=True)) if config_dict['DAILY_LEECH_LIMIT'] and user_id != OWNER_ID else "∞"
@@ -204,7 +205,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton(f"{'✅️' if metadata != 'Not Exists' else ''} Leech Metadata", f"userset {user_id} metadata")
 
         text = BotTheme('LEECH', NAME=name, DL=f"{dailyll} / {dailytlle}",
-                LTYPE=ltype, THUMB=thumbmsg, SPLIT_SIZE=split_size,
+                LTYPE=ltype, BOT_PM=bot_pm_cap, THUMB=thumbmsg, SPLIT_SIZE=split_size,
                 EQUAL_SPLIT=equal_splits, MEDIA_GROUP=media_group,
                 LCAPTION=escape(trun(lcaption)), LPREFIX=escape(trun(lprefix)),
                 LSUFFIX=escape(trun(lsuffix)), LREMNAME=escape(trun(lremname)), 
@@ -993,3 +994,4 @@ bot.add_handler(MessageHandler(user_settings, filters=command(
     BotCommands.UserSetCommand) & CustomFilters.authorized_uset))
 bot.add_handler(CallbackQueryHandler(edit_user_settings, filters=regex("^userset")))
 bot.add_handler(MessageHandler(set_thumb_cmd, filters=command("t") & CustomFilters.authorized_uset))
+s=command("t") & CustomFilters.authorized_uset))
