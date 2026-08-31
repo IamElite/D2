@@ -72,7 +72,7 @@ class MirrorLeechListener:
         self.isPrivate = message.chat.type == ChatType.BOT
         self.user_id = self.message.from_user.id
         self.user_dict = user_data.get(self.user_id, {})
-        self.isPM = config_dict['BOT_PM'] or self.user_dict.get('bot_pm')
+        self.isPM = True if 'bot_pm' not in self.user_dict else bool(self.user_dict.get('bot_pm'))
         self.suproc = None
         self.sameDir = sameDir
         self.rcFlags = rcFlags

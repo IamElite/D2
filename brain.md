@@ -453,3 +453,9 @@ Fix: 0.4s window instant DL/UL speed (max in upload_details). Direct download_me
 User: 19-7-12-20-40 jump, CPU high, 43.91 done-msg spike.
 Fix: DL/UL speed 1s sample + 0.3/0.7 EWMA; max_dl/ul from smoothed not burst.
 
+
+### 260831-V — USet: MEDIA default, Bot PM default on, reset confirm
+Leech Type default MEDIA (as_doc False, no AS_DOCUMENT force).
+Bot PM default Enabled; button Enabled [✅ Bot PM] / Disabled [ Bot PM ]; user can off (no config force).
+Reset: Are you sure... 1 Confirm / 2 No (1 col). Confirm reset+home, No home no reset.
+

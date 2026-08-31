@@ -97,8 +97,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Universal Settings", f"userset {user_id} universal")
         buttons.ibutton("Mirror Settings", f"userset {user_id} mirror")
         buttons.ibutton("Leech Settings", f"userset {user_id} leech")
-        if user_dict and any(key in user_dict for key in list(fname_dict.keys())):
-            buttons.ibutton("Reset Setting", f"userset {user_id} reset_all")
+        buttons.ibutton("Reset Setting", f"userset {user_id} reset_all")
         buttons.ibutton("Close", f"userset {user_id} close")
 
         text = BotTheme('USER_SETTING', NAME=name, ID=user_id, USERNAME=f'@{from_user.username}', LANG=Language.get(lc).display_name() if (lc := from_user.language_code) else "N/A", DC=from_user.dc_id)
@@ -109,10 +108,9 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton(f"{'✅️' if ytopt != 'Not Exists' else ''} YT-DLP Options", f"userset {user_id} yt_opt")
         u_sess = 'Exists' if user_dict.get('usess', False) else 'Not Exists'
         buttons.ibutton(f"{'✅️' if u_sess != 'Not Exists' else ''} User Session", f"userset {user_id} usess")
-        bot_pm = "Enabled" if user_dict.get('bot_pm', config_dict['BOT_PM']) else "Disabled"
-        buttons.ibutton('Disable Bot PM' if bot_pm == 'Enabled' else 'Enable Bot PM', f"userset {user_id} bot_pm")
-        if config_dict['BOT_PM']:
-            bot_pm = "Force Enabled"
+        bot_pm_on = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
+        bot_pm = "Enabled" if bot_pm_on else "Disabled"
+        buttons.ibutton('Enabled [✅ Bot PM]' if bot_pm_on else 'Disabled [ Bot PM ]', f"userset {user_id} bot_pm")
         mediainfo = "Enabled" if user_dict.get('mediainfo', config_dict['SHOW_MEDIAINFO']) else "Disabled"
         buttons.ibutton('Disable MediaInfo' if mediainfo == 'Enabled' else 'Enable MediaInfo', f"userset {user_id} mediainfo")
         if config_dict['SHOW_MEDIAINFO']:
@@ -161,12 +159,14 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
     elif key == 'leech':
-        if user_dict.get('as_doc', False) or 'as_doc' not in user_dict and config_dict['AS_DOCUMENT']:
+        if user_dict.get('as_doc', False):
             ltype = "DOCUMENT"
             buttons.ibutton("Send As Media", f"userset {user_id} doc")
         else:
             ltype = "MEDIA"
             buttons.ibutton("Send As Document", f"userset {user_id} doc")
+        bot_pm_on = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
+        buttons.ibutton('Enabled [✅ Bot PM]' if bot_pm_on else 'Disabled [ Bot PM ]', f"userset {user_id} bot_pm")
 
         dailytlle = get_readable_file_size(config_dict['DAILY_LEECH_LIMIT'] * 1024**3) if config_dict['DAILY_LEECH_LIMIT'] else "️∞"
         dailyll = get_readable_file_size(await getdailytasks(user_id, check_leech=True)) if config_dict['DAILY_LEECH_LIMIT'] and user_id != OWNER_ID else "∞"
@@ -697,19 +697,25 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'autorename')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
-    elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode']:
+        elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode']:
         handler_dict[user_id] = False
         if data[2] == 'save_mode' and not user_dict.get(data[2], False) and not user_dict.get('ldump'):
             return await query.answer("Set User Dump first to Change Save Msg Mode !", show_alert=True)
-        elif data[2] == 'bot_pm' and (config_dict['BOT_PM'] or config_dict['SAFE_MODE']) or data[2] == 'mediainfo' and config_dict['SHOW_MEDIAINFO'] or data[2] == 'td_mode' and not config_dict['USER_TD_MODE']:
+        elif data[2] == 'mediainfo' and config_dict['SHOW_MEDIAINFO'] or data[2] == 'td_mode' and not config_dict['USER_TD_MODE']:
             mode_up = "Disabled" if data[2] == 'td_mode' else "Enabled"
             return await query.answer(f"Force {mode_up}! Can't Alter Settings", show_alert=True)
         if data[2] == 'td_mode' and not user_dict.get('user_tds', False):
             return await query.answer("Set UserTD first to Enable User TD Mode !", show_alert=True)
         await query.answer()
-        update_user_ldata(user_id, data[2], not user_dict.get(data[2], False))
+        if data[2] == 'bot_pm':
+            cur = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
+            update_user_ldata(user_id, 'bot_pm', not cur)
+        else:
+            update_user_ldata(user_id, data[2], not user_dict.get(data[2], False))
         if data[2] in ['td_mode']:
             await update_user_settings(query, 'user_tds', 'mirror')
+        elif data[2] == 'bot_pm':
+            await update_user_settings(query, 'leech')
         else:
             await update_user_settings(query, 'universal')
         if DATABASE_URL:
@@ -867,10 +873,9 @@ async def edit_user_settings(client, query):
         handler_dict[user_id] = False
         await query.answer()
         buttons = ButtonMaker()
-        buttons.ibutton('Yes', f"userset {user_id} reset_now y")
-        buttons.ibutton('No', f"userset {user_id} reset_now n")
-        buttons.ibutton("Close", f"userset {user_id} close", "footer")
-        await editMessage(message, 'Do you want to Reset Settings ?', buttons.build_menu(2))
+        buttons.ibutton('1. Confirm', f"userset {user_id} reset_now y")
+        buttons.ibutton('2. No', f"userset {user_id} reset_now n")
+        await editMessage(message, '<b>Are you sure to reset setting?</b>', buttons.build_menu(1))
     elif data[2] == 'reset_now':
         handler_dict[user_id] = False
         if data[3] == 'n':
