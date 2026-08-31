@@ -167,6 +167,14 @@ def get_all_versions():
     except FileNotFoundError:
         vr = ''
     try:
+        aria_v = aria2.client.get_version()['version']
+    except Exception:
+        aria_v = 'off'
+    try:
+        qbit_v = get_client().app.version
+    except Exception:
+        qbit_v = 'off'
+    try:
         vpy = get_distribution('pyrogram').version
     except DistributionNotFound:
         try:
@@ -177,11 +185,11 @@ def get_all_versions():
             except DistributionNotFound:
                 vpy = "2.xx.xx"
     bot_cache['eng_versions'] = {'p7zip':vp, 'ffmpeg': vf, 'rclone': vr,
-                                    'aria': aria2.client.get_version()['version'],
+                                    'aria': aria_v,
                                     'aiohttp': get_distribution('aiohttp').version,
                                     'gapi': get_distribution('google-api-python-client').version,
                                     'mega': MegaApi('test').getVersion(),
-                                    'qbit': get_client().app.version,
+                                    'qbit': qbit_v,
                                     'pyro': vpy,
                                     'ytdlp': get_distribution('yt-dlp').version}
 

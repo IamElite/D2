@@ -5,7 +5,7 @@ from psutil import cpu_percent, virtual_memory, disk_usage
 from time import time
 from asyncio import sleep
 
-from .. import bot_cache, status_reply_dict_lock, download_dict, download_dict_lock, botStartTime, Interval, config_dict, bot
+from .. import bot_cache, status_reply_dict_lock, download_dict, download_dict_lock, botStartTime, Interval, config_dict, bot, LOGGER
 from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.message_utils import sendMessage, editMessage, deleteMessage, auto_delete_message, sendStatusMessage, user_info, update_all_messages, delete_all_messages
@@ -25,7 +25,16 @@ async def mirror_status(_, message):
         reply_message = await sendMessage(message, msg)
         await auto_delete_message(message, reply_message)
     else:
-        await sendStatusMessage(message)
+        try:
+            await sendStatusMessage(message)
+        except Exception as e:
+            LOGGER.error("status: %s", e)
+            currentTime = get_readable_time(time() - botStartTime)
+            free = get_readable_file_size(disk_usage(config_dict['DOWNLOAD_DIR']).free)
+            msg = BotTheme('NO_ACTIVE_DL', cpu=cpu_percent(), free=free, free_p=round(100-disk_usage(config_dict['DOWNLOAD_DIR']).percent, 1),
+                           ram=virtual_memory().percent, uptime=currentTime)
+            await sendMessage(message, msg)
+            return
         await deleteMessage(message)
         async with status_reply_dict_lock:
             if Interval:

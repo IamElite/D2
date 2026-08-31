@@ -312,6 +312,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260831-E` — /s crash aria2:6800 (logs batbin)
+**Galti:** `download.eng()` → `get_all_versions()` → `aria2.get_version()` jab aria2 pkill se mara. `/s7` exception, koi reply nahi.
+**Fix:** versions try/except (`aria`/`qbit` = `off`). `/s` fail pe NO_ACTIVE_DL, silent nahi.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
