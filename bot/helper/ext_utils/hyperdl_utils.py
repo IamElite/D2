@@ -1,8 +1,4 @@
-"""WZML-X wzv3 HyperDL core: one bot, pipelined GetFile (not helper tokens).
-
-Their 30 MB/s on a single bot is ~32 in-flight GetFile(precise, cdn) + pwrite,
-not extra USER_SESSION / HELPER_TOKENS. Sequential download_media ≈ 6–18 MB/s.
-"""
+"""HyperDL: pipelined GetFile. Never pin FileId.dc_id — start on bot DC, FileMigrate follows."""
 from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, sleep, wait, wait_for
 from logging import getLogger
 from os import O_RDWR, O_CREAT, close as os_close, makedirs, open as os_open, path as ospath, pwrite
@@ -10,7 +6,6 @@ from os import O_RDWR, O_CREAT, close as os_close, makedirs, open as os_open, pa
 from pyrogram import StopTransmission, raw
 from pyrogram.errors import FloodWait, FileMigrate
 from pyrogram.file_id import FileId
-from pyrogram.session import Auth, Session
 
 try:
     from pyrogram.crypto.aes import ctr256_decrypt
@@ -28,9 +23,8 @@ LOGGER = getLogger(__name__)
 
 KB = 1024
 CHUNK = 256 * KB
-# One pyrogram Session serializes invoke — 32 tasks on slot=0 hang at 0B.
-NSLOT = 8
-WINDOW = 8
+NSLOT = 4
+WINDOW = 4
 
 
 def pick_download_client(session="bot"):
@@ -48,6 +42,7 @@ class HypertgDownload(HypertgTransfer):
         super().__init__(obj)
         self._cdn = None
         self._cdn_sess = None
+        self._dc = None
 
     async def download_media(self, client, message, path, progress=None, cancelled=None):
         try:
@@ -58,55 +53,26 @@ class HypertgDownload(HypertgTransfer):
         if not media or size < CHUNK * 4:
             return await client.download_media(message=message, file_name=path, progress=progress)
         try:
-            n = await self._pipeline(client, media, path, size, progress, cancelled)
+            n = await wait_for(self._pipeline(client, media, path, size, progress, cancelled), 90)
             if n:
                 return n
         except StopTransmission:
             raise
+        except AsyncTimeout:
+            LOGGER.error("HyperDL pipeline watchdog 90s — fallback download_media")
         except Exception as e:
             LOGGER.error("HyperDL pipeline: %s", e)
         return await client.download_media(message=message, file_name=path, progress=progress)
-
-    async def _cdn_session(self, client, dc):
-        if self._cdn_sess and getattr(self._cdn_sess, "is_started", None) and self._cdn_sess.is_started.is_set():
-            return self._cdn_sess
-        tm = await client.storage.test_mode()
-        ak = await Auth(client, dc, tm).create()
-        try:
-            s = Session(client, dc, ak, tm, is_media=True, is_cdn=True)
-        except TypeError:
-            s = Session(client, dc, ak, tm, is_media=True)
-        await s.start()
-        self._cdn_sess = s
-        return s
-
-    async def _cdnpull(self, client, off, csz):
-        if not self._cdn or not ctr256_decrypt:
-            return None
-        try:
-            sess = await self._cdn_session(client, self._cdn["dc"])
-            r = await sess.invoke(
-                raw.functions.upload.GetCdnFile(
-                    file_token=self._cdn["token"], offset=off, limit=csz
-                )
-            )
-            if isinstance(r, raw.types.upload.CdnFile):
-                iv = bytearray(self._cdn["iv"][:-4] + (off // 16).to_bytes(4, "big"))
-                return ctr256_decrypt(r.bytes, self._cdn["key"], iv)
-        except Exception as e:
-            LOGGER.warning("HyperDL CDN pull: %s", e)
-            self._cdn = None
-        return None
 
     async def _getfile(self, sess, loc, off, csz):
         kwargs = dict(location=loc, offset=off, limit=csz)
         try:
             r = await wait_for(
                 sess.invoke(raw.functions.upload.GetFile(precise=True, cdn_supported=True, **kwargs)),
-                25,
+                12,
             )
         except TypeError:
-            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 25)
+            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 12)
         except AsyncTimeout:
             raise RuntimeError("GetFile timeout")
         if isinstance(r, raw.types.upload.File):
@@ -128,53 +94,57 @@ class HypertgDownload(HypertgTransfer):
         if idx is None:
             idx = 0
             self.clients[0] = client
-        if ospath.isdir(path) or path.endswith(('/', '\\')):
-            fname = getattr(media, "file_name", None) or "tg.bin"
-            path = ospath.join(path, fname)
+        if ospath.isdir(path) or path.endswith(("/", "\\")):
+            path = ospath.join(path, getattr(media, "file_name", None) or "tg.bin")
         parent = ospath.dirname(path)
         if parent:
             makedirs(parent, exist_ok=True)
         with open(path, "wb") as f:
             f.truncate(size)
         fd = os_open(path, O_RDWR | O_CREAT)
-        sess = await self._pool.get_session(idx, fid.dc_id, is_media=True, slot=0)
-        LOGGER.info("HyperDL pipeline window=%s chunk=%sB size=%s dc=%s (bot-only)", WINDOW, CHUNK, size, fid.dc_id)
+
+        bot_dc = await client.storage.dc_id()
+        # Do not lock FileId.dc_id (often stale vs bot DC). Start on bot DC; Telegram FileMigrate.
+        self._dc = bot_dc
+        sesses = []
+        for slot in range(NSLOT):
+            sesses.append(await wait_for(self._pool.get_session(idx, self._dc, is_media=True, slot=slot), 20))
+        LOGGER.info(
+            "HyperDL start bot_dc=%s file_id_dc=%s using_dc=%s slots=%s size=%s",
+            bot_dc, fid.dc_id, self._dc, NSLOT, size,
+        )
 
         done = 0
         cur = 0
         inflight = set()
-        offmap = {}
+        first_err = [None]
+        got_any = [False]
 
         async def _one(off):
+            slot = (off // CHUNK) % NSLOT
+            sess = sesses[slot]
             csz = min(CHUNK, size - off)
-            for attempt in range(5):
+            for _ in range(4):
                 if cancelled and cancelled():
                     raise StopTransmission
                 try:
-                    if self._cdn:
-                        data = await self._cdnpull(client, off, csz)
-                        if data:
-                            return off, data
                     data = await self._getfile(sess, loc, off, csz)
                     if data:
+                        got_any[0] = True
                         return off, data
-                    if self._cdn:
-                        data = await self._cdnpull(client, off, csz)
-                        if data:
-                            return off, data
                 except FileMigrate as e:
-                    dc = getattr(e, "value", fid.dc_id)
-                    sess = await self._pool.get_session(idx, dc, is_media=True, slot=0)
-                    await sleep(0.2)
+                    new_dc = int(getattr(e, "value", 0) or self._dc)
+                    LOGGER.info("HyperDL FileMigrate %s -> %s", self._dc, new_dc)
+                    self._dc = new_dc
+                    sesses[slot] = await self._pool.get_session(idx, new_dc, is_media=True, slot=slot)
+                    sess = sesses[slot]
+                    await sleep(0.15)
                 except (FloodWait, FloodPremiumWait) as f:
                     await sleep(int(getattr(f, "value", 2)) + 1)
-                except Exception:
-                    await sleep(0.3)
+                except Exception as e:
+                    first_err[0] = first_err[0] or e
+                    await sleep(0.2)
             return off, b""
-
-        async def _one_retry(s, off, csz):
-            data = await self._getfile(s, loc, off, csz)
-            return off, data or b""
 
         async def _write(off, data):
             nonlocal done
@@ -189,22 +159,23 @@ class HypertgDownload(HypertgTransfer):
             while cur < size or inflight:
                 if cancelled and cancelled():
                     raise StopTransmission
+                if cur > CHUNK * WINDOW and not got_any[0]:
+                    LOGGER.error("HyperDL no bytes after first window err=%s — fallback", first_err[0])
+                    break
                 while len(inflight) < WINDOW and cur < size:
                     t = create_task(_one(cur))
-                    offmap[t] = cur
                     inflight.add(t)
                     cur += CHUNK
                 if not inflight:
                     break
                 finished, inflight = await wait(inflight, return_when=FIRST_COMPLETED)
                 for t in finished:
-                    offmap.pop(t, None)
                     try:
                         off, data = t.result()
                     except StopTransmission:
                         raise
                     except Exception as e:
-                        LOGGER.warning("HyperDL chunk: %s", e)
+                        first_err[0] = first_err[0] or e
                         continue
                     if data:
                         await _write(off, data)
@@ -213,6 +184,7 @@ class HypertgDownload(HypertgTransfer):
                 t.cancel()
             os_close(fd)
         if done < size * 0.95:
-            LOGGER.error("HyperDL incomplete %s/%s err=%s — fallback", done, size, first_err[0])
+            LOGGER.error("HyperDL incomplete %s/%s err=%s using_dc=%s — fallback", done, size, first_err[0], self._dc)
             return None
+        LOGGER.info("HyperDL done %s bytes dc=%s", done, self._dc)
         return path
