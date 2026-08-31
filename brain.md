@@ -288,6 +288,18 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260831-A` — idle 0-task high CPU/RAM (9h 71% CPU)
+**Galti:** qBit/aria2 DHT+PEX 24/7; leftover torrents; status Interval leak; `alive.py` fail pe 2s hammer.
+**Fix:** idle housekeep 90s empty → DHT/PEX off, leftover delete, Interval cancel. Torrent start pe DHT on. `alive.py` error sleep 60s. RAM ~40% qBit 384MB limit — expected.
+
+---
+
+### `260831-B` — idle housekeep khud CPU kha raha tha (OLD: A)
+**Galti:** har 45s qBit `torrents_info` + DHT toggle + gc. Task ke turant baad 90s wait. TG leech 92% = 1 vCPU decrypt (alag).
+**Fix:** purge **ek baar**; loop **3 min**. `clean()` pe turant `idle_now()`. workers **32→8**. Aria2 leftover har cycle mat hatao.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.

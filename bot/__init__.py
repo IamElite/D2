@@ -941,7 +941,7 @@ except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=32,
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=8,
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 bot_name = bot.me.username
