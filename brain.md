@@ -395,3 +395,10 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 **Fix:** `bot_settings.py` → **Hyper Tokens**: helper list (# username id 4–5 mask, add/remove), user session add/replace/remove (full token kabhi nahi). Persist config + DB; helpers `start_helper_bots`. Speed still main-bot 32 GetFile — tokens extra, not the 30 MB/s fix.
 
 **NEVER pkill.**
+
+
+---
+
+### `260831-M` — USER_SESSION_STRING untouched; Hyper = helpers only
+**OLD:** `260831-L` Hyper UI me user session add/remove tha.
+**Fix:** Hyper Tokens = **HELPER_TOKENS** only. `USER_SESSION_STRING` Config Variables me same (premium 4GB). Hyper se edit/remove/reset nahi. Reset button hide + resetvar blocked.

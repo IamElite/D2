@@ -728,16 +728,14 @@ def _helper_list():
 async def _hyper_menu_text_buttons():
     buttons = ButtonMaker()
     bots = _helper_list()
-    us = config_dict.get("USER_SESSION_STRING") or ""
     msg = (
-        "<b>Hyper Tokens</b>\n\n"
-        "Helper bots + user session for HyperDL / HyperUL.\n"
-        "Full token is never shown.\n\n"
-        f"┠ Helpers: <code>{len(bots)}</code>\n"
-        f"┖ User session: <code>{'set (' + us[:5] + '…)' if us else 'empty'}</code>"
+        "<b>Hyper Tokens</b> — helper bots only\n\n"
+        "<i>USER_SESSION_STRING is a separate Config Variable "
+        "(premium 4GB upload). Not edited here.</i>\n\n"
+        f"Helper bots: <code>{len(bots)}</code>\n"
+        "Full token is never shown."
     )
     buttons.ibutton("Helper Bots", "botset hyper bots")
-    buttons.ibutton("User Session", "botset hyper user")
     buttons.ibutton("Back", "botset back")
     buttons.ibutton("Close", "botset close")
     return msg, buttons.build_menu(2)
@@ -772,22 +770,6 @@ async def _hyper_bots_menu():
     return "".join(lines), buttons.build_menu(2)
 
 
-async def _hyper_user_menu():
-    buttons = ButtonMaker()
-    us = config_dict.get("USER_SESSION_STRING") or ""
-    msg = (
-        "<b>User Session</b>\n\n"
-        f"Status: <code>{'set · ' + us[:5] + '…' if us else 'empty'}</code>\n"
-        "<i>Restart needed after change.</i>"
-    )
-    buttons.ibutton("Add / Replace Session", "botset hyper adduser")
-    if us:
-        buttons.ibutton("Remove Session", "botset hyper rmuser")
-    buttons.ibutton("Back", "botset hyper")
-    buttons.ibutton("Close", "botset close")
-    return msg, buttons.build_menu(1)
-
-
 async def _persist_helpers(joined):
     config_dict['HELPER_TOKENS'] = joined
     environ['HELPER_TOKENS'] = joined
@@ -814,17 +796,6 @@ async def _save_helper_token(_, message, pre_message):
     await update_buttons(pre_message, 'hyperbots')
 
 
-async def _save_user_sess(_, message, pre_message):
-    handler_dict[message.chat.id] = False
-    val = (message.text or "").strip()
-    await deleteMessage(message)
-    config_dict['USER_SESSION_STRING'] = val
-    environ['USER_SESSION_STRING'] = val
-    if DATABASE_URL:
-        await DbManger().update_config({'USER_SESSION_STRING': val})
-    await update_buttons(pre_message, 'hyperuser')
-
-
 async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
     buttons = ButtonMaker()
     if key is None:
@@ -839,8 +810,6 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
         return await _hyper_menu_text_buttons()
     elif key == 'hyperbots':
         return await _hyper_bots_menu()
-    elif key == 'hyperuser':
-        return await _hyper_user_menu()
     elif key == 'var':
         for k in list(OrderedDict(sorted(config_dict.items())).keys())[START:10+START]:
             buttons.ibutton(k, f"botset editvar {k}")
@@ -900,7 +869,7 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
                 buttons.ibutton('Edit Value', f"botset editvar {key} edit")
             else:
                 buttons.ibutton('Stop Edit', f"botset editvar {key}")
-        if key not in ['TELEGRAM_HASH', 'TELEGRAM_API', 'OWNER_ID', 'BOT_TOKEN'] and key not in bool_vars:
+        if key not in ['TELEGRAM_HASH', 'TELEGRAM_API', 'OWNER_ID', 'BOT_TOKEN', 'USER_SESSION_STRING'] and key not in bool_vars:
             buttons.ibutton('Reset', f"botset resetvar {key}")
         buttons.ibutton('Close', "botset close", position="footer")
         if edit_mode and key in ['SUDO_USERS', 'CMD_SUFFIX', 'OWNER_ID', 'USER_SESSION_STRING', 'TELEGRAM_HASH',
