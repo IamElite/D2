@@ -697,7 +697,7 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'autorename')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
-        elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode']:
+    elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode']:
         handler_dict[user_id] = False
         if data[2] == 'save_mode' and not user_dict.get(data[2], False) and not user_dict.get('ldump'):
             return await query.answer("Set User Dump first to Change Save Msg Mode !", show_alert=True)
