@@ -18,5 +18,5 @@ if PORT is not None and BASE_URL is not None:
             sleep(600)
         except Exception as e:
             logerror(f"alive.py: {e}")
-            sleep(2)
+            sleep(60)
             continue

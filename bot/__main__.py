@@ -249,6 +249,11 @@ async def main():
         await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
     except Exception as e:
         LOGGER.error(f"HyperUP helpers skipped: {e}")
+    try:
+        from .helper.ext_utils.idle_housekeep import start_idle_housekeep
+        bot.loop.create_task(start_idle_housekeep())
+    except Exception as e:
+        LOGGER.error(f"Idle housekeep skipped: {e}")
     await sync_to_async(start_aria2_listener, wait=False)
     
     bot.add_handler(MessageHandler(

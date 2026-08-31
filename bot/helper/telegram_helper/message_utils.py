@@ -309,6 +309,16 @@ async def get_tg_link_content(link, user_id, decrypter=None):
 
 
 async def update_all_messages(force=False):
+    from ... import download_dict as _dd
+    if not _dd:
+        async with status_reply_dict_lock:
+            if Interval:
+                try:
+                    Interval[0].cancel()
+                except Exception:
+                    pass
+                Interval.clear()
+        return
     async with status_reply_dict_lock:
         if not status_reply_dict or not Interval or (not force and time() - list(status_reply_dict.values())[0][1] < 3):
             return

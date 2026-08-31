@@ -62,6 +62,11 @@ async def add_qb_torrent(link, path, listener, ratio, seed_time):
         async with download_dict_lock:
             download_dict[listener.uid] = QbittorrentStatus(
                 listener, queued=added_to_queue)
+        try:
+            from ...ext_utils.idle_housekeep import _set_dht
+            await _set_dht(True)
+        except Exception:
+            pass
         await onDownloadStart(f'{listener.uid}')
 
         if added_to_queue:
