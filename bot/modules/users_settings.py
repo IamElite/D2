@@ -994,4 +994,3 @@ bot.add_handler(MessageHandler(user_settings, filters=command(
     BotCommands.UserSetCommand) & CustomFilters.authorized_uset))
 bot.add_handler(CallbackQueryHandler(edit_user_settings, filters=regex("^userset")))
 bot.add_handler(MessageHandler(set_thumb_cmd, filters=command("t") & CustomFilters.authorized_uset))
-s=command("t") & CustomFilters.authorized_uset))
