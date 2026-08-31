@@ -287,11 +287,17 @@ def get_readable_message():
         speed_in_bytes_per_second = convert_speed_to_bytes_per_second(spd)
         if tstatus == MirrorStatus.STATUS_DOWNLOADING:
             dl_speed += speed_in_bytes_per_second
+            ud = getattr(download, 'upload_details', None)
+            if isinstance(ud, dict) and speed_in_bytes_per_second > (ud.get('max_dl') or 0):
+                ud['max_dl'] = speed_in_bytes_per_second
         elif tstatus in [
             MirrorStatus.STATUS_UPLOADING,
             MirrorStatus.STATUS_SEEDING,
         ]:
             up_speed += speed_in_bytes_per_second
+            ud = getattr(download, 'upload_details', None)
+            if isinstance(ud, dict) and speed_in_bytes_per_second > (ud.get('max_ul') or 0):
+                ud['max_ul'] = speed_in_bytes_per_second
 
     msg += BotTheme('FOOTER')
     buttons = ButtonMaker()

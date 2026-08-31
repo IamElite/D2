@@ -402,3 +402,10 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ### `260831-M` — USER_SESSION_STRING untouched; Hyper = helpers only
 **OLD:** `260831-L` Hyper UI me user session add/remove tha.
 **Fix:** Hyper Tokens = **HELPER_TOKENS** only. `USER_SESSION_STRING` Config Variables me same (premium 4GB). Hyper se edit/remove/reset nahi. Reset button hide + resetvar blocked.
+
+
+---
+
+### `260831-N` — done msg: max DL / UL speed
+**OLD:** complete caption Size + Elapsed only.
+**Fix:** status loop `upload_details max_dl/max_ul` peak. Done msg: `DL Speed | UL Speed` after Elapsed (peak; avg fallback if no sample).

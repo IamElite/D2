@@ -84,7 +84,7 @@ class MirrorLeechListener:
         self.logMessage = logMessage
         self.linkslogmsg = None
         self.botpmmsg = None
-        self.upload_details = {}
+        self.upload_details = {'max_dl': 0, 'max_ul': 0, '_dl_t0': time()}
         self.leech_utils = leech_utils
         self.source_url = (
             source_url
@@ -204,6 +204,11 @@ class MirrorLeechListener:
         dl_path = f"{self.dir}/{name}"
         up_path = ''
         size = await get_path_size(dl_path)
+        t0 = self.upload_details.get('_dl_t0') or time()
+        dt = max(1.0, time() - t0)
+        if not self.upload_details.get('max_dl'):
+            self.upload_details['max_dl'] = size / dt
+        self.upload_details['_ul_t0'] = time()
         async with queue_dict_lock:
             if self.uid in non_queued_dl:
                 non_queued_dl.remove(self.uid)
@@ -481,6 +486,18 @@ class MirrorLeechListener:
         msg = BotTheme('NAME', Name="Task has been Completed!"if config_dict['SAFE_MODE'] and self.isSuperGroup else escape(name))
         msg += BotTheme('SIZE', Size=get_readable_file_size(size))
         msg += BotTheme('ELAPSE', Time=get_readable_time(time() - self.message.date.timestamp()))
+        mdl = self.upload_details.get('max_dl') or 0
+        mul = self.upload_details.get('max_ul') or 0
+        if not mul:
+            t0u = self.upload_details.get('_ul_t0')
+            if t0u:
+                dt = max(1.0, time() - t0u)
+                mul = size / dt
+        msg += BotTheme(
+            'MAXSPD',
+            DL=f"{get_readable_file_size(mdl)}/s" if mdl else "—",
+            UL=f"{get_readable_file_size(mul)}/s" if mul else "—",
+        )
         msg += BotTheme('MODE', Mode=self.upload_details['mode'])
         LOGGER.info(f'Task Done: {name}')
         
