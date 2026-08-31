@@ -424,3 +424,10 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 **Log:** `HyperDL pipeline: [Errno 21] Is a directory: .../185334/` then fallback `download_media` (hence 6→18 ramp). filename empty → path = dir only.
 **Fix:** always append file name to path; HyperDL if isdir join file_name. FileMigrate `nonlocal sess`.
 **DL/UL lines:** `7fd15ec`/`f85318e` **Heroku pe nahi the** (update 16:03 from remote arnv1 without those commits). This commit includes them + path fix.
+
+
+---
+
+### `260831-Q` — HyperDL 0B hang
+**Log:** pipeline window=32 then status 0B/s 1m+. 32 GetFile **same Session** serialize/deadlock.
+**Fix:** 8 media **slots** (8 sessions), WINDOW=8, GetFile wait_for 25s, FileMigrate per-slot. Incomplete → fallback + first err log.

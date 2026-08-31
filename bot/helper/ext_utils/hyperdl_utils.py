@@ -3,7 +3,7 @@
 Their 30 MB/s on a single bot is ~32 in-flight GetFile(precise, cdn) + pwrite,
 not extra USER_SESSION / HELPER_TOKENS. Sequential download_media ≈ 6–18 MB/s.
 """
-from asyncio import FIRST_COMPLETED, CancelledError, create_task, sleep, wait
+from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, sleep, wait, wait_for
 from logging import getLogger
 from os import O_RDWR, O_CREAT, close as os_close, makedirs, open as os_open, path as ospath, pwrite
 
@@ -28,7 +28,9 @@ LOGGER = getLogger(__name__)
 
 KB = 1024
 CHUNK = 256 * KB
-WINDOW = 32
+# One pyrogram Session serializes invoke — 32 tasks on slot=0 hang at 0B.
+NSLOT = 8
+WINDOW = 8
 
 
 def pick_download_client(session="bot"):
@@ -99,9 +101,14 @@ class HypertgDownload(HypertgTransfer):
     async def _getfile(self, sess, loc, off, csz):
         kwargs = dict(location=loc, offset=off, limit=csz)
         try:
-            r = await sess.invoke(raw.functions.upload.GetFile(precise=True, cdn_supported=True, **kwargs))
+            r = await wait_for(
+                sess.invoke(raw.functions.upload.GetFile(precise=True, cdn_supported=True, **kwargs)),
+                25,
+            )
         except TypeError:
-            r = await sess.invoke(raw.functions.upload.GetFile(**kwargs))
+            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 25)
+        except AsyncTimeout:
+            raise RuntimeError("GetFile timeout")
         if isinstance(r, raw.types.upload.File):
             return r.bytes
         if isinstance(r, raw.types.upload.FileCdnRedirect):
