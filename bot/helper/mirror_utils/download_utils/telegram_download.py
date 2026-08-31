@@ -115,7 +115,7 @@ class TelegramDownloadHelper:
             self.__client = None
             self.__decrypter = decrypter
         else:
-            self.__client = pick_download_client('auto')
+            self.__client = pick_download_client('bot')
 
         media = getattr(message, message.media.value) if message.media else None
         

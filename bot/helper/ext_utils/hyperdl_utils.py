@@ -1,19 +1,11 @@
-"""WZML-style HypertgDL: GetFile precise+CDN + pipelined offsets.
+"""WZML-X wzv3 HyperDL core: one bot, pipelined GetFile (not helper tokens).
 
-Port of SilentDemonSD/WZML-X wzv3 hyperdl_utils (trimmed: no mem_guard).
-Single client still uses N media-session slots so one bot can exceed ~18 MB/s.
+Their 30 MB/s on a single bot is ~32 in-flight GetFile(precise, cdn) + pwrite,
+not extra USER_SESSION / HELPER_TOKENS. Sequential download_media ≈ 6–18 MB/s.
 """
-from asyncio import (
-    FIRST_COMPLETED,
-    CancelledError,
-    Lock,
-    create_task,
-    gather,
-    sleep,
-    wait,
-)
+from asyncio import FIRST_COMPLETED, CancelledError, create_task, sleep, wait
 from logging import getLogger
-from os import O_CREAT, O_RDWR, close as osclose, open as osopen, pwrite, path as ospath
+from os import O_RDWR, O_CREAT, close as os_close, makedirs, open as os_open, path as ospath, pwrite
 
 from pyrogram import StopTransmission, raw
 from pyrogram.errors import FloodWait, FileMigrate
@@ -36,15 +28,12 @@ LOGGER = getLogger(__name__)
 
 KB = 1024
 CHUNK = 256 * KB
-PIPE = 16
-SLOTS = 6
+WINDOW = 32
 
 
 def pick_download_client(session="bot"):
     try:
-        if session in ("user", "auto") and user:
-            return user
-        if user:
+        if session == "user" and user:
             return user
         return bot
     except Exception as e:
@@ -55,151 +44,165 @@ def pick_download_client(session="bot"):
 class HypertgDownload(HypertgTransfer):
     def __init__(self, obj):
         super().__init__(obj)
-        self._cdn_info = {}
-        self._cdn_sessions = {}
+        self._cdn = None
+        self._cdn_sess = None
 
     async def download_media(self, client, message, path, progress=None, cancelled=None):
         try:
             media = media_of(message)
         except Exception:
-            media = getattr(message, message.media.value) if getattr(message, "media", None) else None
+            media = getattr(message, getattr(message, "media", None) and message.media.value, None)
         size = getattr(media, "file_size", 0) or 0
-        if size < 4 * CHUNK or media is None:
+        if not media or size < CHUNK * 4:
             return await client.download_media(message=message, file_name=path, progress=progress)
         try:
-            return await self._run(client, media, path, size, progress, cancelled)
+            n = await self._pipeline(client, media, path, size, progress, cancelled)
+            if n:
+                return n
         except StopTransmission:
             raise
         except Exception as e:
-            LOGGER.warning("HyperDL fail, fallback download_media: %s", e)
-            return await client.download_media(message=message, file_name=path, progress=progress)
+            LOGGER.error("HyperDL pipeline: %s", e)
+        return await client.download_media(message=message, file_name=path, progress=progress)
 
-    async def _get_cdn_session(self, idx, cdn_dc, client):
-        key = (idx, cdn_dc)
-        s = self._cdn_sessions.get(key)
-        if s and getattr(s, "is_started", None) and s.is_started.is_set():
-            return s
+    async def _cdn_session(self, client, dc):
+        if self._cdn_sess and getattr(self._cdn_sess, "is_started", None) and self._cdn_sess.is_started.is_set():
+            return self._cdn_sess
         tm = await client.storage.test_mode()
-        ak = await Auth(client, cdn_dc, tm).create()
-        s = Session(client, cdn_dc, ak, tm, is_media=True)
+        ak = await Auth(client, dc, tm).create()
         try:
-            s = Session(client, cdn_dc, ak, tm, is_media=True, is_cdn=True)
+            s = Session(client, dc, ak, tm, is_media=True, is_cdn=True)
         except TypeError:
-            pass
+            s = Session(client, dc, ak, tm, is_media=True)
         await s.start()
-        self._cdn_sessions[key] = s
+        self._cdn_sess = s
         return s
 
-    async def _cdnpull(self, idx, client, cdn, off, csz):
-        if not ctr256_decrypt:
+    async def _cdnpull(self, client, off, csz):
+        if not self._cdn or not ctr256_decrypt:
             return None
-        sess = await self._get_cdn_session(idx, cdn["cdn_dc"], client)
         try:
+            sess = await self._cdn_session(client, self._cdn["dc"])
             r = await sess.invoke(
                 raw.functions.upload.GetCdnFile(
-                    file_token=cdn["file_token"], offset=off, limit=csz
+                    file_token=self._cdn["token"], offset=off, limit=csz
                 )
             )
+            if isinstance(r, raw.types.upload.CdnFile):
+                iv = bytearray(self._cdn["iv"][:-4] + (off // 16).to_bytes(4, "big"))
+                return ctr256_decrypt(r.bytes, self._cdn["key"], iv)
         except Exception as e:
-            LOGGER.warning("HyperDL CDN: %s", e)
-            return None
-        if isinstance(r, raw.types.upload.CdnFile):
-            iv = bytearray(cdn["iv"][:-4] + (off // 16).to_bytes(4, "big"))
-            return ctr256_decrypt(r.bytes, cdn["key"], iv)
+            LOGGER.warning("HyperDL CDN pull: %s", e)
+            self._cdn = None
         return None
 
-    async def _getfile(self, sess, client, loc, off, csz):
-        r = await sess.invoke(
-            raw.functions.upload.GetFile(
-                precise=True,
-                cdn_supported=True,
-                location=loc,
-                offset=off,
-                limit=csz,
-            )
-        )
+    async def _getfile(self, sess, loc, off, csz):
+        kwargs = dict(location=loc, offset=off, limit=csz)
+        try:
+            r = await sess.invoke(raw.functions.upload.GetFile(precise=True, cdn_supported=True, **kwargs))
+        except TypeError:
+            r = await sess.invoke(raw.functions.upload.GetFile(**kwargs))
         if isinstance(r, raw.types.upload.File):
-            return r.bytes, None
+            return r.bytes
         if isinstance(r, raw.types.upload.FileCdnRedirect):
-            return None, {
-                "cdn_dc": r.dc_id,
-                "file_token": r.file_token,
+            self._cdn = {
+                "dc": r.dc_id,
+                "token": r.file_token,
                 "key": r.encryption_key,
                 "iv": r.encryption_iv,
             }
-        raise ValueError(type(r))
+            return None
+        raise TypeError(type(r))
 
-    async def _run(self, client, media, path, size, progress, cancelled):
+    async def _pipeline(self, client, media, path, size, progress, cancelled):
         fid = FileId.decode(media.file_id)
         loc = self._location(fid)
-        dc_id = fid.dc_id
         idx = self._client_idx(client)
         if idx is None:
             idx = 0
             self.clients[0] = client
-        from os import makedirs
         parent = ospath.dirname(path)
         if parent:
             makedirs(parent, exist_ok=True)
         with open(path, "wb") as f:
             f.truncate(size)
-        fd = osopen(path, O_RDWR)
-        done = 0
-        dlock = Lock()
-        LOGGER.info(
-            "HyperDL wzgram GetFile+CDN slots=%s chunk=%s size=%s dc=%s",
-            SLOTS, CHUNK, size, dc_id,
-        )
+        fd = os_open(path, O_RDWR | O_CREAT)
+        sess = await self._pool.get_session(idx, fid.dc_id, is_media=True, slot=0)
+        LOGGER.info("HyperDL pipeline window=%s chunk=%sB size=%s dc=%s (bot-only)", WINDOW, CHUNK, size, fid.dc_id)
 
-        async def slot_worker(slot):
-            nonlocal done, loc
-            sess = await self._pool.get_session(idx, dc_id, is_media=True, slot=slot)
-            off = slot * CHUNK
-            while off < size:
+        done = 0
+        cur = 0
+        inflight = set()
+        offmap = {}
+
+        async def _one(off):
+            csz = min(CHUNK, size - off)
+            for attempt in range(5):
                 if cancelled and cancelled():
                     raise StopTransmission
-                csz = min(CHUNK, size - off)
-                data = None
-                for attempt in range(4):
-                    try:
-                        cdn = self._cdn_info.get(idx)
-                        if cdn:
-                            data = await self._cdnpull(idx, client, cdn, off, csz)
-                            if data is not None:
-                                break
-                            self._cdn_info.pop(idx, None)
-                        chunk, extra = await self._getfile(sess, client, loc, off, csz)
-                        if extra:
-                            self._cdn_info[idx] = extra
-                            data = await self._cdnpull(idx, client, extra, off, csz)
-                            if data is None:
-                                await sleep(0.2)
-                                continue
-                            break
-                        data = chunk
-                        break
-                    except FileMigrate as e:
-                        dc = getattr(e, "value", dc_id)
-                        sess = await self._pool.get_session(idx, dc, is_media=True, slot=slot)
-                    except (FloodWait, FloodPremiumWait) as f:
-                        await sleep(int(getattr(f, "value", 3)) + 1)
-                    except Exception:
-                        if attempt == 3:
-                            raise
-                        await sleep(0.5)
-                if not data:
-                    off += SLOTS * CHUNK
-                    continue
-                await sleep(0)
-                pwrite(fd, data, off)
-                async with dlock:
-                    done += len(data)
-                    if progress:
-                        await progress(done, size)
-                off += SLOTS * CHUNK
+                try:
+                    if self._cdn:
+                        data = await self._cdnpull(client, off, csz)
+                        if data:
+                            return off, data
+                    data = await self._getfile(sess, loc, off, csz)
+                    if data:
+                        return off, data
+                    if self._cdn:
+                        data = await self._cdnpull(client, off, csz)
+                        if data:
+                            return off, data
+                except FileMigrate as e:
+                    dc = getattr(e, "value", fid.dc_id)
+                    sess = await self._pool.get_session(idx, dc, is_media=True, slot=0)
+                    await sleep(0.2)
+                except (FloodWait, FloodPremiumWait) as f:
+                    await sleep(int(getattr(f, "value", 2)) + 1)
+                except Exception:
+                    await sleep(0.3)
+            return off, b""
+
+        async def _one_retry(s, off, csz):
+            data = await self._getfile(s, loc, off, csz)
+            return off, data or b""
+
+        async def _write(off, data):
+            nonlocal done
+            if not data:
+                return
+            pwrite(fd, data, off)
+            done += len(data)
+            if progress:
+                await progress(done, size)
 
         try:
-            await gather(*[slot_worker(s) for s in range(SLOTS)])
+            while cur < size or inflight:
+                if cancelled and cancelled():
+                    raise StopTransmission
+                while len(inflight) < WINDOW and cur < size:
+                    t = create_task(_one(cur))
+                    offmap[t] = cur
+                    inflight.add(t)
+                    cur += CHUNK
+                if not inflight:
+                    break
+                finished, inflight = await wait(inflight, return_when=FIRST_COMPLETED)
+                for t in finished:
+                    offmap.pop(t, None)
+                    try:
+                        off, data = t.result()
+                    except StopTransmission:
+                        raise
+                    except Exception as e:
+                        LOGGER.warning("HyperDL chunk: %s", e)
+                        continue
+                    if data:
+                        await _write(off, data)
         finally:
-            osclose(fd)
+            for t in inflight:
+                t.cancel()
+            os_close(fd)
+        if done < size * 0.95:
+            LOGGER.error("HyperDL incomplete %s/%s — fallback", done, size)
+            return None
         return path
