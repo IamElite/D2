@@ -35,7 +35,8 @@ from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import MIRROR_HELP_MESSAGE, CLONE_HELP_MESSAGE, YT_HELP_MESSAGE, help_string
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from ..helper.ext_utils.multi_tools import (
-    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on, send_multi_cmd)
+    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
+    remember_cmd, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
 
 # Cheap host check — no yt-dlp extract_info (saves CPU/RAM).

@@ -478,3 +478,6 @@ mega/gd/tg/rclone same as before; else aria2. Log: Auto engine.
 
 ### 260901-B — bulk cancel: 1 notice + delete leftover /l -i cmd
 OLD: 260901-A. stop_multi deletes last cmd; run_multi silent if tag gone. No 2nd cancelled msg. Point 2 (-i reply) not touched.
+
+### 260901-C — remember_cmd import in mirror_leech (OLD: 260901-B)
+NameError on /l7 -b: import missed remember_cmd. Added.
