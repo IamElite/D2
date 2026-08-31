@@ -1,4 +1,5 @@
 from os import path as os_path
+import json
 import logging
 from re import sub as re_sub
 from aioshutil import move
@@ -6,10 +7,83 @@ from asyncio import create_subprocess_exec
 from asyncio.subprocess import PIPE
 from ... import LOGGER, bot_cache
 from .fs_utils import clean_target
+from .bot_utils import cmd_exec
 
 LOGGER = logging.getLogger(__name__)
 
-########-------- Metadata -------------#########
+_TAG_SKIP = {
+    'major_brand', 'minor_version', 'compatible_brands', 'encoder',
+    'handler_name', 'vendor_id', 'writing_library', 'encoding_settings',
+}
+
+
+def parse_meta_overlay(metadata: str, basenameX: str = '') -> dict:
+    overlay = {}
+    if metadata and ':' in metadata:
+        for pair in metadata.split('|'):
+            if ':' in pair:
+                k, v = pair.split(':', 1)
+                overlay[k.strip().lower()] = v.strip()
+    elif metadata:
+        overlay['title'] = metadata
+    return overlay
+
+
+async def probe_tag_args(path, overlay=None):
+    """Keep original tags then overlay user keys.
+
+    ffmpeg -c copy on MP4 drops stream Title unless -metadata:s:v:N is set.
+    """
+    overlay = overlay or {}
+    out, _, _ = await cmd_exec([
+        'ffprobe', '-v', 'quiet', '-print_format', 'json',
+        '-show_format', '-show_streams', path,
+    ])
+    try:
+        data = json.loads(out or '{}')
+    except Exception:
+        data = {}
+    args = []
+    fmt = dict((data.get('format') or {}).get('tags') or {})
+    key_map = {
+        'title': 'title', 'author': 'author', 'artist': 'artist',
+        'comment': 'comment', 'copyright': 'copyright', 'publisher': 'publisher',
+        'studio': 'studio', 'encoded by': 'encoded_by',
+        'custom tag': 'custom_tag', 'dubbed by': 'dubbed_by', 'channel': 'channel',
+        'website': 'website', 'source': 'source', 'official site': 'official_site',
+    }
+    for uk, fk in key_map.items():
+        if overlay.get(uk):
+            fmt[fk] = overlay[uk]
+    for k, v in fmt.items():
+        if str(k).lower() in _TAG_SKIP or v is None or v == '':
+            continue
+        args.extend(['-metadata', f'{k}={v}'])
+    vi = ai = si = 0
+    for st in data.get('streams') or []:
+        tags = dict(st.get('tags') or {})
+        ctype = st.get('codec_type')
+        extra = overlay.get(ctype) or overlay.get('title')
+        if extra:
+            tags['title'] = extra
+        if ctype == 'video':
+            pref, idx = 'v', vi
+            vi += 1
+        elif ctype == 'audio':
+            pref, idx = 'a', ai
+            ai += 1
+        elif ctype == 'subtitle':
+            pref, idx = 's', si
+            si += 1
+        else:
+            continue
+        for k, v in tags.items():
+            if str(k).lower() in _TAG_SKIP or v is None or v == '':
+                continue
+            args.extend([f'-metadata:s:{pref}:{idx}', f'{k}={v}'])
+    return args
+
+
 async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, metadata: str = ''):
     file_name = os_path.basename(media_file)
     basename = os_path.splitext(file_name)[0]
@@ -20,90 +94,16 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     if file_ext not in ('.mkv', '.mp4'):
         return
 
+    overlay = parse_meta_overlay(metadata, basenameX)
+    tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
-           '-i', media_file, '-map', '0', '-map_metadata', '0']
+           '-i', media_file, '-map', '0', '-c', 'copy']
+    cmd.extend(tag_args)
+    cmd.append(outfile)
 
-    # মাল্টি মেটাডেটা পার্সিং ইঞ্জিন
-    meta_dict = {}
-    if metadata and ':' in metadata:
-        pairs = metadata.split('|')
-        for pair in pairs:
-            if ':' in pair:
-                k, v = pair.split(':', 1)
-                meta_dict[k.strip().lower()] = v.strip()
-
-    if meta_dict:
-        # Title লজিক হ্যান্ডেলিং
-        title_val = meta_dict.get('title', '')
-        if title_val:
-            if basename.strip().lower().startswith("www"):
-                title_metadata = f"{title_val} - {basenameX}"
-            elif basename.strip().lower().startswith("@"):
-                title_metadata = f"{basenameX}"
-            else:
-                title_metadata = title_val
-        else:
-            title_metadata = basenameX
-
-        cmd.extend(['-metadata', f'title={title_metadata}'])
-
-        # ডাটা ম্যাপিং ডিকশনারি
-        mapping = {
-            'author': 'author',
-            'artist': 'artist',
-            'comment': 'comment',
-            'copyright': 'copyright',
-            'publisher': 'publisher',
-            'encoder': 'encoder',
-            'studio': 'studio',
-            'audio': 'audio',
-            'subtitle': 'subtitle',
-            'video': 'video',
-            'encoded by': 'encoded_by',
-            'custom tag': 'custom_tag',
-            'dubbed by': 'dubbed_by',
-            'channel': 'channel',
-            'website': 'website',
-            'source': 'source',
-            'official site': 'official_site'
-        }
-
-        for user_key, ff_key in mapping.items():
-            if val := meta_dict.get(user_key):
-                cmd.extend(['-metadata', f'{ff_key}={val}'])
-
-        # স্ট্রিম ওয়াইজ টাইটেল ইনজেকশন
-        fallback_stream_title = meta_dict.get('title') or meta_dict.get('channel') or meta_dict.get('author') or ""
-        if fallback_stream_title:
-            cmd.extend([
-                '-metadata:s:v', f'title={meta_dict.get("video", fallback_stream_title)}',
-                '-metadata:s:a', f'title={meta_dict.get("audio", fallback_stream_title)}',
-                '-metadata:s:s', f'title={meta_dict.get("subtitle", fallback_stream_title)}'
-            ])
-    else:
-        # ওল্ড সিঙ্গেল স্ট্রিং ফরম্যাটের ব্যাকওয়ার্ড কম্প্যাটিবিলিটি
-        if metadata:
-            if basename.strip().lower().startswith("www"):
-                title_metadata = f"{metadata} - {basenameX}"
-            elif basename.strip().lower().startswith("@"):
-                title_metadata = f"{basenameX}"
-            else:
-                title_metadata = metadata
-        else:
-            title_metadata = basenameX
-
-        cmd.extend([
-            '-metadata', f'title={title_metadata}',
-            '-metadata:s:v', f'title={metadata or title_metadata}',
-            '-metadata:s:a', f'title={metadata or title_metadata}',
-            '-metadata:s:s', f'title={metadata or title_metadata}'
-        ])
-
-    cmd.extend(['-c', 'copy', outfile])
-  
     listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
     code = await listener.suproc.wait()
-    
+
     if code == 0:
         await clean_target(media_file)
         listener.seed = False
@@ -113,7 +113,6 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
         LOGGER.error('%s. Changing metadata failed, Path %s', await listener.suproc.stderr.read().decode(), media_file)
 
 
-########-------- Attachment -------------#########
 async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str, attachment: str = ''):
     file_name = os_path.basename(media_file)
 
@@ -121,14 +120,14 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
     if file_ext != '.mkv':
         return
 
-    omg = "photo"  
-    attachment_ext = attachment.split(".")[-1].lower()   
+    omg = "photo"
+    attachment_ext = attachment.split(".")[-1].lower()
     mime_type = "application/octet-stream"
     if attachment_ext in ["jpg", "jpeg"]:
         mime_type = "image/jpeg"
     elif attachment_ext == "png":
         mime_type = "image/png"
-        
+
     cmd = [
         bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1',
         '-i', media_file,
@@ -136,11 +135,11 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
         '-metadata:s:t', f'mimetype={mime_type}',
         '-metadata:s:t', f'filename={omg}.{attachment_ext}',
         '-disposition:t', 'default',
-        '-c', 'copy', 
-        '-map', '0', 
-        '-map', '0:t?', 
+        '-c', 'copy',
+        '-map', '0',
+        '-map', '0:t?',
         outfile
-    ]  
+    ]
     listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
     code = await listener.suproc.wait()
     if code == 0:

@@ -18,6 +18,7 @@ from ...modules.mediainfo import parseinfo
 from .bot_utils import cmd_exec, sync_to_async, get_readable_file_size, get_readable_time
 from .fs_utils import ARCH_EXT, get_mime_type
 from .telegraph_helper import telegraph
+from .ffmpeg import probe_tag_args
 
 
 async def remux_container(inp_path, out_path):
@@ -58,7 +59,9 @@ async def remux_container(inp_path, out_path):
         # Video-Audio ঠিক থাকা একটা File পাওয়া যায়।
         cmd2 = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
                 '-i', inp_path, '-map', '0:v', '-map', '0:a?',
-                '-map_metadata', '0', '-c', 'copy', out_path]
+                '-c', 'copy']
+        cmd2.extend(tag_args)
+        cmd2.append(out_path)
         proc2 = await create_subprocess_exec(*cmd2, stderr=PIPE)
         code2 = await proc2.wait()
         if code2 == 0 and await aiopath.exists(out_path):
