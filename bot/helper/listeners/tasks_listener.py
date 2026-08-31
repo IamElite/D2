@@ -84,6 +84,7 @@ class MirrorLeechListener:
         self.logMessage = logMessage
         self.linkslogmsg = None
         self.botpmmsg = None
+        self.start_msgs = []
         self.upload_details = {'max_dl': 0, 'max_ul': 0, '_dl_t0': time()}
         self.leech_utils = leech_utils
         self.source_url = (
@@ -96,6 +97,16 @@ class MirrorLeechListener:
         self.source_msg = ''
         self.__setModeEng()
         self.__parseSource()
+
+    async def drop_start_msgs(self):
+        for m in list(getattr(self, 'start_msgs', []) or []):
+            try:
+                await deleteMessage(m)
+            except Exception:
+                pass
+        self.start_msgs = []
+        self.botpmmsg = None
+        self.linkslogmsg = None
 
     async def clean(self):
         try:
@@ -153,8 +164,12 @@ class MirrorLeechListener:
         if config_dict['LINKS_LOG_ID'] and not self.excep_chat:
             dispTime = datetime.now(timezone(config_dict['TIMEZONE'])).strftime('%d/%m/%y, %I:%M:%S %p')
             self.linkslogmsg = await sendCustomMsg(config_dict['LINKS_LOG_ID'], BotTheme('LINKS_START', Mode=self.upload_details['mode'], Tag=self.tag) + BotTheme('LINKS_SOURCE', On=dispTime, Source=self.source_msg))
+            if self.linkslogmsg:
+                self.start_msgs.append(self.linkslogmsg)
         if self.isPM and self.isSuperGroup:
             self.botpmmsg = await sendCustomMsg(self.message.from_user.id, BotTheme('PM_START', msg_link=self.source_url))
+            if self.botpmmsg:
+                self.start_msgs.append(self.botpmmsg)
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:
             await DbManger().add_incomplete_task(self.message.chat.id, self.message.link, self.tag, self.source_url, self.message.text)
 
@@ -662,8 +677,7 @@ class MirrorLeechListener:
                 await start_from_queued()
                 return
         
-        if self.botpmmsg and (not config_dict['DELETE_LINKS'] or config_dict['CLEAN_LOG_MSG']):
-            await deleteMessage(self.botpmmsg)
+        await self.drop_start_msgs()
         
         await clean_download(self.dir)
         async with download_dict_lock:
@@ -698,6 +712,7 @@ class MirrorLeechListener:
 ┠ <b>Mode:</b> {self.upload_details['mode']}
 ┖ <b>Elapsed:</b> {get_readable_time(time() - self.message.date.timestamp())}'''
         await sendMessage(self.message, msg, button)
+        await self.drop_start_msgs()
         if count == 0:
             await self.clean()
         else:
@@ -736,6 +751,7 @@ class MirrorLeechListener:
 ┠ <b>Mode:</b> {self.upload_details['mode']}
 ┖ <b>Elapsed:</b> {get_readable_time(time() - self.message.date.timestamp())}'''
         await sendMessage(self.message, msg)
+        await self.drop_start_msgs()
         if count == 0:
             await self.clean()
         else:

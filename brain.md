@@ -463,3 +463,7 @@ Reset: Are you sure... 1 Confirm / 2 No (1 col). Confirm reset+home, No home no 
 ### 260831-W — Leech caption Bot PM (no brackets)
 Caption: Enabled - ✅ Bot PM / Disabled Bot PM. Toggle buttons Enable/Disable Bot PM.
 
+
+### 260831-X — delete Task Started / Leech Started after output
+Always delete PM_START, L_LOG_START, LINKS_START after file sent (and on error). Not gated on CLEAN_LOG_MSG.
+

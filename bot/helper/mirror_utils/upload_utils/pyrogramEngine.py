@@ -226,6 +226,9 @@ class TgUploader:
                 await self.__listener.onUploadError(str(er))
                 return False
             self.__sent_msg = list(self.__leechmsg.values())[0]
+            for _m in self.__leechmsg.values():
+                if _m:
+                    self.__listener.start_msgs.append(_m)
         elif IS_PREMIUM_USER:
             if not self.__listener.isSuperGroup:
                 await self.__listener.onUploadError('Use SuperGroup to leech with User Client! or Set LEECH_LOG_ID to Leech in PM')
