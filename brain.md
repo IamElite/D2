@@ -381,3 +381,17 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 **Heroku pe zaroor:** config var `UPSTREAM_BRANCH=arnv1` (Mongo me purana `srmlx` ho to overwrite). Restart.
 
 **Note:** Dost ke 27% pe 29MB/s = zyada vCPU ya alag host ho sakta hai (F: 175GB vs 253GB). Phir bhi srmlx-wipe + mmap + 1 hash thread hamare 95% explain karta hai.
+
+
+---
+
+### `260831-L` — Bot Settings Hyper Tokens UI
+**Git:** (push after)
+**Date:** 2026-08-31
+**OLD:** `260831-K` / `b8f9db2` (32 GetFile; still ramp). Tokens were env-only.
+
+**Galti:** HELPER_TOKENS / USER_SESSION_STRING ke liye BSet menu nahi tha.
+
+**Fix:** `bot_settings.py` → **Hyper Tokens**: helper list (# username id 4–5 mask, add/remove), user session add/replace/remove (full token kabhi nahi). Persist config + DB; helpers `start_helper_bots`. Speed still main-bot 32 GetFile — tokens extra, not the 30 MB/s fix.
+
+**NEVER pkill.**

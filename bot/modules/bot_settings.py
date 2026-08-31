@@ -701,6 +701,7 @@ async def load_config():
                         'UPSTREAM_BRANCH': UPSTREAM_BRANCH,
                         'UPGRADE_PACKAGES': UPGRADE_PACKAGES,
                         'USER_SESSION_STRING': USER_SESSION_STRING,
+                        'HELPER_TOKENS': HELPER_TOKENS,
                         'USER_TD_MODE':USER_TD_MODE,
                         'USER_TD_SA': USER_TD_SA,
                         'USE_SERVICE_ACCOUNTS': USE_SERVICE_ACCOUNTS,
@@ -712,15 +713,134 @@ async def load_config():
     await gather(initiate_search_tools(), start_from_queued(), rclone_serve_booter())
 
 
+def _mask_token(tok):
+    tok = (tok or "").strip()
+    if not tok:
+        return "—"
+    return f"{tok.split(':', 1)[0][:5]}…"
+
+
+def _helper_list():
+    raw = config_dict.get("HELPER_TOKENS") or ""
+    return [t.strip() for t in str(raw).split() if t.strip()]
+
+
+async def _hyper_menu_text_buttons():
+    buttons = ButtonMaker()
+    bots = _helper_list()
+    us = config_dict.get("USER_SESSION_STRING") or ""
+    msg = (
+        "<b>Hyper Tokens</b>\n\n"
+        "Helper bots + user session for HyperDL / HyperUL.\n"
+        "Full token is never shown.\n\n"
+        f"┠ Helpers: <code>{len(bots)}</code>\n"
+        f"┖ User session: <code>{'set (' + us[:5] + '…)' if us else 'empty'}</code>"
+    )
+    buttons.ibutton("Helper Bots", "botset hyper bots")
+    buttons.ibutton("User Session", "botset hyper user")
+    buttons.ibutton("Back", "botset back")
+    buttons.ibutton("Close", "botset close")
+    return msg, buttons.build_menu(2)
+
+
+async def _hyper_bots_menu():
+    buttons = ButtonMaker()
+    toks = _helper_list()
+    lines = ["<b>Helper Bots</b>\n", "Add BotFather token. Shows #, username, id, prefix.\n"]
+    if not toks:
+        lines.append("\n<i>No helper bots yet.</i>")
+    else:
+        try:
+            from ..helper.ext_utils.hyperul_utils import helper_bots
+        except Exception:
+            helper_bots = {}
+        for i, tok in enumerate(toks, 1):
+            hid = tok.split(":", 1)[0]
+            uname, uid = "?", hid
+            try:
+                cl = helper_bots.get(i)
+                if cl and getattr(cl, "me", None):
+                    uname = cl.me.username or cl.me.first_name
+                    uid = cl.me.id
+            except Exception:
+                pass
+            lines.append(f"\n#{i} @{uname} | <code>{uid}</code> | <code>{_mask_token(tok)}</code>")
+            buttons.ibutton(f"Remove #{i}", f"botset hyper rmbot {i}")
+    buttons.ibutton("Add Helper Bot", "botset hyper addbot")
+    buttons.ibutton("Back", "botset hyper")
+    buttons.ibutton("Close", "botset close")
+    return "".join(lines), buttons.build_menu(2)
+
+
+async def _hyper_user_menu():
+    buttons = ButtonMaker()
+    us = config_dict.get("USER_SESSION_STRING") or ""
+    msg = (
+        "<b>User Session</b>\n\n"
+        f"Status: <code>{'set · ' + us[:5] + '…' if us else 'empty'}</code>\n"
+        "<i>Restart needed after change.</i>"
+    )
+    buttons.ibutton("Add / Replace Session", "botset hyper adduser")
+    if us:
+        buttons.ibutton("Remove Session", "botset hyper rmuser")
+    buttons.ibutton("Back", "botset hyper")
+    buttons.ibutton("Close", "botset close")
+    return msg, buttons.build_menu(1)
+
+
+async def _persist_helpers(joined):
+    config_dict['HELPER_TOKENS'] = joined
+    environ['HELPER_TOKENS'] = joined
+    if DATABASE_URL:
+        await DbManger().update_config({'HELPER_TOKENS': joined})
+    try:
+        from ..helper.ext_utils.hyperul_utils import start_helper_bots
+        await start_helper_bots(joined)
+    except Exception as e:
+        LOGGER.error("start_helper_bots: %s", e)
+
+
+async def _save_helper_token(_, message, pre_message):
+    handler_dict[message.chat.id] = False
+    tok = (message.text or "").strip()
+    await deleteMessage(message)
+    if ":" not in tok:
+        await update_buttons(pre_message, 'hyperbots')
+        return
+    toks = _helper_list()
+    if tok not in toks:
+        toks.append(tok)
+    await _persist_helpers(" ".join(toks))
+    await update_buttons(pre_message, 'hyperbots')
+
+
+async def _save_user_sess(_, message, pre_message):
+    handler_dict[message.chat.id] = False
+    val = (message.text or "").strip()
+    await deleteMessage(message)
+    config_dict['USER_SESSION_STRING'] = val
+    environ['USER_SESSION_STRING'] = val
+    if DATABASE_URL:
+        await DbManger().update_config({'USER_SESSION_STRING': val})
+    await update_buttons(pre_message, 'hyperuser')
+
+
 async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
     buttons = ButtonMaker()
     if key is None:
         buttons.ibutton('Config Variables', "botset var")
         buttons.ibutton('Private Files', "botset private")
+        buttons.ibutton('Hyper Tokens', "botset hyper")
         buttons.ibutton('Qbit Settings', "botset qbit")
         buttons.ibutton('Aria2c Settings', "botset aria")
         buttons.ibutton('Close', "botset close")
         msg = '<b><i>Bot Settings:</i></b>'
+    elif key == 'hyper':
+        return await _hyper_menu_text_buttons()
+    elif key == 'hyperbots':
+        return await _hyper_bots_menu()
+    elif key == 'hyperuser':
+        return await _hyper_user_menu()
     elif key == 'var':
         for k in list(OrderedDict(sorted(config_dict.items())).keys())[START:10+START]:
             buttons.ibutton(k, f"botset editvar {k}")
@@ -1085,6 +1205,42 @@ async def edit_bot_settings(client, query):
     elif data[1] in ['var', 'aria', 'qbit']:
         await query.answer()
         await update_buttons(message, data[1])
+    elif data[1] == 'hyper':
+        handler_dict[message.chat.id] = False
+        await query.answer()
+        sub = data[2] if len(data) > 2 else None
+        if sub is None:
+            await update_buttons(message, 'hyper')
+        elif sub == 'bots':
+            await update_buttons(message, 'hyperbots')
+        elif sub == 'user':
+            await update_buttons(message, 'hyperuser')
+        elif sub == 'addbot':
+            await editMessage(message, "<i>Send helper <b>BOT_TOKEN</b> from @BotFather.\nTimeout: 60s</i>")
+            pfunc = partial(_save_helper_token, pre_message=message)
+            rfunc = partial(update_buttons, message, 'hyperbots')
+            await event_handler(client, query, pfunc, rfunc)
+        elif sub == 'rmbot' and len(data) > 3:
+            try:
+                idx = int(data[3])
+            except Exception:
+                idx = 0
+            toks = _helper_list()
+            if 1 <= idx <= len(toks):
+                toks.pop(idx - 1)
+                await _persist_helpers(" ".join(toks))
+            await update_buttons(message, 'hyperbots')
+        elif sub == 'adduser':
+            await editMessage(message, "<i>Send <b>USER_SESSION_STRING</b>. Restart after save.\nTimeout: 60s</i>")
+            pfunc = partial(_save_user_sess, pre_message=message)
+            rfunc = partial(update_buttons, message, 'hyperuser')
+            await event_handler(client, query, pfunc, rfunc)
+        elif sub == 'rmuser':
+            config_dict['USER_SESSION_STRING'] = ''
+            environ['USER_SESSION_STRING'] = ''
+            if DATABASE_URL:
+                await DbManger().update_config({'USER_SESSION_STRING': ''})
+            await update_buttons(message, 'hyperuser')
     elif data[1] == 'resetvar':
         handler_dict[message.chat.id] = False
         await query.answer('Reset Done!', show_alert=True)
