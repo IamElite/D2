@@ -31,6 +31,8 @@ def __get_hash_file(path):
 
 
 async def add_qb_torrent(link, path, listener, ratio, seed_time):
+    from ...ext_utils.engine_lifecycle import ensure_qbit
+    await sync_to_async(ensure_qbit)
     client = await sync_to_async(get_client)
     ADD_TIME = time()
     try:

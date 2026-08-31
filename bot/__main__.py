@@ -250,11 +250,15 @@ async def main():
     except Exception as e:
         LOGGER.error(f"HyperUP helpers skipped: {e}")
     try:
-        from .helper.ext_utils.idle_housekeep import start_idle_housekeep
-        bot.loop.create_task(start_idle_housekeep())
+        from .helper.ext_utils.engine_lifecycle import stop_heavy
+        stop_heavy()
+        LOGGER.info("Boot idle: qBit and aria2 stopped until a task needs them")
     except Exception as e:
-        LOGGER.error(f"Idle housekeep skipped: {e}")
-    await sync_to_async(start_aria2_listener, wait=False)
+        LOGGER.error(f"Boot engine stop skipped: {e}")
+    try:
+        await sync_to_async(start_aria2_listener, wait=False)
+    except Exception as e:
+        LOGGER.warning(f"aria2 listener later (engine stopped): {e}")
     
     bot.add_handler(MessageHandler(
         start, filters=command(BotCommands.StartCommand) & private))

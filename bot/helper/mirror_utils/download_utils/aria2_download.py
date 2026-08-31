@@ -9,6 +9,8 @@ from ...ext_utils.task_manager import is_queued
 
 
 async def add_aria2c_download(link, path, listener, filename, header, ratio, seed_time):
+    from ...ext_utils.engine_lifecycle import ensure_aria2
+    await sync_to_async(ensure_aria2)
     a2c_opt = {**aria2_options}
     [a2c_opt.pop(k) for k in aria2c_global if k in aria2_options]
     a2c_opt['dir'] = path

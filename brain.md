@@ -300,6 +300,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260831-C` — no task = qBit+aria2 PROCESS band
+**User:** background chowkidar ka matlab nahi; task nahi to heavy **stop**.
+**Fix:** `engine_lifecycle.py` — idle pe `pkill` qBit/aria2. TG leech unhe start nahi karta. Torrent/aria2 task pe `ensure_*`. Bot+gunicorn rehte (command + Heroku).
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.

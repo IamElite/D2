@@ -106,7 +106,7 @@ class MirrorLeechListener:
             await sync_to_async(aria2.purge)
             await delete_all_messages()
             try:
-                from ..ext_utils.idle_housekeep import idle_now
+                from ..ext_utils.engine_lifecycle import idle_now
                 await idle_now()
             except Exception:
                 pass

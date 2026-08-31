@@ -19,6 +19,8 @@ TELEGRAPH_LIMIT = 300
 
 
 async def initiate_search_tools():
+    from ..helper.ext_utils.engine_lifecycle import ensure_qbit
+    await sync_to_async(ensure_qbit)
     qbclient = await sync_to_async(get_client)
     qb_plugins = await sync_to_async(qbclient.search_plugins)
     if SEARCH_PLUGINS := config_dict['SEARCH_PLUGINS']:
