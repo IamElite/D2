@@ -166,8 +166,8 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             ltype = "MEDIA"
             buttons.ibutton("Send As Document", f"userset {user_id} doc")
         bot_pm_on = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
-        bot_pm_cap = "Enabled - ✅ Bot PM" if bot_pm_on else "Disabled Bot PM"
-        buttons.ibutton("Disable Bot PM" if bot_pm_on else "Enable Bot PM", f"userset {user_id} bot_pm")
+        bot_pm_cap = "Enabled" if bot_pm_on else "Disabled"
+        buttons.ibutton("✅ Bot PM" if bot_pm_on else "Bot PM", f"userset {user_id} bot_pm")
 
         dailytlle = get_readable_file_size(config_dict['DAILY_LEECH_LIMIT'] * 1024**3) if config_dict['DAILY_LEECH_LIMIT'] else "️∞"
         dailyll = get_readable_file_size(await getdailytasks(user_id, check_leech=True)) if config_dict['DAILY_LEECH_LIMIT'] and user_id != OWNER_ID else "∞"
