@@ -467,3 +467,8 @@ Caption: Enabled - ✅ Bot PM / Disabled Bot PM. Toggle buttons Enable/Disable B
 ### 260831-X — delete Task Started / Leech Started after output
 Always delete PM_START, L_LOG_START, LINKS_START after file sent (and on error). Not gated on CLEAN_LOG_MSG.
 
+
+### 260831-Y — /leech auto engine (WZML-style, cheap)
+magnet/.torrent → qBit; youtube/tiktok/etc host hint → yt-dlp (no extract_info);
+mega/gd/tg/rclone same as before; else aria2. Log: Auto engine.
+

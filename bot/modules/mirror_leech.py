@@ -36,6 +36,37 @@ from ..helper.ext_utils.help_messages import MIRROR_HELP_MESSAGE, CLONE_HELP_MES
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from .gen_pyro_sess import get_decrypt_key
 
+# Cheap host check — no yt-dlp extract_info (saves CPU/RAM).
+_YTDL_HINT = (
+    "youtube.com/", "youtu.be/", "m.youtube.com/",
+    "vimeo.com/", "dailymotion.com/", "tiktok.com/",
+    "instagram.com/", "facebook.com/", "fb.watch/",
+    "twitter.com/", "x.com/", "reddit.com/",
+    "soundcloud.com/", "twitch.tv/",
+)
+
+
+def _auto_engine(link, file_=None):
+    """Pick downloader from link type. No extra processes."""
+    if file_ is not None:
+        return "tg"
+    if not link or not isinstance(link, str):
+        return "aria"
+    if is_magnet(link) or link.endswith(".torrent"):
+        return "qbit"
+    if is_mega_link(link):
+        return "mega"
+    if is_gdrive_link(link):
+        return "gd"
+    if is_rclone_path(link):
+        return "rc"
+    if is_telegram_link(link):
+        return "tg"
+    low = link.lower()
+    if any(h in low for h in _YTDL_HINT):
+        return "ytdl"
+    return "aria"
+
 @new_task
 async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=None, bulk=[]):
     text = message.text.split('\n')
