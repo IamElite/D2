@@ -416,3 +416,11 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ### `260831-O` — done msg DL/UL separate lines
 **OLD:** `260831-N` one line `DL | UL`.
 **Fix:** `MAXSPD` two lines: DL Speed then UL Speed (user layout).
+
+
+---
+
+### `260831-P` — HyperDL Is a directory + DL/UL still not live
+**Log:** `HyperDL pipeline: [Errno 21] Is a directory: .../185334/` then fallback `download_media` (hence 6→18 ramp). filename empty → path = dir only.
+**Fix:** always append file name to path; HyperDL if isdir join file_name. FileMigrate `nonlocal sess`.
+**DL/UL lines:** `7fd15ec`/`f85318e` **Heroku pe nahi the** (update 16:03 from remote arnv1 without those commits). This commit includes them + path fix.

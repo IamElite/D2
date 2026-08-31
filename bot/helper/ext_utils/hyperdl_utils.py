@@ -121,6 +121,9 @@ class HypertgDownload(HypertgTransfer):
         if idx is None:
             idx = 0
             self.clients[0] = client
+        if ospath.isdir(path) or path.endswith(('/', '\\')):
+            fname = getattr(media, "file_name", None) or "tg.bin"
+            path = ospath.join(path, fname)
         parent = ospath.dirname(path)
         if parent:
             makedirs(parent, exist_ok=True)

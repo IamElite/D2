@@ -128,6 +128,9 @@ class TelegramDownloadHelper:
                     name = media.file_name if hasattr(media, 'file_name') else 'None'
                 else:
                     name = filename
+                if name and name != 'None' and not path.rstrip('/').endswith(name):
+                    if not path.endswith('/'):
+                        path += '/'
                     path = path + name
                 size = media.file_size
                 gid = media.file_unique_id
