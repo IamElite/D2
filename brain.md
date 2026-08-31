@@ -409,3 +409,10 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ### `260831-N` — done msg: max DL / UL speed
 **OLD:** complete caption Size + Elapsed only.
 **Fix:** status loop `upload_details max_dl/max_ul` peak. Done msg: `DL Speed | UL Speed` after Elapsed (peak; avg fallback if no sample).
+
+
+---
+
+### `260831-O` — done msg DL/UL separate lines
+**OLD:** `260831-N` one line `DL | UL`.
+**Fix:** `MAXSPD` two lines: DL Speed then UL Speed (user layout).
