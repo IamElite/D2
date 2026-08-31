@@ -28,7 +28,7 @@ from ...telegram_helper.button_build import ButtonMaker
 from ...telegram_helper.message_utils import editReplyMarkup, sendMultiMessage, chat_info, deleteMessage, get_tg_link_content
 from ...ext_utils.fs_utils import clean_unwanted, is_archive, get_base_name
 from ...ext_utils.bot_utils import is_telegram_link, is_url, sync_to_async, download_image_url
-from ...ext_utils.leech_utils import get_audio_thumb, get_media_info, get_document_type, take_ss, get_ss, get_mediainfo_link, format_filename, remux_container
+from ...ext_utils.leech_utils import get_audio_thumb, get_media_info, get_document_type, take_ss, get_ss, get_mediainfo_link, format_filename, remux_container, ensure_faststart
 
 LOGGER = getLogger(__name__)
 getLogger("pyrogram").setLevel(ERROR)
@@ -228,6 +228,7 @@ class TgUploader:
             )
         except Exception as err:
             return await self.__listener.onUploadError(f'Error in Format Filename : {err}')
+        remuxed = False
         if prefile_ != file_:
             old_ext = ospath.splitext(prefile_)[1].lower()
             new_ext = ospath.splitext(file_)[1].lower()
@@ -238,7 +239,6 @@ class TgUploader:
                 dirpath = f'{dirpath}/copied_mltb'
                 await makedirs(dirpath, exist_ok=True)
             new_path = ospath.join(dirpath, file_)
-            remuxed = False
             if remux_needed:
                 remuxed = await remux_container(self.__up_path, new_path)
                 if not remuxed:
@@ -254,6 +254,8 @@ class TgUploader:
             else:
                 await aiorename(self.__up_path, new_path)
                 self.__up_path = new_path
+        if (not remuxed) and str(self.__up_path).lower().endswith('.mp4'):
+            self.__up_path = await ensure_faststart(self.__up_path)
         if len(file_) > 60:
             if is_archive(file_):
                 name = get_base_name(file_)

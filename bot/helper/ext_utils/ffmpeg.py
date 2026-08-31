@@ -20,7 +20,8 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     if file_ext not in ('.mkv', '.mp4'):
         return
 
-    cmd = [bot_cache['pkgs'][2], '-i', media_file, '-map', '0']
+    cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
+           '-i', media_file, '-map', '0', '-map_metadata', '0']
 
     # মাল্টি মেটাডেটা পার্সিং ইঞ্জিন
     meta_dict = {}
