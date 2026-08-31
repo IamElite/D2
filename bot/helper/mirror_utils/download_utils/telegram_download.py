@@ -5,7 +5,7 @@ from asyncio import Lock
 from pyrogram import Client, StopTransmission
 
 from .... import LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock, bot, user, IS_PREMIUM_USER
-from ...ext_utils.hyperdl_utils import pick_download_client
+from ...ext_utils.hyperdl_utils import pick_download_client, HypertgDownload
 from ..status_utils.telegram_status import TelegramStatus
 from ..status_utils.queue_status import QueueStatus
 from ...telegram_helper.message_utils import sendStatusMessage, sendMessage, delete_links
@@ -83,7 +83,16 @@ class TelegramDownloadHelper:
                         await self.__onDownloadError(f'ERROR: {e}')
                         return
             else:
-                download = await self.__client.download_media(message=message, file_name=path, progress=self.__onDownloadProgress)
+                try:
+                    hd = HypertgDownload(self)
+                    download = await hd.download_media(
+                        self.__client, message, path,
+                        progress=self.__onDownloadProgress,
+                        cancelled=lambda: self.__is_cancelled,
+                    )
+                except Exception:
+                    download = await self.__client.download_media(
+                        message=message, file_name=path, progress=self.__onDownloadProgress)
             if self.__is_cancelled:
                 await self.__onDownloadError('Cancelled by user!')
                 return

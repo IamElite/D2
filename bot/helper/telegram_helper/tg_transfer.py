@@ -113,9 +113,9 @@ class MtprotoPool:
         ak = await Auth(client, dc_id, test_mode).create()
         return ak, True
 
-    async def get_session(self, client_key, dc_id, is_media=True):
+    async def get_session(self, client_key, dc_id, is_media=True, slot=0):
         ck = self._resolve_key(client_key)
-        cache_key = (ck, dc_id)
+        cache_key = (ck, dc_id, slot)
         s = self._sessions.get(cache_key)
         if s and s.is_started.is_set():
             return s

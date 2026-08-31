@@ -45,7 +45,7 @@ def _patch_tg_upload_queue(depth=8):
     except Exception as e:
         log_warning(f"TG upload queue patch skipped: {e}")
 
-_patch_tg_upload_queue(4)
+_patch_tg_upload_queue(16)
 
 try:
     pyroutils.MIN_CHAT_ID = -999999999999
@@ -245,7 +245,7 @@ if len(EXCEP_CHATS) == 0:
 def wztgClient(*args, **kwargs):
     kwargs.setdefault('sleep_threshold', 60)
     if 'max_concurrent_transmissions' in signature(tgClient.__init__).parameters:
-        kwargs['max_concurrent_transmissions'] = 8
+        kwargs['max_concurrent_transmissions'] = 16
     return tgClient(*args, **kwargs)
 
 
@@ -277,7 +277,7 @@ if len(USER_SESSION_STRING) != 0:
     log_info("Creating client from USER_SESSION_STRING")
     try:
         user = _start_tg(wztgClient('user', TELEGRAM_API, TELEGRAM_HASH, session_string=USER_SESSION_STRING,
-                        parse_mode=enums.ParseMode.HTML, no_updates=True))
+                        parse_mode=enums.ParseMode.HTML, no_updates=True, workers=12))
         IS_PREMIUM_USER = user.me.is_premium
     except Exception as e:
         log_error(f"Failed making client from USER_SESSION_STRING : {e}")
@@ -941,7 +941,7 @@ except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=8,
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=12,
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 bot_name = bot.me.username

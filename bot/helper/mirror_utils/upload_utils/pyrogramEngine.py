@@ -445,6 +445,9 @@ class TgUploader:
                 'progress': self.__upload_progress,
             }
 
+            duration = width = height = 0
+            artist = title = ""
+            buttons = None
             if self.__as_doc or force_document or (not is_video and not is_audio and not is_image):
                 key = 'documents'
                 if is_video and thumb is None:
@@ -452,8 +455,6 @@ class TgUploader:
                 if self.__is_cancelled:
                     return
                 buttons = await self.__buttons(self.__up_path, is_video)
-                kw = {**base, 'document': self.__up_path, 'thumb': thumb, 'force_document': True, 'reply_markup': buttons}
-                nrml_media = await self.__call_send(self.__client.send_document, kw)
             elif is_video:
                 key = 'videos'
                 duration = (await get_media_info(self.__up_path))[0]
@@ -466,41 +467,58 @@ class TgUploader:
                     width, height = 480, 320
                 if not self.__up_path.upper().endswith(("MKV", "MP4")):
                     dirpath, file_ = self.__up_path.rsplit('/', 1)
-                    if self.__listener.seed and not self.__listener.newDir and not dirpath.endswith("/splited_files_mltb"):
-                        dirpath = f"{dirpath}/copied_mltb"
-                        await makedirs(dirpath, exist_ok=True)
-                        new_path = ospath.join(dirpath, f"{ospath.splitext(file_)[0]}.mp4")
-                        self.__up_path = await copy(self.__up_path, new_path)
-                    else:
-                        new_path = f"{ospath.splitext(self.__up_path)[0]}.mp4"
-                        await aiorename(self.__up_path, new_path)
+                    new_path = ospath.join(dirpath, f"{ospath.splitext(file_)[0]}.mp4")
+                    if await remux_container(self.__up_path, new_path):
+                        if not (self.__listener.seed and not self.__listener.newDir):
+                            await aioremove(self.__up_path)
                         self.__up_path = new_path
                 if self.__is_cancelled:
                     return
                 buttons = await self.__buttons(self.__up_path, True)
-                kw = {
-                    **base, 'video': self.__up_path, 'duration': duration,
-                    'width': width, 'height': height, 'thumb': thumb,
-                    'supports_streaming': True, 'reply_markup': buttons,
-                }
-                nrml_media = await self.__call_send(self.__client.send_video, kw)
             elif is_audio:
                 key = 'audios'
                 duration, artist, title = await get_media_info(self.__up_path)
                 if self.__is_cancelled:
                     return
-                kw = {
-                    **base, 'audio': self.__up_path, 'duration': duration,
-                    'performer': artist, 'title': title, 'thumb': thumb,
-                    'reply_markup': await self.__buttons(self.__up_path),
-                }
-                nrml_media = await self.__call_send(self.__client.send_audio, kw)
+                buttons = await self.__buttons(self.__up_path)
             else:
                 key = 'photos'
                 if self.__is_cancelled:
                     return
-                kw = {**base, 'photo': self.__up_path, 'reply_markup': await self.__buttons(self.__up_path)}
-                nrml_media = await self.__call_send(self.__client.send_photo, kw)
+                buttons = await self.__buttons(self.__up_path)
+
+            try:
+                nrml_media = await HypertgUpload(self).send_media(
+                    self.__up_path, key,
+                    thumb=thumb, cap_mono=cap_mono,
+                    chat_id=chat_id, reply_to_message_id=reply_id,
+                    duration=duration, width=width, height=height,
+                    artist=artist or "", title=title or "",
+                    reply_markup=buttons, progress=self.__upload_progress,
+                )
+            except Exception:
+                LOGGER.warning("HypertgUL fallback __call_send")
+                if key == 'videos':
+                    nrml_media = await self.__call_send(self.__client.send_video, {
+                        **base, 'video': self.__up_path, 'duration': duration,
+                        'width': width, 'height': height, 'thumb': thumb,
+                        'supports_streaming': True, 'reply_markup': buttons,
+                    })
+                elif key == 'audios':
+                    nrml_media = await self.__call_send(self.__client.send_audio, {
+                        **base, 'audio': self.__up_path, 'duration': duration,
+                        'performer': artist, 'title': title, 'thumb': thumb,
+                        'reply_markup': buttons,
+                    })
+                elif key == 'photos':
+                    nrml_media = await self.__call_send(self.__client.send_photo, {
+                        **base, 'photo': self.__up_path, 'reply_markup': buttons,
+                    })
+                else:
+                    nrml_media = await self.__call_send(self.__client.send_document, {
+                        **base, 'document': self.__up_path, 'thumb': thumb,
+                        'force_document': True, 'reply_markup': buttons,
+                    })
 
             if self.__prm_media and (self.__has_buttons or not self.__leechmsg) and key in ('documents', 'videos'):
                 try:
