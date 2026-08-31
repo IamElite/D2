@@ -1182,8 +1182,6 @@ async def edit_bot_settings(client, query):
             await update_buttons(message, 'hyper')
         elif sub == 'bots':
             await update_buttons(message, 'hyperbots')
-        elif sub == 'user':
-            await update_buttons(message, 'hyperuser')
         elif sub == 'addbot':
             await editMessage(message, "<i>Send helper <b>BOT_TOKEN</b> from @BotFather.\nTimeout: 60s</i>")
             pfunc = partial(_save_helper_token, pre_message=message)
@@ -1199,18 +1197,10 @@ async def edit_bot_settings(client, query):
                 toks.pop(idx - 1)
                 await _persist_helpers(" ".join(toks))
             await update_buttons(message, 'hyperbots')
-        elif sub == 'adduser':
-            await editMessage(message, "<i>Send <b>USER_SESSION_STRING</b>. Restart after save.\nTimeout: 60s</i>")
-            pfunc = partial(_save_user_sess, pre_message=message)
-            rfunc = partial(update_buttons, message, 'hyperuser')
-            await event_handler(client, query, pfunc, rfunc)
-        elif sub == 'rmuser':
-            config_dict['USER_SESSION_STRING'] = ''
-            environ['USER_SESSION_STRING'] = ''
-            if DATABASE_URL:
-                await DbManger().update_config({'USER_SESSION_STRING': ''})
-            await update_buttons(message, 'hyperuser')
     elif data[1] == 'resetvar':
+        if data[2] == 'USER_SESSION_STRING':
+            await query.answer('USER_SESSION_STRING is not reset from here.', show_alert=True)
+            return
         handler_dict[message.chat.id] = False
         await query.answer('Reset Done!', show_alert=True)
         value = ''
