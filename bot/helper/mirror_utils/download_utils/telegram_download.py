@@ -63,10 +63,14 @@ class TelegramDownloadHelper:
             raise StopTransmission
         now = time()
         dt = now - self.__last_t
-        if dt >= 0.4:
-            self.__inst_speed = max(0, (current - self.__last_b) / dt)
+        if dt >= 1.0:
+            sample = max(0, (current - self.__last_b) / dt)
             self.__last_t = now
             self.__last_b = current
+            if self.__inst_speed <= 0:
+                self.__inst_speed = sample
+            else:
+                self.__inst_speed = 0.3 * sample + 0.7 * self.__inst_speed
             ud = self.__listener.upload_details
             if self.__inst_speed > (ud.get("max_dl") or 0):
                 ud["max_dl"] = self.__inst_speed

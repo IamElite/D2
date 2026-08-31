@@ -448,3 +448,8 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 OLD: speed = total/elapsed so 2-3-7-10 ramp; HypertgDownload() still built pool every leech (CPU).
 Fix: 0.4s window instant DL/UL speed (max in upload_details). Direct download_media, no HypertgTransfer init.
 
+
+### 260831-U — smooth 1s EWMA speed not 0.4s spikes
+User: 19-7-12-20-40 jump, CPU high, 43.91 done-msg spike.
+Fix: DL/UL speed 1s sample + 0.3/0.7 EWMA; max_dl/ul from smoothed not burst.
+
