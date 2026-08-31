@@ -475,3 +475,6 @@ mega/gd/tg/rclone same as before; else aria2. Log: Auto engine.
 
 ### 260901-A — bulk/multi cancel tag + self-delete
 -b and -i same chain. Cmd + ➲ cancel /c{SUFFIX}_tag. Delay 5s then delete own cmd then next -i. /c7_tag stops remaining queue. First status +2s flood wait. Clone /c7 untouched.
+
+### 260901-B — bulk cancel: 1 notice + delete leftover /l -i cmd
+OLD: 260901-A. stop_multi deletes last cmd; run_multi silent if tag gone. No 2nd cancelled msg. Point 2 (-i reply) not touched.

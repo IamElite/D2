@@ -178,6 +178,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         fetched = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
         if _is_tg_msg(fetched) and not getattr(fetched, "empty", False):
             nextmsg = fetched
+        remember_cmd(multi_tag, nextmsg)
         nextmsg.from_user = message.from_user
         _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk, multi_tag)
         return
@@ -194,7 +195,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             return
         await sleep(5)
         if not multi_still_on(multi_tag):
-            await sendMessage(message, "Multi Task has been cancelled!")
+            await delete_own(message)
             return
         chat = getattr(message, "chat", None)
         if chat is None:
@@ -216,7 +217,12 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                     got = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
                     if _is_tg_msg(got) and not getattr(got, "empty", False):
                         origin = got
+            if not multi_still_on(multi_tag):
+                await delete_own(message)
+                return
             await delete_own(message)
+            if not multi_still_on(multi_tag):
+                return
             nextmsg = await send_multi_cmd(origin, cmd_txt, multi_tag, nxt)
             if not _is_tg_msg(nextmsg):
                 LOGGER.error("multi sendMessage failed: %r", nextmsg)
@@ -224,10 +230,14 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             fetched = await client.get_messages(chat_id=chat.id, message_ids=nextmsg.id)
             if _is_tg_msg(fetched) and not getattr(fetched, "empty", False):
                 nextmsg = fetched
+            remember_cmd(multi_tag, nextmsg)
             if folder_name and sameDir is not None:
                 sameDir['tasks'].add(nextmsg.id)
             if message.from_user:
                 nextmsg.from_user = message.from_user
+            if not multi_still_on(multi_tag):
+                await delete_own(nextmsg)
+                return
             _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk, multi_tag)
         except Exception:
             LOGGER.error("multi failed:\n%s", format_exc())

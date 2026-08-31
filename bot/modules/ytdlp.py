@@ -23,7 +23,8 @@ from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import YT_HELP_MESSAGE
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from ..helper.ext_utils.multi_tools import (
-    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on, send_multi_cmd)
+    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
+    remember_cmd, send_multi_cmd)
 
 
 @new_task
@@ -319,6 +320,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
         multi_tag = ensure_multi_tag(None, n)
         nextmsg = await send_multi_cmd(message, f"{input_list[0]} {bulk[0]} -i {n}", multi_tag, n)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
+        remember_cmd(multi_tag, nextmsg)
         nextmsg.from_user = message.from_user
         _ytdl(client, nextmsg, isLeech, sameDir, bulk, multi_tag)
         return
@@ -335,7 +337,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             return
         await sleep(5)
         if not multi_still_on(multi_tag):
-            await sendMessage(message, "Multi Task has been cancelled!")
+            await delete_own(message)
             return
         nxt = multi - 1
         if len(bulk) != 0:
@@ -347,12 +349,21 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             msg[index+1] = f"{nxt}"
             cmd_txt = " ".join(msg)
             origin = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
+        if not multi_still_on(multi_tag):
+            await delete_own(message)
+            return
         await delete_own(message)
+        if not multi_still_on(multi_tag):
+            return
         nextmsg = await send_multi_cmd(origin, cmd_txt, multi_tag, nxt)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
+        remember_cmd(multi_tag, nextmsg)
         if folder_name:
             sameDir['tasks'].add(nextmsg.id)
         nextmsg.from_user = message.from_user
+        if not multi_still_on(multi_tag):
+            await delete_own(nextmsg)
+            return
         _ytdl(client, nextmsg, isLeech, sameDir, bulk, multi_tag)
 
     path = f'{DOWNLOAD_DIR}{message.id}{folder_name}'

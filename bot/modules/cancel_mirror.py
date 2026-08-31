@@ -8,6 +8,7 @@ from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.message_utils import sendMessage, deleteMessage, auto_delete_message
 from ..helper.ext_utils.bot_utils import getDownloadByGid, getAllDownload, MirrorStatus, new_task
+from ..helper.ext_utils.multi_tools import stop_multi
 from ..helper.telegram_helper import button_build
 
 

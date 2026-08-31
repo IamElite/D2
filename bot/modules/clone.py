@@ -9,7 +9,8 @@ from json import loads, dumps as jdumps
 
 from .. import LOGGER, download_dict, download_dict_lock, categories_dict, config_dict, bot
 from ..helper.ext_utils.multi_tools import (
-    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on, send_multi_cmd)
+    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
+    remember_cmd, send_multi_cmd)
 from ..helper.ext_utils.task_manager import limit_checker, task_utils
 from ..helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..helper.telegram_helper.message_utils import sendMessage, editMessage, deleteMessage, sendStatusMessage, delete_links, auto_delete_message, open_category_btns
@@ -223,17 +224,26 @@ async def clone(client, message):
             return
         await sleep(5)
         if not multi_still_on(multi_tag):
-            await sendMessage(message, "Multi Task has been cancelled!")
+            await delete_own(message)
             return
         nxt = multi - 1
         msg = [s.strip() for s in input_list]
         index = msg.index('-i')
         msg[index+1] = f"{nxt}"
         origin = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
+        if not multi_still_on(multi_tag):
+            await delete_own(message)
+            return
         await delete_own(message)
+        if not multi_still_on(multi_tag):
+            return
         nextmsg = await send_multi_cmd(origin, " ".join(msg), multi_tag, nxt)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
+        remember_cmd(multi_tag, nextmsg)
         nextmsg.from_user = message.from_user
+        if not multi_still_on(multi_tag):
+            await delete_own(nextmsg)
+            return
         clone(client, nextmsg)
 
     __run_multi()
