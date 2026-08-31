@@ -100,6 +100,7 @@ qb_listener_lock = Lock()
 status_reply_dict = {}
 download_dict = {}
 rss_dict = {}
+multi_tags = set()
 
 BOT_TOKEN = environ.get('BOT_TOKEN', '')
 if len(BOT_TOKEN) == 0:

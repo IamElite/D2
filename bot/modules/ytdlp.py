@@ -22,6 +22,8 @@ from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import YT_HELP_MESSAGE
 from ..helper.ext_utils.bulk_links import extract_bulk_links
+from ..helper.ext_utils.multi_tools import (
+    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on, send_multi_cmd)
 
 
 @new_task
@@ -241,7 +243,7 @@ async def _mdisk(link, name):
 
 
 @new_task
-async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[]):
+async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag=None):
     text = message.text.split('\n')
     input_list = text[0].split(' ')
     qual = ''
@@ -313,38 +315,45 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[]):
         except:
             await sendMessage(message, 'Reply to text file or tg message that have links seperated by new line!')
             return
-        b_msg = input_list[:1]
-        b_msg.append(f'{bulk[0]} -i {len(bulk)}')
-        nextmsg = await sendMessage(message, " ".join(b_msg))
+        n = len(bulk)
+        multi_tag = ensure_multi_tag(None, n)
+        nextmsg = await send_multi_cmd(message, f"{input_list[0]} {bulk[0]} -i {n}", multi_tag, n)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
         nextmsg.from_user = message.from_user
-        _ytdl(client, nextmsg, isLeech, sameDir, bulk)
+        _ytdl(client, nextmsg, isLeech, sameDir, bulk, multi_tag)
         return
 
     if len(bulk) != 0:
         del bulk[0]
 
+    multi_tag = ensure_multi_tag(multi_tag, multi)
+
     @new_task
     async def __run_multi():
         if multi <= 1:
+            drop_multi_tag(multi_tag)
             return
         await sleep(5)
+        if not multi_still_on(multi_tag):
+            await sendMessage(message, "Multi Task has been cancelled!")
+            return
+        nxt = multi - 1
         if len(bulk) != 0:
-            msg = input_list[:1]
-            msg.append(f'{bulk[0]} -i {multi - 1}')
-            nextmsg = await sendMessage(message, " ".join(msg))
+            cmd_txt = f"{input_list[0]} {bulk[0]} -i {nxt}"
+            origin = message
         else:
             msg = [s.strip() for s in input_list]
             index = msg.index('-i')
-            msg[index+1] = f"{multi - 1}"
-            nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
-            nextmsg = await sendMessage(nextmsg, " ".join(msg))
+            msg[index+1] = f"{nxt}"
+            cmd_txt = " ".join(msg)
+            origin = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
+        await delete_own(message)
+        nextmsg = await send_multi_cmd(origin, cmd_txt, multi_tag, nxt)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
         if folder_name:
             sameDir['tasks'].add(nextmsg.id)
         nextmsg.from_user = message.from_user
-        await sleep(5)
-        _ytdl(client, nextmsg, isLeech, sameDir, bulk)
+        _ytdl(client, nextmsg, isLeech, sameDir, bulk, multi_tag)
 
     path = f'{DOWNLOAD_DIR}{message.id}{folder_name}'
 

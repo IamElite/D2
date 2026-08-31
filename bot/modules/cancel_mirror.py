@@ -3,7 +3,7 @@ from asyncio import sleep
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
 
-from .. import download_dict, bot, bot_name, download_dict_lock, OWNER_ID, user_data
+from .. import download_dict, bot, bot_name, download_dict_lock, OWNER_ID, user_data, multi_tags, CMD_SUFFIX
 from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.message_utils import sendMessage, deleteMessage, auto_delete_message
@@ -19,6 +19,10 @@ async def cancel_mirror(_, message):
         if len(cmd_data) > 1 and cmd_data[1].strip() != bot_name:
             return
         gid = cmd_data[0]
+        if gid in multi_tags:
+            multi_tags.discard(gid)
+            await sendMessage(message, "Multi Task has been cancelled!")
+            return
         dl = await getDownloadByGid(gid)
         if dl is None:
             await sendMessage(message, f"GID: <code>{gid}</code> Not Found.")
@@ -95,4 +99,6 @@ bot.add_handler(MessageHandler(cancel_mirror, filters=regex(
     f"^/{BotCommands.CancelMirror}(_\w+)?(?!all)") & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(cancell_all_buttons, filters=command(
     BotCommands.CancelAllCommand) & CustomFilters.sudo))
+bot.add_handler(MessageHandler(cancel_mirror, filters=regex(
+    rf"^/c{CMD_SUFFIX}_\w+") & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(CallbackQueryHandler(cancel_all_update, filters=regex(r"^canall")))

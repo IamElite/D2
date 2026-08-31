@@ -472,3 +472,6 @@ Always delete PM_START, L_LOG_START, LINKS_START after file sent (and on error).
 magnet/.torrent → qBit; youtube/tiktok/etc host hint → yt-dlp (no extract_info);
 mega/gd/tg/rclone same as before; else aria2. Log: Auto engine.
 
+
+### 260901-A — bulk/multi cancel tag + self-delete
+-b and -i same chain. Cmd + ➲ cancel /c{SUFFIX}_tag. Delay 5s then delete own cmd then next -i. /c7_tag stops remaining queue. First status +2s flood wait. Clone /c7 untouched.

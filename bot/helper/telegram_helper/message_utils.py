@@ -344,14 +344,18 @@ async def sendStatusMessage(msg):
         progress, buttons = await sync_to_async(get_readable_message)
     if progress is None:
         return
+    chat = getattr(msg, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    if chat_id is None and getattr(msg, "from_user", None) is not None:
+        chat_id = msg.from_user.id
+    if chat_id is None:
+        LOGGER.error("sendStatusMessage: no chat")
+        return
     async with status_reply_dict_lock:
-        chat = getattr(msg, "chat", None)
-        chat_id = getattr(chat, "id", None)
-        if chat_id is None and getattr(msg, "from_user", None) is not None:
-            chat_id = msg.from_user.id
-        if chat_id is None:
-            LOGGER.error("sendStatusMessage: no chat")
-            return
+        first_status = chat_id not in status_reply_dict
+    if first_status:
+        await sleep(2)
+    async with status_reply_dict_lock:
         if chat_id in list(status_reply_dict.keys()):
             message = status_reply_dict[chat_id][0]
             await deleteMessage(message)

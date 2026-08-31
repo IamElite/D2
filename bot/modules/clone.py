@@ -8,6 +8,8 @@ from cloudscraper import create_scraper as cget
 from json import loads, dumps as jdumps
 
 from .. import LOGGER, download_dict, download_dict_lock, categories_dict, config_dict, bot
+from ..helper.ext_utils.multi_tools import (
+    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on, send_multi_cmd)
 from ..helper.ext_utils.task_manager import limit_checker, task_utils
 from ..helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..helper.telegram_helper.message_utils import sendMessage, editMessage, deleteMessage, sendStatusMessage, delete_links, auto_delete_message, open_category_btns
@@ -180,7 +182,7 @@ async def gdcloneNode(message, link, listen_up):
 
 @new_task
 async def clone(client, message):
-    input_list = message.text.split(' ')
+    input_list = message.text.split('\n')[0].split(' ')
 
     arg_base = {'link': '', 
                 '-i': 0, 
@@ -212,19 +214,27 @@ async def clone(client, message):
     if not link and (reply_to := message.reply_to_message) and reply_to.text:
         link = reply_to.text.split('\n', 1)[0].strip()
 
+    multi_tag = ensure_multi_tag(None, multi)
+
     @new_task
     async def __run_multi():
-        if multi > 1:
-            await sleep(5)
-            msg = [s.strip() for s in input_list]
-            index = msg.index('-i')
-            msg[index+1] = f"{multi - 1}"
-            nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
-            nextmsg = await sendMessage(nextmsg, " ".join(msg))
-            nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
-            nextmsg.from_user = message.from_user
-            await sleep(5)
-            clone(client, nextmsg)
+        if multi <= 1:
+            drop_multi_tag(multi_tag)
+            return
+        await sleep(5)
+        if not multi_still_on(multi_tag):
+            await sendMessage(message, "Multi Task has been cancelled!")
+            return
+        nxt = multi - 1
+        msg = [s.strip() for s in input_list]
+        index = msg.index('-i')
+        msg[index+1] = f"{nxt}"
+        origin = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
+        await delete_own(message)
+        nextmsg = await send_multi_cmd(origin, " ".join(msg), multi_tag, nxt)
+        nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
+        nextmsg.from_user = message.from_user
+        clone(client, nextmsg)
 
     __run_multi()
 

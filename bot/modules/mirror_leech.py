@@ -34,6 +34,8 @@ from ..helper.telegram_helper.message_utils import sendMessage, editMessage, edi
 from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import MIRROR_HELP_MESSAGE, CLONE_HELP_MESSAGE, YT_HELP_MESSAGE, help_string
 from ..helper.ext_utils.bulk_links import extract_bulk_links
+from ..helper.ext_utils.multi_tools import (
+    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
 
 # Cheap host check — no yt-dlp extract_info (saves CPU/RAM).
@@ -68,7 +70,7 @@ def _auto_engine(link, file_=None):
     return "aria"
 
 @new_task
-async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=None, bulk=[]):
+async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=None, bulk=[], multi_tag=None):
     text = message.text.split('\n')
     input_list = text[0].split(' ')
 
@@ -163,9 +165,10 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         except:
             await sendMessage(message, 'Reply to text file or tg message that have links seperated by new line!')
             return
-        b_msg = input_list[:1]
-        b_msg.append(f'{bulk[0]} -i {len(bulk)}')
-        nextmsg = await sendMessage(message, " ".join(b_msg))
+        n = len(bulk)
+        multi_tag = ensure_multi_tag(None, n)
+        b_txt = f"{input_list[0]} {bulk[0]} -i {n}"
+        nextmsg = await send_multi_cmd(message, b_txt, multi_tag, n)
         if not _is_tg_msg(nextmsg):
             LOGGER.error("bulk sendMessage failed: %s", nextmsg)
             return
@@ -176,38 +179,45 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         if _is_tg_msg(fetched) and not getattr(fetched, "empty", False):
             nextmsg = fetched
         nextmsg.from_user = message.from_user
-        _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
+        _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk, multi_tag)
         return
 
     if len(bulk) != 0:
         del bulk[0]
 
+    multi_tag = ensure_multi_tag(multi_tag, multi)
+
     @new_task
     async def __run_multi():
         if multi <= 1:
+            drop_multi_tag(multi_tag)
             return
         await sleep(5)
+        if not multi_still_on(multi_tag):
+            await sendMessage(message, "Multi Task has been cancelled!")
+            return
         chat = getattr(message, "chat", None)
         if chat is None:
             LOGGER.error("multi: message.chat is None")
             return
         try:
+            nxt = multi - 1
             if len(bulk) != 0:
-                msg = input_list[:1]
-                msg.append(f'{bulk[0]} -i {multi - 1}')
-                nextmsg = await sendMessage(message, " ".join(msg))
+                cmd_txt = f"{input_list[0]} {bulk[0]} -i {nxt}"
+                origin = message
             else:
                 msg = [s.strip() for s in input_list]
                 index = msg.index('-i')
-                msg[index + 1] = f"{multi - 1}"
+                msg[index + 1] = f"{nxt}"
+                cmd_txt = " ".join(msg)
                 reply_id = message.reply_to_message_id
+                origin = message
                 if reply_id is not None:
-                    nextmsg = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
-                else:
-                    nextmsg = message
-                if not _is_tg_msg(nextmsg) or getattr(nextmsg, "empty", False):
-                    nextmsg = message
-                nextmsg = await sendMessage(nextmsg, " ".join(msg))
+                    got = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
+                    if _is_tg_msg(got) and not getattr(got, "empty", False):
+                        origin = got
+            await delete_own(message)
+            nextmsg = await send_multi_cmd(origin, cmd_txt, multi_tag, nxt)
             if not _is_tg_msg(nextmsg):
                 LOGGER.error("multi sendMessage failed: %r", nextmsg)
                 return
@@ -218,8 +228,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                 sameDir['tasks'].add(nextmsg.id)
             if message.from_user:
                 nextmsg.from_user = message.from_user
-            await sleep(5)
-            _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk)
+            _mirror_leech(client, nextmsg, isQbit, isLeech, sameDir, bulk, multi_tag)
         except Exception:
             LOGGER.error("multi failed:\n%s", format_exc())
 
@@ -296,6 +305,17 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     if link:
         LOGGER.info(link)
         org_link = link
+
+    if file_ is None and link and isinstance(link, str) and not isQbit:
+        eng = _auto_engine(link)
+        if eng == "ytdl":
+            LOGGER.info("Auto engine yt-dlp: %s", link[:80])
+            from .ytdlp import _ytdl
+            _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
+            return
+        if eng == "qbit":
+            isQbit = True
+            LOGGER.info("Auto engine qBit: %s", link[:80])
 
     if (not is_mega_link(link) or (is_mega_link(link) and not config_dict['MEGA_EMAIL'] and config_dict['DEBRID_LINK_API'])) \
         and (not is_magnet(link) or (config_dict['REAL_DEBRID_API'] and is_magnet(link))) \
