@@ -19,6 +19,7 @@ from ..helper.ext_utils.telegraph_helper import telegraph
 
 async def gen_mediainfo(message, link=None, media=None, mmsg=None):
     temp_send = await sendMessage(message, '<i>Generating MediaInfo...</i>')
+    des_path = None
     try:
         path = "Mediainfo/"
         if not await aiopath.isdir(path):
@@ -27,20 +28,47 @@ async def gen_mediainfo(message, link=None, media=None, mmsg=None):
             filename = re_search(".+/(.+)", link).group(1)
             des_path = ospath.join(path, filename)
             headers = {"user-agent":"Mozilla/5.0 (Linux; Android 12; 2201116PI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36"}
+            head_b, tail_b = 16 * 1024 * 1024, 16 * 1024 * 1024
             async with ClientSession() as session:
                 async with session.get(link, headers=headers) as response:
+                    clen = int(response.headers.get("Content-Length") or 0)
+                    got = 0
                     async with aiopen(des_path, "wb") as f:
-                        async for chunk in response.content.iter_chunked(10000000):
+                        async for chunk in response.content.iter_chunked(1024 * 1024):
                             await f.write(chunk)
-                            break
+                            got += len(chunk)
+                            if got >= head_b:
+                                break
+                if clen > head_b + tail_b:
+                    rh = dict(headers)
+                    rh["Range"] = f"bytes={clen - tail_b}-{clen - 1}"
+                    try:
+                        async with session.get(link, headers=rh) as response:
+                            if response.status in (200, 206):
+                                async with aiopen(des_path, "ab") as f:
+                                    async for chunk in response.content.iter_chunked(1024 * 1024):
+                                        await f.write(chunk)
+                    except Exception:
+                        pass
         elif media:
-            des_path = ospath.join(path, media.file_name)
-            if media.file_size <= 50000000:
+            des_path = ospath.join(path, media.file_name or "media.bin")
+            if media.file_size and media.file_size <= 50 * 1024 * 1024:
                 await mmsg.download(ospath.join(getcwd(), des_path))
             else:
-                async for chunk in bot.stream_media(media, limit=5):
-                    async with aiopen(des_path, "ab") as f:
+                chunk_sz, head_n, tail_n = 1024 * 1024, 16, 16
+                async with aiopen(des_path, "wb") as f:
+                    async for chunk in bot.stream_media(media, limit=head_n):
                         await f.write(chunk)
+                fsize = getattr(media, "file_size", 0) or 0
+                if fsize > (head_n + tail_n) * chunk_sz:
+                    total = max(head_n + tail_n, fsize // chunk_sz)
+                    off = max(head_n, total - tail_n)
+                    try:
+                        async for chunk in bot.stream_media(media, offset=off, limit=tail_n):
+                            async with aiopen(des_path, "ab") as f:
+                                await f.write(chunk)
+                    except Exception:
+                        pass
         stdout, _, _ = await cmd_exec(ssplit(f'mediainfo "{des_path}"'))
         tc = f"<h4>📌 {ospath.basename(des_path)}</h4><br><br>"
         if len(stdout) != 0:
@@ -49,7 +77,11 @@ async def gen_mediainfo(message, link=None, media=None, mmsg=None):
         LOGGER.error(e)
         await editMessage(temp_send, f"MediaInfo Stopped due to {str(e)}")
     finally:
-        await aioremove(des_path)
+        if des_path:
+            try:
+                await aioremove(des_path)
+            except Exception:
+                pass
     link_id = (await telegraph.create_page(title='MediaInfo X', content=tc))["path"]
     await temp_send.edit(f"<b>MediaInfo:</b>\n\n➲ <b>Link :</b> https://graph.org/{link_id}", disable_web_page_preview=False)
 
