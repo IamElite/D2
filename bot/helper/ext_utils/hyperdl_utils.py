@@ -50,16 +50,9 @@ class HypertgDownload(HypertgTransfer):
         except Exception:
             media = getattr(message, getattr(message, "media", None) and message.media.value, None)
         size = getattr(media, "file_size", 0) or 0
-        if not media or size < CHUNK * 4:
-            return await client.download_media(message=message, file_name=path, progress=progress)
-        try:
-            n = await self._pipeline(client, media, path, size, progress, cancelled)
-            if n:
-                return n
-        except StopTransmission:
-            raise
-        except Exception as e:
-            LOGGER.error("HyperDL pipeline: %s", e)
+        # Native download_media: ~20MB/s @ ~15% CPU. 4-slot GetFile was ~13MB/s @ 75%+ CPU
+        # and FileId-DC lock hung at 0B. Pipeline kept for later; not used on the hot path.
+        LOGGER.info("HyperDL via download_media size=%s (no DC pin, no parallel GetFile)", size)
         return await client.download_media(message=message, file_name=path, progress=progress)
 
     async def _getfile(self, sess, loc, off, csz):

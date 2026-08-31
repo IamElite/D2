@@ -438,3 +438,9 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ### `260831-R` — HyperDL no FileId DC lock
 **OLD:** session `fid.dc_id` (DC4) jab bot DC5 → hang 0B. Log `dc=4 (bot-only)`.
 **Fix:** start **bot storage DC**; `FileMigrate` pe us DC pe jao. 4 slots, GetFile 12s timeout, first window 0B → fallback `download_media`. Log: `HyperDL start bot_dc= file_id_dc= using_dc=`.
+
+
+---
+
+### `260831-S` — TG DL wapas download_media (CPU)
+**User:** pehle 20+ MB/s @ ~15
