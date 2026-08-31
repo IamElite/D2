@@ -5,7 +5,7 @@ from asyncio import Lock
 from pyrogram import Client, StopTransmission
 
 from .... import LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock, bot, user, IS_PREMIUM_USER
-from ...ext_utils.hyperdl_utils import pick_download_client, HypertgDownload
+from ...ext_utils.hyperdl_utils import pick_download_client
 from ..status_utils.telegram_status import TelegramStatus
 from ..status_utils.queue_status import QueueStatus
 from ...telegram_helper.message_utils import sendStatusMessage, sendMessage, delete_links
@@ -27,10 +27,15 @@ class TelegramDownloadHelper:
         self.__decrypter = None
         self.__id = ""
         self.__is_cancelled = False
+        self.__last_t = self.__start_time
+        self.__last_b = 0
+        self.__inst_speed = 0
 
     @property
     def speed(self):
-        return self.__processed_bytes / (time() - self.__start_time)
+        return self.__inst_speed or (
+            self.__processed_bytes / max(0.4, time() - self.__start_time)
+        )
 
     @property
     def processed_bytes(self):
@@ -56,6 +61,15 @@ class TelegramDownloadHelper:
     async def __onDownloadProgress(self, current, total):
         if self.__is_cancelled:
             raise StopTransmission
+        now = time()
+        dt = now - self.__last_t
+        if dt >= 0.4:
+            self.__inst_speed = max(0, (current - self.__last_b) / dt)
+            self.__last_t = now
+            self.__last_b = current
+            ud = self.__listener.upload_details
+            if self.__inst_speed > (ud.get("max_dl") or 0):
+                ud["max_dl"] = self.__inst_speed
         self.__processed_bytes = current
 
     async def __onDownloadError(self, error):
@@ -83,16 +97,8 @@ class TelegramDownloadHelper:
                         await self.__onDownloadError(f'ERROR: {e}')
                         return
             else:
-                try:
-                    hd = HypertgDownload(self)
-                    download = await hd.download_media(
-                        self.__client, message, path,
-                        progress=self.__onDownloadProgress,
-                        cancelled=lambda: self.__is_cancelled,
-                    )
-                except Exception:
-                    download = await self.__client.download_media(
-                        message=message, file_name=path, progress=self.__onDownloadProgress)
+                download = await self.__client.download_media(
+                    message=message, file_name=path, progress=self.__onDownloadProgress)
             if self.__is_cancelled:
                 await self.__onDownloadError('Cancelled by user!')
                 return

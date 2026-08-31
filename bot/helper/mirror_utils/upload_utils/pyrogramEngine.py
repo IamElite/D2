@@ -57,6 +57,9 @@ class TgUploader:
         self.__listener = listener
         self.__path = path
         self.__start_time = time()
+        self.__spd_t = self.__start_time
+        self.__spd_b = 0
+        self.__inst_speed = 0
         self.__total_files = 0
         self.__is_cancelled = False
         self.__retry_error = False
@@ -186,6 +189,15 @@ class TgUploader:
         chunk_size = current - self.__last_uploaded
         self.__last_uploaded = current
         self.__processed_bytes += chunk_size
+        now = time()
+        dt = now - self.__spd_t
+        if dt >= 0.4:
+            self.__inst_speed = max(0, (self.__processed_bytes - self.__spd_b) / dt)
+            self.__spd_t = now
+            self.__spd_b = self.__processed_bytes
+            ud = self.__listener.upload_details
+            if self.__inst_speed > (ud.get("max_ul") or 0):
+                ud["max_ul"] = self.__inst_speed
 
     async def __user_settings(self):
         user_dict = user_data.get(self.__user_id, {})
@@ -570,7 +582,9 @@ class TgUploader:
     @property
     def speed(self):
         try:
-            return self.__processed_bytes / (time() - self.__start_time)
+            return self.__inst_speed or (
+                self.__processed_bytes / max(0.4, time() - self.__start_time)
+            )
         except Exception:
             return 0
 

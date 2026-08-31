@@ -444,3 +444,7 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ### `260831-S` — TG DL wapas download_media (CPU)
 **User:** pehle 20+ MB/s @ ~15
+### 260831-T — status instant speed, skip HyperDL wrapper
+OLD: speed = total/elapsed so 2-3-7-10 ramp; HypertgDownload() still built pool every leech (CPU).
+Fix: 0.4s window instant DL/UL speed (max in upload_details). Direct download_media, no HypertgTransfer init.
+
