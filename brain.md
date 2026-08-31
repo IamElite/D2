@@ -322,6 +322,10 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 **Galti:** `stream_media(limit=5)` = ~5MB start. MP4 `moov` file ke **end** pe → sirf General, Video/Audio gayab. Dost ke file pe moov start pe tha.
 **Fix:** head 16MB + tail 16MB (HTTP Range / stream offset). Full file ≤50MB download. `/mi7` crash-safe.
 
+### `260831-H` — G ne har MP4 pe extra ffmpeg copy (speed drop)
+**Galti:** `ensure_faststart` 1.6GB dubara likhta — UL 6.5MB/s, 3m→6m. Title inject nahi, sirf copy.
+**Fix:** extra rewrite **hata**. Tags sirf jab `/uset` Leech Metadata / `METADATA` set ho — `edit_metadata` ek pass (`ffmpeg.py`).
+
 ### `260831-G` — leech file metadata udd (OLD: F galat)
 **Galti F:** `/mi7` sample size — user ne **leech ke baad file** ka meta compare kiya.
 **Asli:** remux/ffmpeg `-c copy` bina `-map_metadata 0` + MP4 bina `+faststart` (moov end) + video ko **rename .mp4** (bytes nahi). Dost ffmpeg copy + tags + faststart.

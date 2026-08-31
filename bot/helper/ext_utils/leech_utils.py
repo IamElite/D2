@@ -4,7 +4,7 @@ from re import IGNORECASE, sub as re_sub, search as re_search
 from shlex import split as ssplit
 from natsort import natsorted
 from os import path as ospath
-from aiofiles.os import remove as aioremove, path as aiopath, mkdir, makedirs, listdir, rename as aiorename
+from aiofiles.os import remove as aioremove, path as aiopath, mkdir, makedirs, listdir
 from aioshutil import rmtree as aiormtree
 from contextlib import suppress
 from asyncio import create_subprocess_exec, create_task, gather, Semaphore
@@ -39,7 +39,7 @@ async def remux_container(inp_path, out_path):
     cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
            '-i', inp_path, '-map', '0', '-map_metadata', '0', '-map_chapters', '0', '-c', 'copy']
     if out_ext == '.mp4':
-        cmd += ['-c:s', 'mov_text', '-movflags', '+faststart']
+        cmd += ['-c:s', 'mov_text']
     cmd.append(out_path)
 
     proc = await create_subprocess_exec(*cmd, stderr=PIPE)
@@ -58,10 +58,7 @@ async def remux_container(inp_path, out_path):
         # Video-Audio ঠিক থাকা একটা File পাওয়া যায়।
         cmd2 = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
                 '-i', inp_path, '-map', '0:v', '-map', '0:a?',
-                '-map_metadata', '0', '-c', 'copy']
-        if out_ext == '.mp4':
-            cmd2 += ['-movflags', '+faststart']
-        cmd2.append(out_path)
+                '-map_metadata', '0', '-c', 'copy', out_path]
         proc2 = await create_subprocess_exec(*cmd2, stderr=PIPE)
         code2 = await proc2.wait()
         if code2 == 0 and await aiopath.exists(out_path):
@@ -72,31 +69,6 @@ async def remux_container(inp_path, out_path):
             await aioremove(out_path)
 
     return False
-
-
-async def ensure_faststart(path):
-    """Rewrite MP4 so moov is at the start (keeps tags/streams)."""
-    if ospath.splitext(path)[1].lower() != '.mp4':
-        return path
-    tmp = f"{path}.fs.mp4"
-    cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
-           '-i', path, '-map', '0', '-map_metadata', '0', '-c', 'copy',
-           '-movflags', '+faststart', tmp]
-    proc = await create_subprocess_exec(*cmd, stderr=PIPE)
-    code = await proc.wait()
-    if code == 0 and await aiopath.exists(tmp):
-        with suppress(Exception):
-            await aioremove(path)
-        await move(tmp, path) if False else None
-        from aiofiles.os import rename as aiorename
-        try:
-            await aiorename(tmp, path)
-        except Exception:
-            pass
-        return path
-    with suppress(Exception):
-        await aioremove(tmp)
-    return path
 
 
 async def is_multi_streams(path):
