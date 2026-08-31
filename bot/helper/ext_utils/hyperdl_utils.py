@@ -213,6 +213,6 @@ class HypertgDownload(HypertgTransfer):
                 t.cancel()
             os_close(fd)
         if done < size * 0.95:
-            LOGGER.error("HyperDL incomplete %s/%s — fallback", done, size)
+            LOGGER.error("HyperDL incomplete %s/%s err=%s — fallback", done, size, first_err[0])
             return None
         return path
