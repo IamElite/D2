@@ -249,16 +249,7 @@ async def main():
         await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
     except Exception as e:
         LOGGER.error(f"HyperUP helpers skipped: {e}")
-    try:
-        from .helper.ext_utils.engine_lifecycle import stop_heavy
-        stop_heavy()
-        LOGGER.info("Boot idle: qBit and aria2 stopped until a task needs them")
-    except Exception as e:
-        LOGGER.error(f"Boot engine stop skipped: {e}")
-    try:
-        await sync_to_async(start_aria2_listener, wait=False)
-    except Exception as e:
-        LOGGER.warning(f"aria2 listener later (engine stopped): {e}")
+    await sync_to_async(start_aria2_listener, wait=False)
     
     bot.add_handler(MessageHandler(
         start, filters=command(BotCommands.StartCommand) & private))

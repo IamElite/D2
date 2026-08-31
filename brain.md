@@ -306,6 +306,12 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 
 ---
 
+### `260831-D` — commands dead (OLD: C pkill)
+**Galti:** `pkill -f zetra/xon-bit` boot pe — pattern bot ko maara / aria2 listener toot; `/l7` `/s7` silent, `/r7` chala.
+**Fix:** **pkill hata**. qBit+aria2 **chalte rehte**. Idle = DHT off API. Aria2 listener boot pe wapas. NEVER section brain me.
+
+---
+
 ### `260830-J` — requirements.txt extension
 **Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
