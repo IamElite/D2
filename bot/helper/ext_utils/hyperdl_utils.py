@@ -53,13 +53,11 @@ class HypertgDownload(HypertgTransfer):
         if not media or size < CHUNK * 4:
             return await client.download_media(message=message, file_name=path, progress=progress)
         try:
-            n = await wait_for(self._pipeline(client, media, path, size, progress, cancelled), 90)
+            n = await self._pipeline(client, media, path, size, progress, cancelled)
             if n:
                 return n
         except StopTransmission:
             raise
-        except AsyncTimeout:
-            LOGGER.error("HyperDL pipeline watchdog 90s — fallback download_media")
         except Exception as e:
             LOGGER.error("HyperDL pipeline: %s", e)
         return await client.download_media(message=message, file_name=path, progress=progress)
