@@ -1,0 +1,15 @@
+name = "cdn"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Paid Worker: max CPU budget (ms). Unbound/paid account required.
+[limits]
+cpu_ms = 30000
+
+[placement]
+mode = "smart"
+
+[observability]
+enabled = true
