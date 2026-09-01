@@ -10,6 +10,7 @@ from ..mirror_utils.status_utils.aria2_status import Aria2Status
 from ..ext_utils.fs_utils import get_base_name, clean_unwanted
 from ..ext_utils.bot_utils import getDownloadByGid, new_thread, bt_selection_buttons, sync_to_async, get_telegraph_list
 from ..telegram_helper.message_utils import sendMessage, deleteMessage, update_all_messages
+from ..mirror_utils.download_utils.aria2_download import aria_to_qbit
 from ..themes import BotTheme
 
 
@@ -190,6 +191,8 @@ async def __onDownloadStopped(api, gid):
     await sleep(6)
     if dl := await getDownloadByGid(gid):
         listener = dl.listener()
+        if await aria_to_qbit(listener, "Dead torrent"):
+            return
         await listener.onDownloadError('Dead torrent!')
 
 

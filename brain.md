@@ -505,3 +505,6 @@ Last -i 1 bot line was kept; now delete_own when multi<=1. next_origin shortened
 
 ### 260901-K — last -b/-i cmd line delete (OLD 260901-J)
 Last -i 1 stayed: delete raced. sleep 2 then delete; fallback client.delete_messages.
+
+### 260901-L — torrent Aria2 first, qBit on fail
+Auto magnet/.torrent = Aria2 (CPU). Aria add/error/dead → one qBit. No cancel/limit fallback. /qb7 still qBit.

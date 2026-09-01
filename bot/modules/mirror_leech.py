@@ -56,7 +56,7 @@ def _auto_engine(link, file_=None):
     if not link or not isinstance(link, str):
         return "aria"
     if is_magnet(link) or link.endswith(".torrent"):
-        return "qbit"
+        return "aria"
     if is_mega_link(link):
         return "mega"
     if is_gdrive_link(link):

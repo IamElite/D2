@@ -8,6 +8,26 @@ from ...telegram_helper.message_utils import sendStatusMessage, sendMessage
 from ...ext_utils.task_manager import is_queued
 
 
+def _bt_link(link):
+    return isinstance(link, str) and (link.startswith("magnet:") or link.endswith(".torrent"))
+
+
+async def aria_to_qbit(listener, err=""):
+    if getattr(listener, "qb_fb_done", False) or not getattr(listener, "aria_qb", False):
+        return False
+    el = str(err).lower()
+    if any(x in el for x in ("cancel", "stopped by user", "manually", "limit")):
+        return False
+    listener.qb_fb_done = True
+    listener.isQbit = True
+    md = listener.upload_details.get("mode") or ""
+    listener.upload_details["mode"] = md.replace("#Aria2", "#qBit")
+    LOGGER.info("Aria2 torrent fail → qBit: %s", err)
+    from .qbit_download import add_qb_torrent
+    await add_qb_torrent(listener.aria_link, listener.aria_path, listener, listener.aria_ratio, listener.aria_seed)
+    return True
+
+
 async def add_aria2c_download(link, path, listener, filename, header, ratio, seed_time):
     from ...ext_utils.engine_lifecycle import ensure_aria2
     await sync_to_async(ensure_aria2)
@@ -30,10 +50,18 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
             a2c_opt['pause-metadata'] = 'true'
         else:
             a2c_opt['pause'] = 'true'
+    if _bt_link(link):
+        listener.aria_qb = True
+        listener.aria_link = link
+        listener.aria_path = path
+        listener.aria_ratio = ratio
+        listener.aria_seed = seed_time
     try:
         download = (await sync_to_async(aria2.add, link, a2c_opt))[0]
     except Exception as e:
         LOGGER.info(f"Aria2c Download Error: {e}")
+        if await aria_to_qbit(listener, e):
+            return
         await sendMessage(listener.message, f'{e}')
         return
     if await aiopath.exists(link):
@@ -41,6 +69,8 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     if download.error_message:
         error = str(download.error_message).replace('<', ' ').replace('>', ' ')
         LOGGER.info(f"Aria2c Download Error: {error}")
+        if await aria_to_qbit(listener, error):
+            return
         await sendMessage(listener.message, error)
         return
 
