@@ -23,7 +23,7 @@ from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import YT_HELP_MESSAGE
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from ..helper.ext_utils.multi_tools import (
-    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
+    collect_i_items, delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 
 
@@ -289,6 +289,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
     user_dump   = args['-ud'] or args['-dump']
     bulk_start  = 0
     bulk_end    = 0
+    pre_bulk    = []
     thumb       = args['-t'] or args['-thumb']
     sshots      = int(ss) if (ss := (args['-ss'] or args['-screenshots'])).isdigit() else 0
 
@@ -299,15 +300,10 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             bulk_end = dargs[1] or None
         isBulk = True
 
-    if not isBulk and multi > 0 and (rt := message.reply_to_message):
-        nlines = 0
-        if rt.text:
-            nlines = len([x for x in rt.text.split('\n') if x.strip()])
-        elif getattr(rt, 'document', None) and getattr(rt.document, 'mime_type', '') == 'text/plain':
-            nlines = 2
-        if nlines > 1:
+    if not isBulk and multi > 0 and message.reply_to_message:
+        pre_bulk = await collect_i_items(client, message.reply_to_message, message, multi)
+        if pre_bulk:
             isBulk = True
-            bulk_end = multi
 
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)
@@ -557,6 +553,10 @@ async def ytdlleech(client, message):
 
 
 bot.add_handler(MessageHandler(ytdl, filters=command(
+    BotCommands.YtdlCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
+bot.add_handler(MessageHandler(ytdlleech, filters=command(
+    BotCommands.YtdlLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
+r(ytdl, filters=command(
     BotCommands.YtdlCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(ytdlleech, filters=command(
     BotCommands.YtdlLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))

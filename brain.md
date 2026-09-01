@@ -487,3 +487,6 @@ Same URL -i N chains on cmd (no reply_id+1). File-multi: next consecutive msg. B
 
 ### 260901-E — /l -i N on a link LIST = first N lines (like -b with count)
 Reply to 8-line list + -i 3 → extract[:3], chain like bulk. Bot cmds reply to USER list not own /l7. Help-spam was first-line-only parse.
+
+### 260901-F — -i N walks following msgs (links+media)
+Not one message only. Reply to first, collect N items: lines, videos, docs. Skip bots and the /l7 cmd. -b unchanged.

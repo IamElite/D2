@@ -3,6 +3,68 @@ from secrets import token_hex
 from ... import CMD_SUFFIX, multi_tags
 from ..telegram_helper.message_utils import deleteMessage, sendMessage
 
+
+def _tg_link(m):
+    chat = getattr(m, "chat", None)
+    if chat is None or getattr(m, "id", None) is None:
+        return None
+    un = getattr(chat, "username", None)
+    if un:
+        return f"https://t.me/{un}/{m.id}"
+    cid = str(chat.id)
+    if cid.startswith("-100"):
+        cid = cid[4:]
+    return f"https://t.me/c/{cid}/{m.id}"
+
+
+def _items_in_msg(m):
+    if m is None or getattr(m, "empty", False):
+        return []
+    media = getattr(m, "media", None)
+    doc = getattr(m, "document", None)
+    if media and not (doc and getattr(doc, "mime_type", "") == "text/plain"):
+        link = _tg_link(m)
+        return [link] if link else []
+    text = (getattr(m, "text", None) or getattr(m, "caption", None) or "").strip()
+    if not text:
+        return []
+    return [ln.strip() for ln in text.split("\n") if ln.strip()]
+
+
+async def collect_i_items(client, start, cmd, n):
+    """From replied msg, walk later msgs until n items (links and/or media)."""
+    if start is None or n <= 0:
+        return []
+    chat = getattr(start, "chat", None)
+    if chat is None:
+        return _items_in_msg(start)[:n]
+    items = []
+    mid = start.id
+    cmd_id = getattr(cmd, "id", None)
+    scans = 0
+    limit = min(80, max(n * 12, 16))
+    while len(items) < n and scans < limit:
+        scans += 1
+        if cmd_id is not None and mid == cmd_id:
+            break
+        try:
+            m = await client.get_messages(chat_id=chat.id, message_ids=mid)
+        except Exception:
+            break
+        if m is None or isinstance(m, str) or getattr(m, "empty", False):
+            mid += 1
+            continue
+        fu = getattr(m, "from_user", None)
+        if fu is not None and getattr(fu, "is_bot", False) and m.id != start.id:
+            mid += 1
+            continue
+        for it in _items_in_msg(m):
+            items.append(it)
+            if len(items) >= n:
+                break
+        mid += 1
+    return items[:n]
+
 _cmd_by_tag = {}
 
 

@@ -35,7 +35,7 @@ from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import MIRROR_HELP_MESSAGE, CLONE_HELP_MESSAGE, YT_HELP_MESSAGE, help_string
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from ..helper.ext_utils.multi_tools import (
-    delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
+    collect_i_items, delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
 
@@ -126,6 +126,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     sshots        = int(ss) if (ss := (args['-ss'] or args['-screenshots'])).isdigit() else 0
     bulk_start    = 0
     bulk_end      = 0
+    pre_bulk      = []
     ratio         = None
     seed_time     = None
     reply_to      = None
@@ -146,16 +147,11 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             bulk_end = dargs[1] or None
         isBulk = True
 
-    # /cmd -i N reply to a list = first N lines (bulk with count). -b = all lines.
-    if not isBulk and multi > 0 and (rt := message.reply_to_message):
-        nlines = 0
-        if rt.text:
-            nlines = len([x for x in rt.text.split('\n') if x.strip()])
-        elif getattr(rt, 'document', None) and getattr(rt.document, 'mime_type', '') == 'text/plain':
-            nlines = 2
-        if nlines > 1:
+    pre_bulk = []
+    if not isBulk and multi > 0 and message.reply_to_message:
+        pre_bulk = await collect_i_items(client, message.reply_to_message, message, multi)
+        if pre_bulk:
             isBulk = True
-            bulk_end = multi
 
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)
