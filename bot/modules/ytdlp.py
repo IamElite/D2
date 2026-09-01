@@ -299,6 +299,16 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             bulk_end = dargs[1] or None
         isBulk = True
 
+    if not isBulk and multi > 0 and (rt := message.reply_to_message):
+        nlines = 0
+        if rt.text:
+            nlines = len([x for x in rt.text.split('\n') if x.strip()])
+        elif getattr(rt, 'document', None) and getattr(rt.document, 'mime_type', '') == 'text/plain':
+            nlines = 2
+        if nlines > 1:
+            isBulk = True
+            bulk_end = multi
+
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)
 
@@ -318,7 +328,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             return
         n = len(bulk)
         multi_tag = ensure_multi_tag(None, n)
-        nextmsg = await send_multi_cmd(message, f"{input_list[0]} {bulk[0]} -i {n}", multi_tag, n)
+        nextmsg = await send_multi_cmd(message.reply_to_message or message, f"{input_list[0]} {bulk[0]} -i {n}", multi_tag, n)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
         remember_cmd(multi_tag, nextmsg)
         nextmsg.from_user = message.from_user

@@ -62,8 +62,13 @@ def next_cmd_text(input_list, bulk, nxt):
 
 
 async def next_origin(client, message, bulk, has_link):
-    """Bulk / same-link: reply on this cmd. File-multi: next consecutive chat msg (wzv3)."""
-    if bulk or has_link:
+    """Bulk/list: reply to the user's list. Same-link: this cmd. File-multi: next msg."""
+    user_src = getattr(message, "reply_to_message", None)
+    if bulk:
+        if user_src is not None and getattr(user_src, "id", None):
+            return user_src
+        return message
+    if has_link:
         return message
     reply_id = getattr(message, "reply_to_message_id", None)
     chat = getattr(message, "chat", None)

@@ -484,3 +484,6 @@ NameError on /l7 -b: import missed remember_cmd. Added.
 
 ### 260901-D — -i multi (wzv3 logic, D2 files)
 Same URL -i N chains on cmd (no reply_id+1). File-multi: next consecutive msg. Bulk unchanged. next_cmd_text/next_origin. ytdlp/clone no crash if no reply.
+
+### 260901-E — /l -i N on a link LIST = first N lines (like -b with count)
+Reply to 8-line list + -i 3 → extract[:3], chain like bulk. Bot cmds reply to USER list not own /l7. Help-spam was first-line-only parse.

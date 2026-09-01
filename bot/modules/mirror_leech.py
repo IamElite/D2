@@ -145,7 +145,18 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         if len(dargs) == 2:
             bulk_end = dargs[1] or None
         isBulk = True
-        
+
+    # /cmd -i N reply to a list = first N lines (bulk with count). -b = all lines.
+    if not isBulk and multi > 0 and (rt := message.reply_to_message):
+        nlines = 0
+        if rt.text:
+            nlines = len([x for x in rt.text.split('\n') if x.strip()])
+        elif getattr(rt, 'document', None) and getattr(rt.document, 'mime_type', '') == 'text/plain':
+            nlines = 2
+        if nlines > 1:
+            isBulk = True
+            bulk_end = multi
+
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)
 
@@ -169,7 +180,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         n = len(bulk)
         multi_tag = ensure_multi_tag(None, n)
         b_txt = f"{input_list[0]} {bulk[0]} -i {n}"
-        nextmsg = await send_multi_cmd(message, b_txt, multi_tag, n)
+        origin = message.reply_to_message or message
+        nextmsg = await send_multi_cmd(origin, b_txt, multi_tag, n)
         if not _is_tg_msg(nextmsg):
             LOGGER.error("bulk sendMessage failed: %s", nextmsg)
             return
