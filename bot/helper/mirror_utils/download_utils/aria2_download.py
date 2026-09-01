@@ -9,7 +9,11 @@ from ...ext_utils.task_manager import is_queued
 
 
 def _bt_link(link):
-    return isinstance(link, str) and (link.startswith("magnet:") or link.endswith(".torrent"))
+    if not isinstance(link, str):
+        return False
+    if link.startswith("magnet:"):
+        return True
+    return link.lower().split("?", 1)[0].rstrip("/").endswith(".torrent")
 
 
 async def add_aria2c_download(link, path, listener, filename, header, ratio, seed_time):

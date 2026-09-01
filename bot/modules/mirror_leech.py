@@ -52,6 +52,14 @@ _YTDL_HINT = (
 )
 
 
+def _torrent_src(link):
+    if not link or not isinstance(link, str):
+        return False
+    if is_magnet(link):
+        return True
+    return link.lower().split("?", 1)[0].rstrip("/").endswith(".torrent")
+
+
 def _auto_engine(link, file_=None):
     """Pick downloader from link type. No extra processes."""
     if file_ is not None:
@@ -582,6 +590,4 @@ bot.add_handler(MessageHandler(leech, filters=command(
     BotCommands.LeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(qb_leech, filters=command(
     BotCommands.QbLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
-bot.add_handler(CallbackQueryHandler(kpsmlxcb, filters=regex(r'^kpsmlx')))
- BotCommands.QbLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(CallbackQueryHandler(kpsmlxcb, filters=regex(r'^kpsmlx')))
