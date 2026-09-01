@@ -525,3 +525,6 @@ User: speed up, CPU must not climb. hashing_threads 1 (SHA-1). DHT/PEX only whil
 
 ### 260901-R — /l7 page links start (nsfw.net)
 Quality menu blocked /l7 ytdl. /l7 uses best auto. extract fail → aria once, no loop. nsfw.net hint.
+
+### 260901-S — no auto qBit on /l7 (OLD N/L)
+/l7 /leech never pick qBit. Magnet/torrent/HTTP = Aria2. qBit only /qb7 /qbleech. Removed aria→qBit failover.
