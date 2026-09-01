@@ -522,10 +522,19 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
 
         options['playlist_items'] = '0'
 
+    options.setdefault('age_limit', 99)
+    yt_cmd = 'yt' in cmd.lower()
+
     try:
         result = await sync_to_async(extract_info, link, options)
     except Exception as e:
         msg = str(e).replace('<', ' ').replace('>', ' ')
+        if not yt_cmd:
+            LOGGER.info("yt-dlp fail, aria: %s", msg[:120])
+            setattr(message, "_ydl_tried", True)
+            from .mirror_leech import _mirror_leech
+            _mirror_leech(client, message, isQbit=False, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
+            return
         await sendMessage(message, f'{tag} {msg}')
         __run_multi()
         await delete_links(message)
@@ -537,9 +546,12 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
         qual = options['format']
 
     if not qual:
-        qual = await YtSelection(client, message).get_quality(result)
-        if qual is None:
-            return
+        if yt_cmd:
+            qual = await YtSelection(client, message).get_quality(result)
+            if qual is None:
+                return
+        else:
+            qual = 'bv*+ba/b'
     await delete_links(message)
     LOGGER.info(f'Downloading with YT-DLP: {link}')
     playlist = 'entries' in result

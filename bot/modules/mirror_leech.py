@@ -48,7 +48,7 @@ _YTDL_HINT = (
     "soundcloud.com/", "twitch.tv/",
     "pornhub.com/", "xvideos.com/", "xnxx.com/", "xhamster.com/",
     "redtube.com/", "youporn.com/", "spankbang.com/", "missav.com/",
-    "jable.tv/", "hanime.tv/", "nhentai.net/",
+    "jable.tv/", "hanime.tv/", "nhentai.net/", "nsfw.net/",
 )
 
 
@@ -321,7 +321,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
 
     if file_ is None and link and isinstance(link, str) and not isQbit:
         eng = _auto_engine(link)
-        if eng == "ytdl":
+        if eng == "ytdl" and not getattr(message, "_ydl_tried", False):
             LOGGER.info("Auto engine yt-dlp: %s", link[:80])
             from .ytdlp import _ytdl
             _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)

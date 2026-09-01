@@ -522,3 +522,6 @@ No bot NSFW filter. HTML/direct fail → yt-dlp (not Aria HTML). yt-dlp age_limi
 
 ### 260901-Q — speed from peers not hash CPU
 User: speed up, CPU must not climb. hashing_threads 1 (SHA-1). DHT/PEX only while DL (P). Do not raise hash/async.
+
+### 260901-R — /l7 page links start (nsfw.net)
+Quality menu blocked /l7 ytdl. /l7 uses best auto. extract fail → aria once, no loop. nsfw.net hint.
