@@ -17,26 +17,47 @@ def _tg_link(m):
     return f"https://t.me/c/{cid}/{m.id}"
 
 
+def _uid(m):
+    fu = getattr(m, "from_user", None)
+    if fu is not None:
+        return fu.id
+    sc = getattr(m, "sender_chat", None)
+    return getattr(sc, "id", None) if sc is not None else None
+
+
+def _is_link_line(line):
+    s = line.strip().lower()
+    return (
+        s.startswith("http://")
+        or s.startswith("https://")
+        or s.startswith("magnet:")
+        or s.startswith("tg://")
+        or "t.me/" in s
+    )
+
+
 def _items_in_msg(m):
     if m is None or getattr(m, "empty", False):
         return []
-    media = getattr(m, "media", None)
-    doc = getattr(m, "document", None)
-    if media and not (doc and getattr(doc, "mime_type", "") == "text/plain"):
+    if getattr(m, "media", None):
         link = _tg_link(m)
         return [link] if link else []
-    text = (getattr(m, "text", None) or getattr(m, "caption", None) or "").strip()
-    if not text:
-        return []
-    return [ln.strip() for ln in text.split("\n") if ln.strip()]
+    text = (getattr(m, "text", None) or getattr(m, "caption", None) or "")
+    out = []
+    for ln in text.split("\n"):
+        ln = ln.strip()
+        if ln and _is_link_line(ln):
+            out.append(ln)
+    return out
 
 
 async def collect_i_items(client, start, cmd, n):
-    """From replied msg, walk later msgs until n items (links and/or media)."""
+    """Same user only, consecutive msgs, stop on other user/bot. Link+flags or media."""
     if start is None or n <= 0:
         return []
+    owner = _uid(start)
     chat = getattr(start, "chat", None)
-    if chat is None:
+    if chat is None or owner is None:
         return _items_in_msg(start)[:n]
     items = []
     mid = start.id
@@ -45,7 +66,7 @@ async def collect_i_items(client, start, cmd, n):
     limit = min(80, max(n * 12, 16))
     while len(items) < n and scans < limit:
         scans += 1
-        if cmd_id is not None and mid == cmd_id:
+        if cmd_id is not None and mid >= cmd_id:
             break
         try:
             m = await client.get_messages(chat_id=chat.id, message_ids=mid)
@@ -55,9 +76,10 @@ async def collect_i_items(client, start, cmd, n):
             mid += 1
             continue
         fu = getattr(m, "from_user", None)
-        if fu is not None and getattr(fu, "is_bot", False) and m.id != start.id:
-            mid += 1
-            continue
+        if fu is not None and getattr(fu, "is_bot", False):
+            break
+        if _uid(m) != owner:
+            break
         for it in _items_in_msg(m):
             items.append(it)
             if len(items) >= n:

@@ -496,3 +496,6 @@ Spawned /l7 url -i N was re-collecting the list → same 6152 forever, new tags.
 
 ### 260901-H — -i chain = bulk chain (one tag, 7s)
 Collect only on original /l -i (no link, no bulk). Spawned never re-collects. One /c7_id for remaining; per-file /cancel7_GID stays. Pause 7s.
+
+### 260901-I — -i extract URLs+flags, same-user only
+Do not use message-id as task. Text lines only if http/magnet/t.me (keep -n flags). Media = one file. Stop on other user or bot.
