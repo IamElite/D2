@@ -469,8 +469,7 @@ Always delete PM_START, L_LOG_START, LINKS_START after file sent (and on error).
 
 
 ### 260831-Y — /leech auto engine (WZML-style, cheap)
-magnet/.torrent → qBit; youtube/tiktok/etc host hint → yt-dlp (no extract_info);
-mega/gd/tg/rclone same as before; else aria2. Log: Auto engine.
+magnet/.torrent → qBit (later **OLD** by `260901-L`: Aria2 first). yt host → yt-dlp. else aria2.
 
 
 ### 260901-A — bulk/multi cancel tag + self-delete
