@@ -549,3 +549,6 @@ Used to leech same .torrent; 0 seeders after idle DHT-off. Friend bot still gets
 
 ### 260901-Z — wzv3 addTorrent for .torrent file
 WZML aria2_download: local file = addTorrent not addUri. Port via aria2.add_torrent. HTTP/magnet still addUri. Idle DHT/CPU rules kept.
+
+### 260901-AA — Aria2 DHT stay on (friend 15 seeders)
+Friend /l2 11MB/s 15S Aria2 1.37, 3h uptime. Ours 0S after restart + idle DHT kill. Keep Aria2 DHT/PEX always; qBit idle DHT still off. Mongo overlay DHT on.

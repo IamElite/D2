@@ -53,17 +53,6 @@ def ensure_qbit():
 
 
 def stop_heavy():
-    if _port_up(6800):
-        try:
-            from ... import aria2
-            aria2.set_global_options({
-                "enable-dht": "false",
-                "enable-peer-exchange": "false",
-                "disable-ipv6": "true",
-                "max-overall-upload-limit": "256K",
-            })
-        except Exception as e:
-            LOGGER.warning("Idle aria2 DHT off skipped: %s", e)
     if not _port_up(8090):
         return
     try:
