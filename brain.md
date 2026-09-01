@@ -510,3 +510,6 @@ Auto magnet/.torrent = Aria2 (CPU). Aria add/error/dead → one qBit. No cancel/
 
 ### 260901-M — torrent DHT on; adult /l7 → ytdlp
 16KiB/s + 51% CPU: a2c DHT/PEX were off so 1 seeder only. DHT on for BT. NSFW not bot-censor: tubes were Aria HTML; /l7 host hint → ytdlp. Site name if still fail (no URL needed).
+
+### 260901-N — torrent /l7 = qBit again (OLD 260901-L)
+Users mostly torrent; Aria 16KiB/s unusable. Auto magnet = qBit. HashingThreads 1, MaxActiveDL 1 so 2X dyno restart kam. HTTP still Aria. /ytdl adult hosts remain.
