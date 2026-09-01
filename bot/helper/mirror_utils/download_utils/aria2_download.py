@@ -39,8 +39,23 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         else:
             a2c_opt['pause'] = 'true'
     if _bt_link(link):
+        a2c_opt["follow-torrent"] = "true"
+        a2c_opt["bt-max-peers"] = "100"
+        a2c_opt["bt-request-peer-speed-limit"] = "1K"
+        a2c_opt["max-upload-limit"] = "512K"
+        a2c_opt["enable-dht"] = "true"
+        a2c_opt["enable-peer-exchange"] = "true"
+        a2c_opt["check-integrity"] = "false"
+        a2c_opt["realtime-chunk-checksum"] = "false"
+        a2c_opt["bt-hash-check-seed"] = "false"
+        a2c_opt["seed-ratio"] = "0.0"
+        a2c_opt["seed-time"] = "0"
         try:
-            await sync_to_async(aria2.set_global_options, {"enable-dht": "true", "enable-peer-exchange": "true"})
+            await sync_to_async(aria2.set_global_options, {
+                "enable-dht": "true",
+                "enable-peer-exchange": "true",
+                "max-overall-upload-limit": "1M",
+            })
         except Exception:
             pass
     try:

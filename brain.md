@@ -534,3 +534,6 @@ Quality menu blocked /l7 ytdl. /l7 uses best auto. extract fail → aria once, n
 
 ### 260901-U — .torrent URL WebPage crash (OLD T)
 Reply/preview WebPage treated as TG file → file_unique_id. Skip web_page; use URL → Aria2.
+
+### 260901-V — Aria2 BT opts separate from HTTP
+HTTP split/conn unchanged. Torrent/magnet add: follow-torrent true, 100 peers, 1K request-peer, 512K/1M UL for reciprocal DL, no extra hash. Heroku inbound BT port still limited.
