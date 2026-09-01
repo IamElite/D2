@@ -546,3 +546,6 @@ No-task 45% CPU after BT opts. a2c DHT/PEX default false. Idle stop_heavy also a
 
 ### 260901-Y — force Aria2 DHT after torrent add
 Used to leech same .torrent; 0 seeders after idle DHT-off. Friend bot still gets peers. DHT/PEX/IPv6 on after add; idle off again.
+
+### 260901-Z — wzv3 addTorrent for .torrent file
+WZML aria2_download: local file = addTorrent not addUri. Port via aria2.add_torrent. HTTP/magnet still addUri. Idle DHT/CPU rules kept.

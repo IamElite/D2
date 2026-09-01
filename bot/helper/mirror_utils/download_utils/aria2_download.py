@@ -62,7 +62,11 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         except Exception:
             pass
     try:
-        download = (await sync_to_async(aria2.add, link, a2c_opt))[0]
+        if await aiopath.exists(link):
+            got = await sync_to_async(aria2.add_torrent, link, None, a2c_opt)
+        else:
+            got = await sync_to_async(aria2.add, link, a2c_opt)
+        download = got[0] if isinstance(got, (list, tuple)) else got
     except Exception as e:
         LOGGER.info(f"Aria2c Download Error: {e}")
         await sendMessage(listener.message, f'{e}')
