@@ -516,3 +516,6 @@ Users mostly torrent; Aria 16KiB/s unusable. Auto magnet = qBit. HashingThreads 
 
 ### 260901-O — /l7 SFW+NSFW same path
 No bot NSFW filter. HTML/direct fail → yt-dlp (not Aria HTML). yt-dlp age_limit 99 so age-gated still starts. Magnet still qBit.
+
+### 260901-P — qBit DHT/PEX on during DL (OLD CPU-off)
+878KB/s @ 16% CPU, 7 seeders: boot overlay dht/pex False. _set_dht(True) did nothing. Now DHT+PEX on torrent add; idle still off. 200/100 conn.
