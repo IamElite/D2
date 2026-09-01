@@ -915,7 +915,7 @@ else:
 try:
     qb_client.app_set_preferences({
         'async_io_threads': 2,
-        'hashing_threads': 2,
+        'hashing_threads': 1,
         'disk_cache': 32,
         'disk_io_type': 0,
         'max_connec': 200,

@@ -519,3 +519,6 @@ No bot NSFW filter. HTML/direct fail → yt-dlp (not Aria HTML). yt-dlp age_limi
 
 ### 260901-P — qBit DHT/PEX on during DL (OLD CPU-off)
 878KB/s @ 16% CPU, 7 seeders: boot overlay dht/pex False. _set_dht(True) did nothing. Now DHT+PEX on torrent add; idle still off. 200/100 conn.
+
+### 260901-Q — speed from peers not hash CPU
+User: speed up, CPU must not climb. hashing_threads 1 (SHA-1). DHT/PEX only while DL (P). Do not raise hash/async.
