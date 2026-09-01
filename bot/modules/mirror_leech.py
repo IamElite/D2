@@ -351,8 +351,10 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                 if 'This link requires a password!' not in e:
                     LOGGER.info(e)
                 if str(e).startswith('ERROR:'):
-                    await editMessage(process_msg, str(e))
-                    await delete_links(message)
+                    await deleteMessage(process_msg)
+                    LOGGER.info("HTML/direct fail → yt-dlp: %s", str(org_link or link)[:80])
+                    from .ytdlp import _ytdl
+                    _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
                     return
             await deleteMessage(process_msg)
 

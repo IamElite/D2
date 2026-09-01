@@ -513,3 +513,6 @@ Auto magnet/.torrent = Aria2 (CPU). Aria add/error/dead → one qBit. No cancel/
 
 ### 260901-N — torrent /l7 = qBit again (OLD 260901-L)
 Users mostly torrent; Aria 16KiB/s unusable. Auto magnet = qBit. HashingThreads 1, MaxActiveDL 1 so 2X dyno restart kam. HTTP still Aria. /ytdl adult hosts remain.
+
+### 260901-O — /l7 SFW+NSFW same path
+No bot NSFW filter. HTML/direct fail → yt-dlp (not Aria HTML). yt-dlp age_limit 99 so age-gated still starts. Magnet still qBit.

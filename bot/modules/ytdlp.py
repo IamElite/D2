@@ -493,7 +493,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
     if 'mdisk.me' in link:
         name, link = await _mdisk(link, name)
 
-    options = {'usenetrc': True}
+    options = {'usenetrc': True, 'age_limit': 99}
     if await aiopath.exists('cookies.txt'):
         options['cookiefile'] = 'cookies.txt'
         
