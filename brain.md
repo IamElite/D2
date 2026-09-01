@@ -552,3 +552,6 @@ WZML aria2_download: local file = addTorrent not addUri. Port via aria2.add_torr
 
 ### 260901-AA — Aria2 DHT stay on (friend 15 seeders)
 Friend /l2 11MB/s 15S Aria2 1.37, 3h uptime. Ours 0S after restart + idle DHT kill. Keep Aria2 DHT/PEX always; qBit idle DHT still off. Mongo overlay DHT on.
+
+### 260901-AB — do not Dead-torrent at 90s
+Same file friend 11MB/s. Ours bt-stop-timeout 90 → Dead torrent 1m39s. Removed default 90; only config TORRENT_TIMEOUT.

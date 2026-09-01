@@ -32,8 +32,6 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         a2c_opt['seed-time'] = seed_time
     if TORRENT_TIMEOUT := config_dict['TORRENT_TIMEOUT']:
         a2c_opt['bt-stop-timeout'] = f'{TORRENT_TIMEOUT}'
-    elif _bt_link(link):
-        a2c_opt['bt-stop-timeout'] = '90'
     added_to_queue, event = await is_queued(listener.uid)
     if added_to_queue:
         if link.startswith('magnet:'):
