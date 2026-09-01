@@ -528,3 +528,6 @@ Quality menu blocked /l7 ytdl. /l7 uses best auto. extract fail → aria once, n
 
 ### 260901-S — no auto qBit on /l7 (OLD N/L)
 /l7 /leech never pick qBit. Magnet/torrent/HTTP = Aria2. qBit only /qb7 /qbleech. Removed aria→qBit failover.
+
+### 260901-T — .torrent URL/file stay Aria2
+.html/ytdl path ate .torrent (case/?). Skip that; aria2 BT add. Reply .torrent file same.

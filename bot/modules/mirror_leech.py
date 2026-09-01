@@ -317,16 +317,13 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         LOGGER.info(link)
         org_link = link
 
-    if file_ is None and link and isinstance(link, str) and not isQbit:
+    if file_ is None and link and isinstance(link, str) and not isQbit and not _torrent_src(link):
         eng = _auto_engine(link)
         if eng == "ytdl" and not getattr(message, "_ydl_tried", False):
             LOGGER.info("Auto engine yt-dlp: %s", link[:80])
             from .ytdlp import _ytdl
             _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
             return
-        if eng == "qbit":
-            isQbit = True
-            LOGGER.info("Auto engine qBit: %s", link[:80])
 
     if (not is_mega_link(link) or (is_mega_link(link) and not config_dict['MEGA_EMAIL'] and config_dict['DEBRID_LINK_API'])) \
         and (not is_magnet(link) or (config_dict['REAL_DEBRID_API'] and is_magnet(link))) \
@@ -585,4 +582,6 @@ bot.add_handler(MessageHandler(leech, filters=command(
     BotCommands.LeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(qb_leech, filters=command(
     BotCommands.QbLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
+bot.add_handler(CallbackQueryHandler(kpsmlxcb, filters=regex(r'^kpsmlx')))
+ BotCommands.QbLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(CallbackQueryHandler(kpsmlxcb, filters=regex(r'^kpsmlx')))
