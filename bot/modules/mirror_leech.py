@@ -147,7 +147,6 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             bulk_end = dargs[1] or None
         isBulk = True
 
-    pre_bulk = []
     if not isBulk and multi > 0 and message.reply_to_message:
         pre_bulk = await collect_i_items(client, message.reply_to_message, message, multi)
         if pre_bulk:
@@ -167,7 +166,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
 
     if isBulk:
         try:
-            bulk = await extract_bulk_links(message, bulk_start, bulk_end)
+            bulk = pre_bulk or await extract_bulk_links(message, bulk_start, bulk_end)
             if len(bulk) == 0:
                 raise ValueError('Bulk Empty!')
         except:

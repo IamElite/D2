@@ -316,7 +316,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
 
     if isBulk:
         try:
-            bulk = await extract_bulk_links(message, bulk_start, bulk_end)
+            bulk = pre_bulk or await extract_bulk_links(message, bulk_start, bulk_end)
             if len(bulk) == 0:
                 raise ValueError('Bulk Empty!')
         except:
@@ -553,10 +553,6 @@ async def ytdlleech(client, message):
 
 
 bot.add_handler(MessageHandler(ytdl, filters=command(
-    BotCommands.YtdlCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
-bot.add_handler(MessageHandler(ytdlleech, filters=command(
-    BotCommands.YtdlLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
-r(ytdl, filters=command(
     BotCommands.YtdlCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(ytdlleech, filters=command(
     BotCommands.YtdlLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
