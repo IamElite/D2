@@ -537,3 +537,6 @@ Reply/preview WebPage treated as TG file → file_unique_id. Skip web_page; use 
 
 ### 260901-V — Aria2 BT opts separate from HTTP
 HTTP split/conn unchanged. Torrent/magnet add: follow-torrent true, 100 peers, 1K request-peer, 512K/1M UL for reciprocal DL, no extra hash. Heroku inbound BT port still limited.
+
+### 260901-W — idle CPU: Aria2 DHT off at rest (OLD V)
+No-task 45% CPU after BT opts. a2c DHT/PEX default false. Idle stop_heavy also aria2 DHT off. DHT only while torrent add.

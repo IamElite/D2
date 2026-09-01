@@ -53,7 +53,16 @@ def ensure_qbit():
 
 
 def stop_heavy():
-    """Do not kill processes. Turn DHT/PEX off if qBit is up."""
+    if _port_up(6800):
+        try:
+            from ... import aria2
+            aria2.set_global_options({
+                "enable-dht": "false",
+                "enable-peer-exchange": "false",
+                "max-overall-upload-limit": "256K",
+            })
+        except Exception as e:
+            LOGGER.warning("Idle aria2 DHT off skipped: %s", e)
     if not _port_up(8090):
         return
     try:
@@ -61,7 +70,7 @@ def stop_heavy():
         c = get_client()
         c.app_set_preferences({"dht": False, "pex": False, "lsd": False})
         c.auth_log_out()
-        LOGGER.info("Idle: qBit DHT/PEX off (process still running)")
+        LOGGER.info("Idle: DHT/PEX off (processes still running)")
     except Exception as e:
         LOGGER.warning("Idle DHT off skipped: %s", e)
 
