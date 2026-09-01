@@ -507,3 +507,6 @@ Last -i 1 stayed: delete raced. sleep 2 then delete; fallback client.delete_mess
 
 ### 260901-L — torrent Aria2 first, qBit on fail
 Auto magnet/.torrent = Aria2 (CPU). Aria add/error/dead → one qBit. No cancel/limit fallback. /qb7 still qBit.
+
+### 260901-M — torrent DHT on; adult /l7 → ytdlp
+16KiB/s + 51% CPU: a2c DHT/PEX were off so 1 seeder only. DHT on for BT. NSFW not bot-censor: tubes were Aria HTML; /l7 host hint → ytdlp. Site name if still fail (no URL needed).

@@ -46,6 +46,9 @@ _YTDL_HINT = (
     "instagram.com/", "facebook.com/", "fb.watch/",
     "twitter.com/", "x.com/", "reddit.com/",
     "soundcloud.com/", "twitch.tv/",
+    "pornhub.com/", "xvideos.com/", "xnxx.com/", "xhamster.com/",
+    "redtube.com/", "youporn.com/", "spankbang.com/", "missav.com/",
+    "jable.tv/", "hanime.tv/", "nhentai.net/",
 )
 
 

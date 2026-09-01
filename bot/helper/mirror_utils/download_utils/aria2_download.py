@@ -51,6 +51,10 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         else:
             a2c_opt['pause'] = 'true'
     if _bt_link(link):
+        try:
+            await sync_to_async(aria2.set_global_options, {"enable-dht": "true", "enable-peer-exchange": "true"})
+        except Exception:
+            pass
         listener.aria_qb = True
         listener.aria_link = link
         listener.aria_path = path
