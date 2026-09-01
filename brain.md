@@ -502,3 +502,6 @@ Do not use message-id as task. Text lines only if http/magnet/t.me (keep -n flag
 
 ### 260901-J — delete last /l -i cmd; trim multi_tools docs
 Last -i 1 bot line was kept; now delete_own when multi<=1. next_origin shortened.
+
+### 260901-K — last -b/-i cmd line delete (OLD 260901-J)
+Last -i 1 stayed: delete raced. sleep 2 then delete; fallback client.delete_messages.

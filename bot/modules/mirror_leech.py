@@ -202,6 +202,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     async def __run_multi():
         if multi <= 1:
             drop_multi_tag(multi_tag)
+            await sleep(2)
             await delete_own(message)
             return
         await sleep(7)

@@ -127,6 +127,14 @@ async def delete_own(message):
         await deleteMessage(message)
     except Exception:
         pass
+    try:
+        chat = getattr(message, "chat", None)
+        mid = getattr(message, "id", None)
+        cli = getattr(message, "_client", None)
+        if chat is not None and mid is not None and cli is not None:
+            await cli.delete_messages(chat_id=chat.id, message_ids=mid)
+    except Exception:
+        pass
 
 
 def next_cmd_text(input_list, bulk, nxt):
