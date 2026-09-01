@@ -221,6 +221,7 @@ async def clone(client, message):
     async def __run_multi():
         if multi <= 1:
             drop_multi_tag(multi_tag)
+            await delete_own(message)
             return
         await sleep(7)
         if not multi_still_on(multi_tag):

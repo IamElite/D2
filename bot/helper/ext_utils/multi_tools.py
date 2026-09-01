@@ -52,7 +52,6 @@ def _items_in_msg(m):
 
 
 async def collect_i_items(client, start, cmd, n):
-    """Same user only, consecutive msgs, stop on other user/bot. Link+flags or media."""
     if start is None or n <= 0:
         return []
     owner = _uid(start)
@@ -146,13 +145,10 @@ def next_cmd_text(input_list, bulk, nxt):
 
 
 async def next_origin(client, message, bulk, has_link):
-    """Bulk/list: reply to the user's list. Same-link: this cmd. File-multi: next msg."""
     user_src = getattr(message, "reply_to_message", None)
-    if bulk:
-        if user_src is not None and getattr(user_src, "id", None):
-            return user_src
-        return message
-    if has_link:
+    if bulk and user_src is not None and getattr(user_src, "id", None):
+        return user_src
+    if bulk or has_link:
         return message
     reply_id = getattr(message, "reply_to_message_id", None)
     chat = getattr(message, "chat", None)
@@ -164,9 +160,7 @@ async def next_origin(client, message, bulk, has_link):
         return message
     if got is None or isinstance(got, str) or getattr(got, "empty", False):
         return message
-    if getattr(got, "id", None) is None:
-        return message
-    return got
+    return got if getattr(got, "id", None) else message
 
 
 async def send_multi_cmd(origin, cmd_text, tag, multi):

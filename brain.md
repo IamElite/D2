@@ -499,3 +499,6 @@ Collect only on original /l -i (no link, no bulk). Spawned never re-collects. On
 
 ### 260901-I — -i extract URLs+flags, same-user only
 Do not use message-id as task. Text lines only if http/magnet/t.me (keep -n flags). Media = one file. Stop on other user or bot.
+
+### 260901-J — delete last /l -i cmd; trim multi_tools docs
+Last -i 1 bot line was kept; now delete_own when multi<=1. next_origin shortened.
