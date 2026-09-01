@@ -147,10 +147,12 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             bulk_end = dargs[1] or None
         isBulk = True
 
-    if not isBulk and multi > 0 and message.reply_to_message:
-        pre_bulk = await collect_i_items(client, message.reply_to_message, message, multi)
-        if pre_bulk:
-            isBulk = True
+    if not isBulk and not bulk and not link and multi > 0 and message.reply_to_message:
+        fu = getattr(message, "from_user", None)
+        if not (fu and getattr(fu, "is_bot", False)):
+            pre_bulk = await collect_i_items(client, message.reply_to_message, message, multi)
+            if pre_bulk:
+                isBulk = True
 
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)

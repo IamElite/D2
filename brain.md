@@ -493,3 +493,6 @@ Not one message only. Reply to first, collect N items: lines, videos, docs. Skip
 
 ### 260901-G — stop -i infinite spam (OLD 260901-F)
 Spawned /l7 url -i N was re-collecting the list → same 6152 forever, new tags. Collect only if no link, no bulk, not bot. Sleep 7s. Same tag, -i 3→2→1.
+
+### 260901-H — -i chain = bulk chain (one tag, 7s)
+Collect only on original /l -i (no link, no bulk). Spawned never re-collects. One /c7_id for remaining; per-file /cancel7_GID stays. Pause 7s.
