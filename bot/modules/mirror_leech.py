@@ -288,12 +288,15 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             return
 
     if reply_to:
-        file_ = getattr(reply_to, reply_to.media.value) if reply_to.media else None
-        if file_ is None and reply_to.text:
-            reply_text = reply_to.text.split('\n', 1)[0].strip()
+        file_ = None
+        mval = getattr(getattr(reply_to, "media", None), "value", None)
+        if mval and mval != "web_page":
+            file_ = getattr(reply_to, mval, None)
+        if file_ is None:
+            reply_text = ((reply_to.text or reply_to.caption or "").split("\n", 1)[0]).strip()
             if is_url(reply_text) or is_magnet(reply_text):
                 link = reply_text
-        elif reply_to.document and (file_.mime_type == 'application/x-bittorrent' or file_.file_name.endswith('.torrent')):
+        elif reply_to.document and (getattr(file_, "mime_type", None) == "application/x-bittorrent" or str(getattr(file_, "file_name", "") or "").lower().endswith(".torrent")):
             link = await reply_to.download()
             file_ = None
 

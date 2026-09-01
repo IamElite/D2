@@ -531,3 +531,6 @@ Quality menu blocked /l7 ytdl. /l7 uses best auto. extract fail → aria once, n
 
 ### 260901-T — .torrent URL/file stay Aria2
 .html/ytdl path ate .torrent (case/?). Skip that; aria2 BT add. Reply .torrent file same.
+
+### 260901-U — .torrent URL WebPage crash (OLD T)
+Reply/preview WebPage treated as TG file → file_unique_id. Skip web_page; use URL → Aria2.
