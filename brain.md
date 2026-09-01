@@ -540,3 +540,6 @@ HTTP split/conn unchanged. Torrent/magnet add: follow-torrent true, 100 peers, 1
 
 ### 260901-W — idle CPU: Aria2 DHT off at rest (OLD V)
 No-task 45% CPU after BT opts. a2c DHT/PEX default false. Idle stop_heavy also aria2 DHT off. DHT only while torrent add.
+
+### 260901-X — dead torrent stop 90s (CPU)
+0 seeders still hunted DHT. bt-stop-timeout 90, peers 40, no 1M UL global. Idle DHT off remains.
