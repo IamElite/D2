@@ -36,7 +36,7 @@ from ..helper.ext_utils.help_messages import MIRROR_HELP_MESSAGE, CLONE_HELP_MES
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from ..helper.ext_utils.multi_tools import (
     delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
-    remember_cmd, send_multi_cmd)
+    next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
 
 # Cheap host check — no yt-dlp extract_info (saves CPU/RAM).
@@ -204,20 +204,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             return
         try:
             nxt = multi - 1
-            if len(bulk) != 0:
-                cmd_txt = f"{input_list[0]} {bulk[0]} -i {nxt}"
-                origin = message
-            else:
-                msg = [s.strip() for s in input_list]
-                index = msg.index('-i')
-                msg[index + 1] = f"{nxt}"
-                cmd_txt = " ".join(msg)
-                reply_id = message.reply_to_message_id
-                origin = message
-                if reply_id is not None:
-                    got = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
-                    if _is_tg_msg(got) and not getattr(got, "empty", False):
-                        origin = got
+            cmd_txt = next_cmd_text(input_list, bulk, nxt)
+            origin = await next_origin(client, message, bulk, bool(link))
             if not multi_still_on(multi_tag):
                 await delete_own(message)
                 return

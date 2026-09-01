@@ -481,3 +481,6 @@ OLD: 260901-A. stop_multi deletes last cmd; run_multi silent if tag gone. No 2nd
 
 ### 260901-C — remember_cmd import in mirror_leech (OLD: 260901-B)
 NameError on /l7 -b: import missed remember_cmd. Added.
+
+### 260901-D — -i multi (wzv3 logic, D2 files)
+Same URL -i N chains on cmd (no reply_id+1). File-multi: next consecutive msg. Bulk unchanged. next_cmd_text/next_origin. ytdlp/clone no crash if no reply.

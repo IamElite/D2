@@ -46,6 +46,40 @@ async def delete_own(message):
         pass
 
 
+def next_cmd_text(input_list, bulk, nxt):
+    if bulk:
+        return f"{input_list[0]} {bulk[0]} -i {nxt}"
+    parts = [s.strip() for s in input_list]
+    if "-i" in parts:
+        i = parts.index("-i")
+        if i + 1 < len(parts):
+            parts[i + 1] = str(nxt)
+        else:
+            parts.append(str(nxt))
+    else:
+        parts.extend(["-i", str(nxt)])
+    return " ".join(parts)
+
+
+async def next_origin(client, message, bulk, has_link):
+    """Bulk / same-link: reply on this cmd. File-multi: next consecutive chat msg (wzv3)."""
+    if bulk or has_link:
+        return message
+    reply_id = getattr(message, "reply_to_message_id", None)
+    chat = getattr(message, "chat", None)
+    if reply_id is None or chat is None:
+        return message
+    try:
+        got = await client.get_messages(chat_id=chat.id, message_ids=reply_id + 1)
+    except Exception:
+        return message
+    if got is None or isinstance(got, str) or getattr(got, "empty", False):
+        return message
+    if getattr(got, "id", None) is None:
+        return message
+    return got
+
+
 async def send_multi_cmd(origin, cmd_text, tag, multi):
     sent = await sendMessage(origin, cmd_with_cancel(cmd_text, tag, multi))
     remember_cmd(tag, sent)

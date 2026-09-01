@@ -10,7 +10,7 @@ from json import loads, dumps as jdumps
 from .. import LOGGER, download_dict, download_dict_lock, categories_dict, config_dict, bot
 from ..helper.ext_utils.multi_tools import (
     delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
-    remember_cmd, send_multi_cmd)
+    next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 from ..helper.ext_utils.task_manager import limit_checker, task_utils
 from ..helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..helper.telegram_helper.message_utils import sendMessage, editMessage, deleteMessage, sendStatusMessage, delete_links, auto_delete_message, open_category_btns
@@ -237,7 +237,7 @@ async def clone(client, message):
         await delete_own(message)
         if not multi_still_on(multi_tag):
             return
-        nextmsg = await send_multi_cmd(origin, " ".join(msg), multi_tag, nxt)
+        nextmsg = await send_multi_cmd(origin, cmd_txt, multi_tag, nxt)
         nextmsg = await client.get_messages(chat_id=message.chat.id, message_ids=nextmsg.id)
         remember_cmd(multi_tag, nextmsg)
         nextmsg.from_user = message.from_user

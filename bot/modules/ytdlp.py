@@ -24,7 +24,7 @@ from ..helper.ext_utils.help_messages import YT_HELP_MESSAGE
 from ..helper.ext_utils.bulk_links import extract_bulk_links
 from ..helper.ext_utils.multi_tools import (
     delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
-    remember_cmd, send_multi_cmd)
+    next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 
 
 @new_task
@@ -340,15 +340,8 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             await delete_own(message)
             return
         nxt = multi - 1
-        if len(bulk) != 0:
-            cmd_txt = f"{input_list[0]} {bulk[0]} -i {nxt}"
-            origin = message
-        else:
-            msg = [s.strip() for s in input_list]
-            index = msg.index('-i')
-            msg[index+1] = f"{nxt}"
-            cmd_txt = " ".join(msg)
-            origin = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
+        cmd_txt = next_cmd_text(input_list, bulk, nxt)
+        origin = await next_origin(client, message, bulk, bool(link))
         if not multi_still_on(multi_tag):
             await delete_own(message)
             return
