@@ -341,7 +341,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
         if multi <= 1:
             drop_multi_tag(multi_tag)
             return
-        await sleep(5)
+        await sleep(7)
         if not multi_still_on(multi_tag):
             await delete_own(message)
             return

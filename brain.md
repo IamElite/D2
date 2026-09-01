@@ -490,3 +490,6 @@ Reply to 8-line list + -i 3 → extract[:3], chain like bulk. Bot cmds reply to 
 
 ### 260901-F — -i N walks following msgs (links+media)
 Not one message only. Reply to first, collect N items: lines, videos, docs. Skip bots and the /l7 cmd. -b unchanged.
+
+### 260901-G — stop -i infinite spam (OLD 260901-F)
+Spawned /l7 url -i N was re-collecting the list → same 6152 forever, new tags. Collect only if no link, no bulk, not bot. Sleep 7s. Same tag, -i 3→2→1.
