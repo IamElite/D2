@@ -543,3 +543,6 @@ No-task 45% CPU after BT opts. a2c DHT/PEX default false. Idle stop_heavy also a
 
 ### 260901-X — dead torrent stop 90s (CPU)
 0 seeders still hunted DHT. bt-stop-timeout 90, peers 40, no 1M UL global. Idle DHT off remains.
+
+### 260901-Y — force Aria2 DHT after torrent add
+Used to leech same .torrent; 0 seeders after idle DHT-off. Friend bot still gets peers. DHT/PEX/IPv6 on after add; idle off again.

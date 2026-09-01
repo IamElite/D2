@@ -59,6 +59,7 @@ def stop_heavy():
             aria2.set_global_options({
                 "enable-dht": "false",
                 "enable-peer-exchange": "false",
+                "disable-ipv6": "true",
                 "max-overall-upload-limit": "256K",
             })
         except Exception as e:

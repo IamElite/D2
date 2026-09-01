@@ -42,7 +42,7 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
             a2c_opt['pause'] = 'true'
     if _bt_link(link):
         a2c_opt["follow-torrent"] = "true"
-        a2c_opt["bt-max-peers"] = "40"
+        a2c_opt["bt-max-peers"] = "80"
         a2c_opt["bt-request-peer-speed-limit"] = "1K"
         a2c_opt["max-upload-limit"] = "256K"
         a2c_opt["check-integrity"] = "false"
@@ -50,10 +50,14 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         a2c_opt["bt-hash-check-seed"] = "false"
         a2c_opt["seed-ratio"] = "0.0"
         a2c_opt["seed-time"] = "0"
+        a2c_opt["enable-dht"] = "true"
+        a2c_opt["enable-peer-exchange"] = "true"
         try:
             await sync_to_async(aria2.set_global_options, {
                 "enable-dht": "true",
                 "enable-peer-exchange": "true",
+                "bt-enable-lpd": "false",
+                "disable-ipv6": "false",
             })
         except Exception:
             pass
@@ -84,6 +88,14 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         async with queue_dict_lock:
             non_queued_dl.add(listener.uid)
         LOGGER.info(f"Aria2Download started: {name}. Gid: {gid}")
+        if _bt_link(link):
+            try:
+                await sync_to_async(aria2.set_global_options, {
+                    "enable-dht": "true",
+                    "enable-peer-exchange": "true",
+                })
+            except Exception:
+                pass
 
     await listener.onDownloadStart()
 
