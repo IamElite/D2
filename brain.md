@@ -936,7 +936,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Test:** compile + runtime class test — new `id` ✅ old `folderId` ✅ error raise ✅
 
 ### P-260902-AC — update.py Mongo db `beast` → `kpsmlx` (upstream escape-hatch sab boots pe chale)
-**mode:** `plan`  
+**mode:** `built` (260902-AD)  
 **Date:** 2026-09-02  
 **Logs:** batbin.me/degumming (dyno-start vs /restart diff)
 
@@ -955,7 +955,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Build:** `/build P-260902-AC`
 
 ### 260902-AD — update.py db beast → kpsmlx (Mongo-upstream har boot pe)
-**Git:** (push ke baad hash)  
+**Git:** `eb3a032`  
 **OLD:** `P-260902-AC` (plan)  
 **Files:** `update.py` (1 line)
 
