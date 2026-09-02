@@ -934,3 +934,22 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Fix:** `__folder_id` def (folderId **ya** id dono accept, error pe API ka status raise) + dono call sites (root:81, loop:92). Baki endpoints/`__resp_handler` untouched (servers + uploadfile + update live-tested = alive).
 
 **Test:** compile + runtime class test — new `id` ✅ old `folderId` ✅ error raise ✅
+
+### P-260902-AC — update.py Mongo db `beast` → `kpsmlx` (upstream escape-hatch sab boots pe chale)
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**Logs:** batbin.me/degumming (dyno-start vs /restart diff)
+
+**Proof (degumming):** dyno start (16:53/16:54) = SLUG ka purana update.py — "Updating packages" line nahi, `No virtual environment found` + 2ms fake-success; /restart (17:09) = disk ka NAYA update.py (pull ke baad) — `uv environment at: /usr` + real installs. Deploy `a681d88f` ne arnv1 latest update.py uthaya hi nahi (Heroku Deploy branch check karna hai — user step, code nahi).
+
+**Root cause (design todat hai):** update.py:62 `db = conn.beast` — par bot (bot/__init__.py:118) aur DbManger (db_handler.py:21) dono **kpsmlx** me likhte hain. Dyno boot pe updater ko Mongo-upstream (UPSTREAM_REPO/BRANCH jo BSet save karta) dikhta hi nahi → pull config env pe depend; /restart me bot-ENV inheritance se chal jata hai.
+
+**User design (preserve):** upstream Mongo me rehta hai (escape hatch — galti se galat repo/branch ho to vars me doosra repo daal ke start + BSet se Mongo fix). Isi design ko sab boots pe sahi karna hai — bypass nahi.
+
+**Build pe kya banana (ab nahi) — 1 line:**
+1. `update.py:62` → `db = conn.kpsmlx`. Bas. Collections (`settings.deployConfig`/`settings.config`) same hain, bot+updater ab ek hi db padhenge → dyno start pe bhi Mongo-upstream uthega, escape-hatch har boot pe kaam karega.
+
+**Prereq (user step, code nahi):** Heroku Deploy branch `arnv1` — taaki slug me naya update.py (AA self-re-exec + ye fix) aaye.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-AC`
