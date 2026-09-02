@@ -777,3 +777,29 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Execute:** nahi.  
 **Build:** `/build P-260902-R`
 
+### P-260902-S — `yl`/`ydl` URL validation + quoting + consistent unsupported msg
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**Parent:** `P-260902-R` (R ke points 1,2,4,5 isi build me saath chalege)  
+**User confirm:** 403 delete wala isliye — **bot ke paas us chat me delete power hi nahi**. Fix = silent guard, koi naya message/attempt nahi.
+
+**Verify (code me dekha, sach):**
+- `ytdlp.py:248` + `mirror_leech.py:63` dono `text[0].split(' ')` → **URL me space ho (R2 ka `; filename="Kangaroo...mkv"`) to link pehle space pe kat jata hai**. Reply-to se aaye full URL to generic extractor poora kha jata hai = webpage-download hang (log me 2 min+).
+- `_ytdl` me `extract_info` se **pehle koi validation nahi**: `.m3u8` ya hint-host nahi bhi, koi bhi URL seedha yt-dlp `age_limit:99` ke saath chala → generic extractor 40GB body scrape.
+- Exception pe `yt_cmd` (`/yl7`) → raw yt-dlp error hi user ko jata; `Unsupported URL` ka clean message nahi.
+- Auto-engine `engine=ytdl` sirf `_auto_engine` (`/l`) me hai — `yl`/`ydl` cmd us validation se guzarte hi nahi. Inconsistent.
+
+**Build pe kya banana (ab nahi):**
+1. **`validate_ytdl_url(link)` shared helper** (bot_utils; async, HEAD/range GET):
+   - `is_url` False → Invalid URL
+   - `.m3u8/.m3u/.ts` path ya hint-host (netloc+path match) → True
+   - `Content-Disposition: attachment` ya file-like content-type (video/audio/octet-stream/zip...) → **False**
+   - HTML/unknown → True (yt-dlp try)
+2. **`_ytdl` entry pe helper**: False → `sendMessage("yt-dlp not support this URL")` + `__run_multi()` cleanup + `delete_links` + return. **Koi aria fallback nahi** (user ne ytdl manga tha). Exception me `Unsupported URL` error bhi isi clean msg pe map; baaki error raw msg + tag (same abhi jaisa).
+3. **Auto `/l` same helper use kare** — `l` aur `yl` dono ka unsupported behavior ek jaisa; direct-file auto pe aria2 (R point 1), `yl` pe msg+stop.
+4. **Quoting fix (dono files)**: `split(' ')` → quote-aware tokenizer (`"..."|'...'|\\S+` regex) taaki URL-with-space quotes me ek token rahe; `-n "name with space"` bhi sahi; arg_parser ko items same. `-i` multi/bulk flow na toote.
+5. **Delete 403**: `deleteMessage` + unguarded sites me MESSAGE_DELETE_FORBIDDEN → debug-log only, silent. Koi retry.
+6. R points saath: aria2 `out=` filename (query content-disposition), a2c `remote-header-name` cleanup, `update.py` real rc + `motor<4`/`pymongo<5` pin.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-S`
