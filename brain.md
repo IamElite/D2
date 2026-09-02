@@ -841,3 +841,26 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 8. **S5**: update.py error me `rc=` (3ms fake-success ka sach samne aayega); pins `motor<4`, `pymongo<5`, `wzgram<4`.
 
 **Note:** dyno boot-2/3 me PURANA update.py chal raha tha (slug old) — fake success uska; HEAD honest hai. **Heroku pe ek rebuild/redeploy chahiye** taaki slug fresh ho.
+
+### P-260902-V — update.py self-refresh: restart = latest code, redeploy khatam
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** update.py aisa bano ki main file badlo → bas RESTART me naya code aa jaye, baar-baar redeploy na karna pade.
+
+**Sach (code padh ke, purani galti correction):**
+- update.py har boot: `.git` rm → `git init + add . + commit + fetch + reset --hard origin/arnv1` → **bot code restart pe pehle se fresh aata hai** (log: "Successfully updated with Latest Updates!"). Redeploy bot files ke liye zaroori KABHI nahi tha.
+- Meri `260902-U` note "slug old, rebuild chahiye" adhuri thi — 08:58 boot ka purana behaviour isliye: (a) us waqt fixes push hi nahi hue the, (b) **update.py khud slug-frozen** hai (pull se PEHLE chalta hai = chicken-egg). Boot-2/3 ka `No virtual environment found` + fake-success = slug me 260830-O se bhi purana update.py → 260830-O ke baad redeploy hi nahi hua.
+- Slug-frozen: `update.py`, `start.sh`, `Procfile` (repo me nahi, Heroku setting). Baaki sab (bot/, a2c.conf, qBit conf) restart pe fresh.
+
+**Build pe kya banana (ab nahi) — Option A, sirf update.py, ~10 lines:**
+1. Pull se **pehle** `update.py` ka md5 hash (`_h1`), reset ke **baad** `_h2`. `_h1 != _h2` → `os.execv(sys.executable, [sys.executable, __file__])` with env guard `D2_UPD_REX=1` — naya update.py khud re-run (fresh process, koi double memory nahi).
+2. Guard phase-2: `D2_UPD_REX` set ho to pull block **skip** (code fresh hai; 3-5s + CPU bachat) — seedha env → uv pkgs → exit.
+3. Loop-safe: guard env + hash-same dono; execv fail to normal continue.
+4. `start.sh`/`Procfile` ko mat chhedo (bash mid-read risk; aur wo rarely badalte).
+
+**Limit ( sach):** ye code slugs me aane ke liye **EK aakhri redeploy** lagega (chicken-egg) — uske baad update.py khud b restart pe fresh. Start.sh/Procfile badle to hi kabhi redeploy.
+
+**CPU/RAM:** re-exec sirf tab jab update.py badla ho (rare); phase-2 pull-skip = har normal restart pe extra kaam zero.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-V`
