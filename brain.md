@@ -1025,7 +1025,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - TG DL: `download_media` 3 attempts (3s gap, pyrogram partial-file resume); cancel/decrypter-user_sess path same behaviour; sirf sach me 3 fail hone pe error
 
 ### 260902-AL — wzv3 CDN-pull port (asli speed-secret) + AK ka retry sach me
-**Git:** (push ke baad hash)  
+**Git:** `89e8089`  
 **OLD:** AK (retry sirf naam ka tha — 4th silent-edit fail; `git show 3c0bbc9` = sirf import gaya, body nahi)  
 **Files:** `hyperdl_utils.py`, `telegram_download.py` (bash-python edit, grep-verified)
 
