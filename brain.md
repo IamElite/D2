@@ -803,3 +803,24 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 
 **Execute:** nahi.  
 **Build:** `/build P-260902-S`
+
+### P-260902-T — shipways logs: stitch NameError (LIVE crash) + ffprobe .torrent spam + force_pause errors
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**Logs:** batbin.me/shipways (zyl27aug07)  
+**Parent:** `P-260902-S` (403/uv/remote-header-name/filename wahin covered)  
+
+**Log me naya (S ke alawa):**
+1. **🔴 `NameError: name 'stitch_torrent_link' is not defined`** (13:39:33) — `mirror_leech.py:276` abhi bhi `stitch_torrent_link(raw)` call karta hai, par function `24ea30a` (260902-M "stitch hata") me delete ho gaya. `grep` = sirf call site bachi hai, def kahin nahi. **Trigger:** `/l` reply-to kisi magnet text pe → task turant marta hai, **user ko koi reply nahi** ("Task exception was never retrieved"). Live dyno (08:58 build = HEAD ke paas) me confirm hua. **URGENT — pehla fix build me.**
+2. **🟠 ffprobe `.torrent` payload pe** (13:47–13:53, ~20 baar): `Media Info FF: .../LegalPorno...torrent: Invalid data found` + `Media Info Sections` ERROR. User ke BT packs ke andar **payload hi .torrent files** hain; upload engine `pyrogramEngine.py:479` har file pe `get_media_info` (ffprobe) chalata hai. Non-media pe ffprobe = error spam + bekar CPU (60 task/6min bulk chal raha tha).
+3. **🟡 `GID#xxx cannot be paused now`** (~15 baar ERROR): `aria2_listener.py` `__onBtDownloadComplete` — `listener.seed` False → `force_pause(gid)`; download already complete/state nikal chuka to aria2p ye error deta hai. Benign race, ERROR-level spam. Same call `aria2_download.py:108`, `torrent_select.py:61`.
+4. Purane confirm: 403 delete ×6, uv fake-success + `remote-header-name` WARN (08:58 boot me bhi) — S/R plan me hain.
+
+**Build pe kya banana (ab nahi):**
+1. **stitch fix**: line 276 → `reply_text = raw.strip() if is_torrent_link(raw.strip()) else raw.split("\n", 1)[0].strip()` — poori magnet (multi-line) `is_torrent_link` se pakdi jayegi, stitch fn ki zaroorat hi nahi. Import check.
+2. **get_media_info guard**: media-extension whitelist (video/audio/image) ke alawa sab pe ffprobe skip — `.torrent`/`.zip`/unknown → `(0,"","",")` bina ffprobe, debug-level ek line. `pyrogramEngine:479` duration call bhi pehle extension check.
+3. **force_pause benign**: pause se pehle `download.status` check ya except me `"cannot be paused now"` → `LOGGER.info`; ERROR nahi. Teen call sites.
+4. S wale points (validate_ytdl_url, quoting, 403 silent, aria2 out=, remote-header-name, update.py rc, pins) isi build me saath.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-T` (S+T ek build — S ke points + T ke 3 fix)
