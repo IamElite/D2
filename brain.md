@@ -1040,7 +1040,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Seekh:** bade edit_file is repo me 4 baar silently ude — ab bade changes bash-python se + grep-verify hamesha.
 
 ### 260902-AM — ExportAuthorization flood fix (auth cache, DC-agnostic)
-**Git:** (push ke baad hash)  
+**Git:** `87914dc`  
 **Logs:** frontierlike — AL ke baad pipeline har task pe `FLOOD_WAIT_X 116-172s (auth.ExportAuthorization)` se first-window fail → native fallback (tasks safe, par CDN kabhi nahi milta). Wajah: `get_session` har slot pe `Auth.create` + export/import karta tha — cross-DC pe 4 slots × 6 tasks = ~50 exports.  
 **User req:** code DC-agnostic — dost ke bots DC1/DC2 pe, hamara DC5 — koi DC hardcode nahi.
 
