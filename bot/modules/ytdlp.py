@@ -547,12 +547,9 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
         qual = options['format']
 
     if not qual:
-        if yt_cmd:
-            qual = await YtSelection(client, message).get_quality(result)
-            if qual is None:
-                return
-        else:
-            qual = 'bv*+ba/b'
+        qual = await YtSelection(client, message).get_quality(result)
+        if qual is None:
+            return
     await delete_links(message)
     LOGGER.info(f'Downloading with YT-DLP: {link}')
     playlist = 'entries' in result
