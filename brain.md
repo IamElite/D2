@@ -1050,7 +1050,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Test:** compile + grep ✅. Expect: pehle task pe 1 export, baaki sab instant sessions; FileMigrate spam gone; CDN ab engage ho sakta hai.
 
 ### 260902-AN — export gate: flood ke dauran API-hammering band (psychoanalysts logs)
-**Git:** `$(git rev-parse --short HEAD~0 | head -c 7)`  
+**Git:** `9cb7b40`  
 **OLD:** AM (cache tha, par flood pehle se active hone pe bhi har naya task/retry export try karta raha → penalty 172s→580s chadha, native bhi cross-DC exports pe fail)  
 **Files:** `tg_transfer.py`, `telegram_download.py`
 
