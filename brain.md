@@ -847,7 +847,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Note:** dyno boot-2/3 me PURANA update.py chal raha tha (slug old) — fake success uska; HEAD honest hai. **Heroku pe ek rebuild/redeploy chahiye** taaki slug fresh ho.
 
 ### P-260902-V — update.py self-refresh: restart = latest code, redeploy khatam
-**mode:** `plan`  
+**mode:** `built` (260902-AA)  
 **Date:** 2026-09-02  
 **User:** update.py aisa bano ki main file badlo → bas RESTART me naya code aa jaye, baar-baar redeploy na karna pade.
 
@@ -906,7 +906,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Fix:** chhota `__folder_id()` helper — dict me `folderId` nahi → `Gofile folder create failed: <API ka status/message>`. Dono call sites (root folder + loop subfolder). `__resp_handler` untouched. Compile + 5-case logic test pass.
 
 ### 260902-AA — update.py self-refresh (push → restart = naya code, redeploy khatam)
-**Git:** (push ke baad hash)  
+**Git:** `c23acbd`  
 **OLD:** `P-260902-V` (plan)  
 **Files:** `update.py` (sirf yehi, ~+20)
 
