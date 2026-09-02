@@ -523,7 +523,8 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
         options['playlist_items'] = '0'
 
     options.setdefault('age_limit', 99)
-    yt_cmd = 'yt' in cmd.lower()
+    _yt_cmds = {c.lower() for c in (*BotCommands.YtdlCommand, *BotCommands.YtdlLeechCommand)}
+    yt_cmd = cmd.lower().lstrip('/').split('@')[0] in _yt_cmds
 
     try:
         result = await sync_to_async(extract_info, link, options)
