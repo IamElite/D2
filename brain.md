@@ -923,7 +923,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **⚠️ User note:** is fix ko slug me lane ke liye **EK aakhri redeploy** zaroori (chicken-egg) — uske baad kabhi nahi: bot file badlo → push → restart → fresh. Sirf start.sh/Procfile badle tabhi redeploy.
 
 ### 260902-AB — GoFile REAL fix: API ne `folderId` → `id` kiya (+ Z ka adhura def)
-**Git:** (push ke baad hash)  
+**Git:** `553b92e`  
 **OLD:** `260902-Z` (adhura — def edit file me pahuncha hi nahi tha, sirf call-sites gaye = NameError risk)  
 **Files:** `bot/helper/mirror_utils/upload_utils/ddlserver/gofile.py` (sirf yehi)
 
