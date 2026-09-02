@@ -875,7 +875,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Fix:** Agent rules me rule 7 — teen modes: `/ask` (sirf baat, kuch nahi likhna), `/plan` (P- plan), `/build` (code). `P-260902-W` user ne B approve kiya tha isliye plan valid — ab aage `/build` ke bina code nahi, aur `/ask` me brain.md me kuch nahi.
 
 ### P-260902-Y — GoFile DDL upload KeyError: 'folderId' → clean error chahiye
-**mode:** `plan`  
+**mode:** `built` (260902-Z)  
 **Date:** 2026-09-02  
 **Logs:** batbin.me/bisnaga (14:18 boot = naya code live ✅ — uv clean, DBD nyaa .torrent→Aria2 BT, TG DL fast, m3u8→engine=ytdl sab sahi chala)
 
@@ -895,3 +895,12 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 
 **Execute:** nahi.  
 **Build:** `/build P-260902-Y`
+
+### 260902-Z — GoFile folder-create guard (KeyError → real reason)
+**Git:** (push ke baad hash)  
+**OLD:** `P-260902-Y` (plan)  
+**Files:** `bot/helper/mirror_utils/upload_utils/ddlserver/gofile.py` (sirf yehi, +12/−5)
+
+**Galti:** `upload_folder` me `create_folder` ka result bina check `["folderId"]` — GoFile API error (token/limit) pe KeyError, user ko bekaar msg + traceback spam.
+
+**Fix:** chhota `__folder_id()` helper — dict me `folderId` nahi → `Gofile folder create failed: <API ka status/message>`. Dono call sites (root folder + loop subfolder). `__resp_handler` untouched. Compile + 5-case logic test pass.

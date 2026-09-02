@@ -72,11 +72,12 @@ class Gofile:
         folder_data = await self.create_folder(
             (await self.__getAccount())["rootFolder"], ospath.basename(path)
         )
+        folder_id = self.__folder_id(folder_data)
         await self.__setOptions(
-            contentId=folder_data["folderId"], option="public", value="true"
+            contentId=folder_id, option="public", value="true"
         )
 
-        folderId = folderId or folder_data["folderId"]
+        folderId = folderId or folder_id
         folder_ids = {".": folderId}
         for root, _, files in await sync_to_async(walk, path):
             rel_path = ospath.relpath(root, path)
