@@ -689,3 +689,14 @@ True agar koi bhi:
 wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`; aliases purane naam. HTML fail → ytdl **hata**. `/l7` Aria2.
 
 **P-260902-A..E mode:** built (isi hash).
+
+### `P-260902-G` — aliases hatao (extra nahi)
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** `is_magnet = is_url_torrent` (aur gdrive/telegram/mega/rclone aliases) **extra** — kyun add?
+
+**Sach:** agent ne purane 50 call sites na todne ke liye alias rakha. User nahi maanga. Mix pattern wapas.
+
+**Build pe:** woh 5 lines **delete**. Har file me `is_magnet` → `is_url_torrent`, `is_gdrive_link` → `is_url_gdrive`, `is_telegram_link` → `is_url_telegram`, `is_mega_link` → `is_url_mega`, `is_rclone_path` → `is_url_rclone`. Sirf `is_url_*`. Alias nahi.
+
+**Execute:** nahi. **`/build P-260902-G`**.
