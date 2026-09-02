@@ -578,3 +578,40 @@ User: alag plan.md = agent ko 2 file, context waste. Plan + built **isi** file.
 
 **Execute:** nahi. Gap = HTML→ytdl loop + magnet split.  
 **Build:** bolo `/build` auto-engine. /l7 magnet = Aria2; qBit sirf /qb7.
+
+### `P-260902-B` — is_* helpers: URL-type params (WZML-style)
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**Parent:** `P-260902-A` (dono 50-50 msgs — magnet split + no fail-chain). Yeh uska **kaise**: helpers ke andar params.
+
+**Aaj kya galat:**
+- `is_magnet` sirf `MAGNET_REGEX` = `magnet:?xt=urn:(btih|btmh):…` + space. Full magnet (`&tr=` / `announce` / `dn=` / `xl=` / `ws=`) regex pehle `\s*` pe toot → tracker tukda alag “URL” → HTML → ytdl → aria **20×**.
+- `_torrent_src` = magnet **ya** path `.torrent`. `announce` / `udp://…/announce` / `&tr=` **nahi**.
+- `_YTDL_HINT` host list; **m3u8 / .ts** nahi. `is_url_ytdlp` naam ka fn **nahi**.
+- `is_rclone_path` hai; `is_url_rclone` nahi — naam WZML, D2 me `is_rclone_path` rakho.
+- HTML `get_content_type` fail → `_ytdl` (fail-chain). Forbidden.
+
+**Build pe kya banana (ab nahi):**
+
+1. **`bot_utils.py` — params *andar* `is_*`** (naya `is_url_ytdlp`; magnet/torrent/rclone stretch):
+   - **`is_magnet(url)`** True if any: `magnet:?` + `xt=urn:btih` / `xt=urn:btmh`; 40-hex / 32-base32 hash; `&xt=` / `?xt=`. Poori string **ek** magnet, split mat.
+   - **`is_torrent_url(url)`** (naya, `_torrent_src` replace): path `.torrent` (query strip, case); body `announce` / `announce-list`; `&tr=` / `?tr=`; `udp://` ya `http(s)://` **…/announce**; `xs=` / `as=` magnet extras. Random torrent-index HTTP **sirf** agar yeh tokens; warna Aria HTTP.
+   - **`is_url_ytdlp(url)`** (naya): known hosts (`_YTDL_HINT` + same); path `.m3u8` / `.m3u` / `.ts` (query strip); `playlist.m3u8`. **BT tokens pehle** — magnet/`&tr=`/`announce` yahan **kabhi nahi**.
+   - **`is_rclone_path`**: extra param check `:` remote, `rcl`, `mrcc:` — HTTP/magnet mat khao (`(?!magnet:)` already).
+
+2. **`_auto_engine` first-match (ek URL = ek engine):**
+   file_ → tg  
+   mega → mega  
+   gdrive → gd  
+   rclone → rc  
+   t.me → tg  
+   **`is_magnet` OR `is_torrent_url` → aria BT** (`/l7` qBit nahi; `/qb*` alag)  
+   **`is_url_ytdlp` → ytdl once**  
+   else → aria HTTP  
+
+3. **Hatao:** HTML/direct fail → `_ytdl`; `_ydl_tried` loop; magnet split. Direct-link generator **sirf** known filehosts, BT/ytdl pe nahi.
+
+4. **Log:** ek line `engine=…` + truncated URL. 20 Task Manager nahi.
+
+**Execute:** nahi.  
+**Build:** `/build` auto-engine **ya** `/build P-260902-B`.
