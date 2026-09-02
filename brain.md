@@ -700,3 +700,12 @@ wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`;
 **Build pe:** woh 5 lines **delete**. Har file me `is_magnet` → `is_url_torrent`, `is_gdrive_link` → `is_url_gdrive`, `is_telegram_link` → `is_url_telegram`, `is_mega_link` → `is_url_mega`, `is_rclone_path` → `is_url_rclone`. Sirf `is_url_*`. Alias nahi.
 
 **Execute:** nahi. **`/build P-260902-G`**.
+
+### `P-260902-H` — har call `is_url_*`, shortcut nahi
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** jahan `is_` se call ja raha hai wahan **proper `is_url_`**. Alias/shortcut nahi.
+
+**Build:** `bot_utils` se 5 alias lines hatao. Phir **har py** (mirror_leech, ytdlp, clone, gd_*, tasks_listener, pyrogramEngine, users_settings, category_select, direct_link_generator, …): import + call `is_magnet`→`is_url_torrent`, `is_gdrive_link`→`is_url_gdrive`, `is_telegram_link`→`is_url_telegram`, `is_mega_link`→`is_url_mega`, `is_rclone_path`→`is_url_rclone`. `is_url(` generic HTTP rehta. Non-URL `is_archive` etc. mat chhedo.
+
+**Execute:** nahi. **`/build P-260902-H`**.
