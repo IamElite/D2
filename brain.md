@@ -1060,3 +1060,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - Seedhi baat: flood ~10 min me khud utrega; gate us dauran aag pe tel na dalega. Naya boot = fresh cache, gate pehle export try karega, flood hua to block + baad me ek hi retry.
 
 **Note:** ye flood AM se PEHLE wale burst (frontierlike) ka zakhm tha — AM ka cache use ne rok diya ki har boot me wapas na bhadke.
+
+### 260902-AO — Docker self-host: python:3.11.9-slim + heroku.yml (container stack ka sahi rasta)
+**Git:** (push ke baad hash)  
+**User flow:** Heroku stack = **container** (`FROM nanthakps/kpsmlx`) — isliye runtime.txt kabhi kaam nahi karta; nanthakps image = ubuntu:22.04 + system py3.10 + **buildkit secrets** (`RUN bash /run/secrets/wzmlx`) = Dockerfile/source kabhi public nahi (registry history se confirm).  
+**Files:** `Dockerfile` (naya), `heroku.yml` (naya)
+
+**Dockerfile:** `python:3.11.9-slim-bookworm` base (yt-dlp/Google warnings gayab; 3.12 nahi — TgCrypto/ forks risk), apt: ffmpeg aria2 qbittorrent-nox p7zip unrar mediainfo tzdata; pip+uv at **build-time** (runtime pe install nahi); code COPY fresh (runtime git-pull belt-and-suspenders rahega). `heroku.yml` = git-push → docker build (deploy = ek git push, jo waise bhi pending hai AA/AD/AN ke liye).
+
+**Deploy flow (user):** push → Heroku image build → release → **sab fixes pakke slug me** + Python 3.11. Restart-only life uske baad bhi (update.py pull code fresh rakhta hai image ke upar).
