@@ -18,7 +18,7 @@ from lk21 import Bypass
 from http.cookiejar import MozillaCookieJar
 
 from .... import LOGGER, config_dict
-from ...ext_utils.bot_utils import get_readable_time, is_share_link, is_index_link, is_torrent_link
+from ...ext_utils.bot_utils import get_readable_time, is_share_link, is_index_link, is_magnet
 from ...ext_utils.exceptions import DirectDownloadLinkException
 from ...ext_utils.help_messages import PASSWORD_ERROR_MESSAGE
 
@@ -111,7 +111,7 @@ def direct_link_generator(link):
     auth = None
     if isinstance(link, tuple):
         link, auth = link
-    if is_torrent_link(link):
+    if is_magnet(link):
         return real_debrid(link, True)
 
     domain = urlparse(link).hostname

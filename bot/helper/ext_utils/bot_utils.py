@@ -398,21 +398,16 @@ def stitch_torrent_link(text):
     return s[:cut].strip()
 
 
-def is_torrent_link(url):
+def is_magnet(url):
     if not url or not isinstance(url, str):
         return False
     if re_match(MAGNET_REGEX, url):
         return True
-    low = url.lower()
-    if low.split("?", 1)[0].rstrip("/").endswith(".torrent"):
-        return True
-    if "&tr=" in low or "?tr=" in low or "announce" in low:
-        return True
-    return False
+    return url.lower().split("?", 1)[0].rstrip("/").endswith(".torrent")
 
 
 def is_ytdlp_link(url):
-    if not url or not isinstance(url, str) or is_torrent_link(url):
+    if not url or not isinstance(url, str) or is_magnet(url):
         return False
     low = url.lower()
     path = low.split("?", 1)[0].rstrip("/")

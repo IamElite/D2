@@ -15,7 +15,7 @@ from cloudscraper import create_scraper
 
 from .. import bot, DOWNLOAD_DIR, LOGGER, config_dict, bot_name, categories_dict, user_data
 from ..helper.mirror_utils.download_utils.direct_downloader import add_direct_download
-from ..helper.ext_utils.bot_utils import is_url, is_torrent_link, is_ytdlp_link, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats, stitch_torrent_link
+from ..helper.ext_utils.bot_utils import is_url, is_magnet, is_ytdlp_link, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats, stitch_torrent_link
 from ..helper.ext_utils.exceptions import DirectDownloadLinkException
 from ..helper.ext_utils.task_manager import task_utils
 from ..helper.mirror_utils.download_utils.aria2_download import add_aria2c_download
@@ -52,7 +52,7 @@ def _auto_engine(link, file_=None):
         return "rc"
     if is_telegram_link(link):
         return "tg"
-    if is_torrent_link(link):
+    if is_magnet(link):
         return "aria"
     if is_ytdlp_link(link):
         return "ytdl"
@@ -278,18 +278,28 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         if file_ is None:
             raw = reply_to.text or reply_to.caption or ""
             reply_text = stitch_torrent_link(raw) if "magnet:" in raw.lower() else raw.split("\n", 1)[0].strip()
-            if is_url(reply_text) or is_torrent_link(reply_text):
+            if is_url(reply_text) or is_magnet(reply_text):
                 link = reply_text
         elif reply_to.document and (getattr(file_, "mime_type", None) == "application/x-bittorrent" or str(getattr(file_, "file_name", "") or "").lower().endswith(".torrent")):
             link = await reply_to.download()
             file_ = None
 
-    if not is_url(link) and not is_torrent_link(link) and not await aiopath.exists(link) and not is_rclone_path(link) and file_ is None:
-        btn = ButtonMaker()
-        btn.ibutton('Cʟɪᴄᴋ Hᴇʀᴇ Tᴏ Rᴇᴀᴅ Mᴏʀᴇ ...', f'kpsmlx {message.from_user.id} help MIRROR')
-        await sendMessage(message, MIRROR_HELP_MESSAGE[0], btn.build_menu(1))
-        await delete_links(message)
-        return
+    if file_ is None:
+        if not link:
+            btn = ButtonMaker()
+            btn.ibutton('Cʟɪᴄᴋ Hᴇʀᴇ Tᴏ Rᴇᴀᴅ Mᴏʀᴇ ...', f'kpsmlx {message.from_user.id} help MIRROR')
+            await sendMessage(message, MIRROR_HELP_MESSAGE[0], btn.build_menu(1))
+            await delete_links(message)
+            return
+        if not is_magnet(link) and not is_rclone_path(link) and not is_gdrive_link(link) and not is_mega_link(link) and not is_telegram_link(link) and not await aiopath.exists(link):
+            if not re_match(r'(?i)^(https?|ftp)://', str(link).strip()):
+                await sendMessage(message, "<b>Invalid URL</b>")
+                await delete_links(message)
+                return
+            if not is_url(link):
+                await sendMessage(message, "<b>Invalid URL</b>")
+                await delete_links(message)
+                return
 
     error_msg = []
     error_button = None
@@ -312,7 +322,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         LOGGER.info(link)
         org_link = link
 
-    if file_ is None and link and isinstance(link, str) and not isQbit and not is_torrent_link(link):
+    if file_ is None and link and isinstance(link, str) and not isQbit and not is_magnet(link):
         eng = _auto_engine(link)
         if eng == "ytdl":
             LOGGER.info("engine=ytdl %s", link[:80])
@@ -321,14 +331,14 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             return
 
     if (not is_mega_link(link) or (is_mega_link(link) and not config_dict['MEGA_EMAIL'] and config_dict['DEBRID_LINK_API'])) \
-        and not is_torrent_link(link) \
+        and not is_magnet(link) \
         and not isQbit \
         and not is_rclone_path(link) and not is_gdrive_link(link) and file_ is None:
         content_type = await get_content_type(link)
         if content_type is None or re_match(r'text/html|text/plain', content_type):
             process_msg = await sendMessage(message, f"<i><b>Processing:</b></i> <code>{link}</code>")
             try:
-                if not is_torrent_link(link) and (ussr or pssw):
+                if not is_magnet(link) and (ussr or pssw):
                     link = (link, (ussr, pssw))
                 link = await sync_to_async(direct_link_generator, link)
                 if isinstance(link, tuple):
