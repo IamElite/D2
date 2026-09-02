@@ -962,3 +962,22 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Galti:** updater `beast` db padhta tha, bot/BSet `kpsmlx` me likhte — dyno start pe Mongo-upstream invisible, sirf /restart (bot-ENV) se sahi pull.
 
 **Fix:** `update.py:62` → `db = conn.kpsmlx`. Repo me `beast` ka yehi ek reference tha. Escape-hatch design same: upstream Mongo se, vars = override.
+
+### P-260902-AE — /log Web Paste: dead spacebin → BatBin API
+**mode:** `plan` (user: /plan and /build dono — isi me build)  
+**Date:** 2026-09-02  
+**Logs:** user ka traceback — `spaceb.in/api/v1/documents` POST → 404 HTML → `.json()` → JSONDecodeError crash, block pe try/except bhi nahi.
+
+**Sach (live-tested):** spacebin naya (Luna/Go) rewrite — purana v1 API gaya (404). BatBin zinda: `POST https://batbin.me/api/v2/paste`, body = plain text, **`Content-Type: text/plain;charset=UTF-8` (charset zaroori, warna 415)** → `{"success":true,"message":"<key>"}` → URL `batbin.me/<key>`. Frontend bundle se decode + 2 live pastes se confirm. paste.gg 503 not_allowed, del.dog down.
+
+**Build:** mirror_leech.py `webpaste` block (sirf yehi 1 jagah repo me):
+1. spacebin call → BatBin (utf-8 bytes + charset header + `timeout=15`)
+2. `success` true → button `📨 Web Paste (BatBin)` → `batbin.me/<message>`; false/exception → LOGGER.error + user ko chhota fail msg (poora block try/except = crash kabhi nahi)
+3. Bonus: `else` branch ka undefined-`err` NameError leftover hata (naya except wale me clean hai)
+
+### 260902-AF — build: webpaste spacebin → BatBin
+**Git:** (push ke baad hash)  
+**OLD:** `P-260902-AE` (plan)  
+**Files:** `bot/modules/mirror_leech.py` (sirf webpaste block, ~+9/−6)
+
+**Fix:** BatBin v2 paste (utf-8 bytes, charset header, timeout=15); success → `📨 Web Paste (BatBin)` button `batbin.me/<key>`; fail/exception → LOGGER + user ko fail-msg, crash kabhi nahi (pehle JSONDecodeError pe callback crash hota). `err` NameError leftover gaya. Live E2E test: 200 + success + `batbin.me/carniferrin` ✅

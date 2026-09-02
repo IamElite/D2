@@ -502,13 +502,20 @@ async def kpsmlxcb(_, query):
         async with aiopen('log.txt', 'r') as f:
             logFile = await f.read()
         cget = create_scraper().request
-        resp = cget('POST', 'https://spaceb.in/api/v1/documents', data={'content': logFile, 'extension': 'None'}).json()
-        if resp['status'] == 201:
-            btn = ButtonMaker()
-            btn.ubutton('📨 Web Paste (SB)', f"https://spaceb.in/{resp['payload']['id']}")
-            await editReplyMarkup(message, btn.build_menu(1))
-        else:
-            LOGGER.error(f"Web Paste Failed : {str(err)}")
+        try:
+            resp = cget('POST', 'https://batbin.me/api/v2/paste', data=logFile.encode('utf-8'),
+                        headers={'Content-Type': 'text/plain;charset=UTF-8'}, timeout=15)
+            rjson = resp.json()
+            if rjson.get('success') and rjson.get('message'):
+                btn = ButtonMaker()
+                btn.ubutton('📨 Web Paste (BatBin)', f"https://batbin.me/{rjson['message']}")
+                await editReplyMarkup(message, btn.build_menu(1))
+            else:
+                LOGGER.error(f"Web Paste Failed : {rjson.get('message', resp.status_code)}")
+                await sendMessage(message, "⚠️ Web Paste failed, try again!")
+        except Exception as e:
+            LOGGER.error(f"Web Paste Failed : {e}")
+            await sendMessage(message, "⚠️ Web Paste failed, try again!")
     elif data[2] == "botpm":
         await query.answer(url=f"https://t.me/{bot_name}?start=kpsmlx")
     elif data[2] == "help":
