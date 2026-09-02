@@ -1000,7 +1000,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Render test:** output user ke sample se line-by-line match ✅ (bar, Done, Time, UP, 〄, {1}, mention, ┎/┖)
 
 ### 260902-AI — bar 12-fixed + User line me ID-mention
-**Git:** (push ke baad hash)  
+**Git:** `3108949`  
 **OLD:** `260902-AH` (User mention tha, ID nahi; bar 13-block bug)  
 **Files:** `bot_utils.py` (bar fn + USER arg), `kpsml_minimal.py` (USER template)
 
