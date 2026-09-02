@@ -873,3 +873,25 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Git:** d19faef  
 **Galti:** `/ask` (dead-torrent CPU sawal) me jawab ke saath `P-260902-W` bhi brain.md me likh diya — `/ask` sirf discussion ke liye hai.  
 **Fix:** Agent rules me rule 7 — teen modes: `/ask` (sirf baat, kuch nahi likhna), `/plan` (P- plan), `/build` (code). `P-260902-W` user ne B approve kiya tha isliye plan valid — ab aage `/build` ke bina code nahi, aur `/ask` me brain.md me kuch nahi.
+
+### P-260902-Y — GoFile DDL upload KeyError: 'folderId' → clean error chahiye
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**Logs:** batbin.me/bisnaga (14:18 boot = naya code live ✅ — uv clean, DBD nyaa .torrent→Aria2 BT, TG DL fast, m3u8→engine=ytdl sab sahi chala)
+
+**Problem (14:31:06):** WowGirls folder (BT complete, 64s me) → DDL upload GoFile pe → `KeyError: 'folderId'` → "DDL Upload has been Cancelled" + traceback, task error.
+
+**Sach (code se):**
+- `gofile.py:upload_folder` → `create_folder(...)` → `__resp_handler(resp.json())` return karta hai; GoFile API error de (token expire/rate-limit/status error) to dict me `folderId` **nahi** hota → line 76 `folder_data["folderId"]` pe KeyError. Asli wajah = **API ne error diya**, KeyError sirf symptom (debug-friendly message zero).
+- Loop me bhi wahi pattern: `currFolderId = (await self.create_folder(...))["folderId"]` (line 85).
+- `ddlEngine.upload` except me `onUploadError(err)` user ko jata — KeyError aaye to user ko sirf `'folderId'` jaisa bekaar msg milta.
+
+**Build pe kya banana (ab nahi) — ~8 lines gofile.py me:**
+1. `upload_folder` ke dono `create_folder` results pe guard: `folderId` nahi mila → `raise Exception(f"Gofile: folder create failed ({status/data})")` — 2 call sites, chhota local helper (DRY, extra code zero).
+2. `upload()` file path already `gCode.get("downloadPage")` check karta hai — waise hi folder path ab clean raise dega; ddlEngine ka except user ko **real reason** dikhaega (token/limit), traceback spam bhi kam (KeyError ki jagah readable msg).
+3. `__resp_handler` ko haath NAHI (sab endpoints use karte hain — risky, rule 1).
+
+**Observation (no code):** m3u8 do baar process hua 12s gap se (:38 `/yl` route, :50 `/l` route `engine=ytdl`) — user ke do cmds lagte hain, bug nahi. DBD-Raws dead torrent 14:20 se chal raha — guard plan W remove ho chuka, bina guard ke chalega.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-Y`
