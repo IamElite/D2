@@ -893,6 +893,6 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Build:** `/build P-260902-W`
 
 ### 260902-X — agent rules: chat modes define (/ask par plan banana galti tha)
-**Git:** (push ke baad hash)  
+**Git:** d19faef  
 **Galti:** `/ask` (dead-torrent CPU sawal) me jawab ke saath `P-260902-W` bhi brain.md me likh diya — `/ask` sirf discussion ke liye hai.  
 **Fix:** Agent rules me rule 7 — teen modes: `/ask` (sirf baat, kuch nahi likhna), `/plan` (P- plan), `/build` (code). `P-260902-W` user ne B approve kiya tha isliye plan valid — ab aage `/build` ke bina code nahi, aur `/ask` me brain.md me kuch nahi.
