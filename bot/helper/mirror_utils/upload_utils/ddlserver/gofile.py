@@ -65,6 +65,12 @@ class Gofile:
                         res2 = await resp2.json()
                         return res2["status"] == "ok" if check_account else await self.__resp_handler(res2)
 
+    def __folder_id(self, data):
+        fid = data.get("folderId") or data.get("id") if isinstance(data, dict) else None
+        if not fid:
+            raise Exception(f"Gofile folder create failed: {data}")
+        return fid
+
     async def upload_folder(self, path, folderId=None):
         if not await aiopath.isdir(path):
             raise Exception(f"Path: {path} is not a valid directory")
@@ -83,7 +89,9 @@ class Gofile:
             rel_path = ospath.relpath(root, path)
             parentFolderId = folder_ids.get(ospath.dirname(rel_path), folderId)
             folder_name = ospath.basename(rel_path)
-            currFolderId = (await self.create_folder(parentFolderId, folder_name))["folderId"]
+            currFolderId = self.__folder_id(
+                await self.create_folder(parentFolderId, folder_name)
+            )
             await self.__setOptions(
                 contentId=currFolderId, option="public", value="true"
             )

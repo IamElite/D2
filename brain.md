@@ -921,3 +921,16 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Test:** sim — purana→pull→naya re-exec ("pull skipped, NEW VERSION LIVE") ✅; no-change single run ✅; compile ✅
 
 **⚠️ User note:** is fix ko slug me lane ke liye **EK aakhri redeploy** zaroori (chicken-egg) — uske baad kabhi nahi: bot file badlo → push → restart → fresh. Sirf start.sh/Procfile badle tabhi redeploy.
+
+### 260902-AB — GoFile REAL fix: API ne `folderId` → `id` kiya (+ Z ka adhura def)
+**Git:** (push ke baad hash)  
+**OLD:** `260902-Z` (adhura — def edit file me pahuncha hi nahi tha, sirf call-sites gaye = NameError risk)  
+**Files:** `bot/helper/mirror_utils/upload_utils/ddlserver/gofile.py` (sirf yehi)
+
+**Asli galti (dono):**
+1. GoFile API badla — `createFolder` success ab `data.id` deta hai, `data.folderId` purana ([gimpyestrada/gofile docs](https://github.com/gimpyestrada/gofile/blob/main/API%20Documentation.md), yaGatito/gofile-client). API call OK hoti thi, code galat key kheenchta → KeyError. Z sirf error-msg polish tha, upload fix nahi.
+2. Z commit me `__folder_id` def missing push ho gaya tha — live pe NameError hota. User ne pakda ("fix nhi kiya").
+
+**Fix:** `__folder_id` def (folderId **ya** id dono accept, error pe API ka status raise) + dono call sites (root:81, loop:92). Baki endpoints/`__resp_handler` untouched (servers + uploadfile + update live-tested = alive).
+
+**Test:** compile + runtime class test — new `id` ✅ old `folderId` ✅ error raise ✅
