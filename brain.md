@@ -1069,3 +1069,16 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Dockerfile:** `python:3.11.9-slim-bookworm` base (yt-dlp/Google warnings gayab; 3.12 nahi — TgCrypto/ forks risk), apt: ffmpeg aria2 qbittorrent-nox p7zip unrar mediainfo tzdata; pip+uv at **build-time** (runtime pe install nahi); code COPY fresh (runtime git-pull belt-and-suspenders rahega). `heroku.yml` = git-push → docker build (deploy = ek git push, jo waise bhi pending hai AA/AD/AN ke liye).
 
 **Deploy flow (user):** push → Heroku image build → release → **sab fixes pakke slug me** + Python 3.11. Restart-only life uske baad bhi (update.py pull code fresh rakhta hai image ke upar).
+
+### 260902-AP — Dockerfile full-parity (mega SDK compile, poora toolset) + mega lazy-import
+**Git:** (push ke baad hash)  
+**OLD:** AO (Dockerfile adhura tha — user sahi pakda: megasdk/zip/AtomicParsley etc. base-image me the, mujhe nahi likhe the)  
+**Files:** `Dockerfile` (rewrite: 2-stage), `bot_utils.py` (mega import lazy)
+
+**Base-image scan (registry layers extract karke, /tmp/img me khola):**
+- L1: ubuntu22.04 + py2.7/3.10 + 7z-suite, aria2c, ffmpeg/ffprobe, mediainfo, qbittorrent-nox, **rclone v1.64**, git/curl, gcc/g++, **AtomicParsley**, **MEGA SDK v4.8.0** (source `/sdk` + compiled `libmega.so`, `_mega.so` cpython-310 bindings)
+- L2: **whiteouts** `.wh.{aria2c,ffmpeg,qbittorrent-nox,rclone}` + decoy 0-byte bins `xon-bit`, `zetra` (jinka naam pe pehle pkill hua tha!) — matlab `latest` tag me runtime bins badal ke rakhe; `v3`/`heroku_v3` tags alag (728-740MB)
+
+**Naya Dockerfile:** multi-stage — STAGE1 `meganz/sdk v4.8.0` cmake+swig compile (**py3.11 bindings** — purane `.so` 3.10-ABI the, reuse impossible), STAGE2 runtime (sab tools + zip/unzip + atomicparsley + rclone static + deps build-time). `WITH_MEGA=0` build-arg = fast build (MEGA creds use hi nahi karte). `bot_utils` mega import lazy — SDK bina bhi bot kabhi crash nahi.
+
+**Verify:** docker sandbox me nahi hai — pehla real build user karega; build-log issues → turant fix.
