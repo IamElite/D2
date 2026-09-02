@@ -1016,7 +1016,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Seekh:** parallel edit_file ke baad verify (grep) karo — do baar (Z, AH) "success" ke baad bhi change persist nahi hua.
 
 ### 260902-AK — bar 1-100% proportional + TG download timeout retry
-**Git:** (push ke baad hash)  
+**Git:** `3c0bbc9`  
 **OLD:** `260902-AI` (bar 96 pe full ho jata tha — user: "12 blocks me 1-100% fit"); TG `Request timed out` = ek exception me task dead (14m wala)  
 **Files:** `bot_utils.py` (bar fn), `telegram_download.py` (`__download` retry)
 
