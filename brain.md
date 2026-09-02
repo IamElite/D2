@@ -904,3 +904,20 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Galti:** `upload_folder` me `create_folder` ka result bina check `["folderId"]` — GoFile API error (token/limit) pe KeyError, user ko bekaar msg + traceback spam.
 
 **Fix:** chhota `__folder_id()` helper — dict me `folderId` nahi → `Gofile folder create failed: <API ka status/message>`. Dono call sites (root folder + loop subfolder). `__resp_handler` untouched. Compile + 5-case logic test pass.
+
+### 260902-AA — update.py self-refresh (push → restart = naya code, redeploy khatam)
+**Git:** (push ke baad hash)  
+**OLD:** `P-260902-V` (plan)  
+**Files:** `update.py` (sirf yehi, ~+20)
+
+**Galti:** update.py pull se PEHLE chalta hai = khud kabhi update nahi hota (chicken-egg). 260830-O ke baad redeploy nahi hua to purana update.py hi chalta raha (fake-success wala).
+
+**Fix:**
+- Pull se pehle `update.py` ka md5 `_h1`, reset ke baad `_h2` — badla → `D2_UPD_REX=1` env + `execv` se khud re-exec (naya updater fresh process me)
+- Re-exec run me pull **skip** (`D2_UPD_REX` guard) — code fresh hai, 3-5s + CPU bachat
+- Loop-safe: guard env + hash-same dono; execv fail → normal continue
+- `start.sh`/`Procfile` untouched (bash mid-read risk)
+
+**Test:** sim — purana→pull→naya re-exec ("pull skipped, NEW VERSION LIVE") ✅; no-change single run ✅; compile ✅
+
+**⚠️ User note:** is fix ko slug me lane ke liye **EK aakhri redeploy** zaroori (chicken-egg) — uske baad kabhi nahi: bot file badlo → push → restart → fresh. Sirf start.sh/Procfile badle tabhi redeploy.

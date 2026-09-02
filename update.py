@@ -77,7 +77,18 @@ if UPSTREAM_REPO and "github.com" in UPSTREAM_REPO and "@" in UPSTREAM_REPO:
     if "x-access-token:" not in UPSTREAM_REPO:
         UPSTREAM_REPO = UPSTREAM_REPO.replace("https://", "https://x-access-token:", 1)
 
-if UPSTREAM_REPO:
+if UPSTREAM_REPO and environ.get('D2_UPD_REX'):
+    log_info("update.py fresh (re-exec) — pull skipped, code already latest")
+elif UPSTREAM_REPO:
+    from hashlib import md5
+    from os import execv
+    from sys import executable
+
+    def _self_hash():
+        with open(__file__, 'rb') as f:
+            return md5(f.read()).hexdigest()
+
+    _h1 = _self_hash()
     if path.exists(".git"):
         srun(["rm", "-rf", ".git"])
 
