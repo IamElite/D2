@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from logging import getLogger, ERROR
 from time import time
-from asyncio import Lock
+from asyncio import Lock, sleep
 from pyrogram import Client, StopTransmission
 
 from .... import LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock, bot, user, IS_PREMIUM_USER

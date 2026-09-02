@@ -1014,3 +1014,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** `STATUS_NAME = '{Tno} <b><i>{Name}</i></b>'` → `{1} Name`; FOOTER `〄` → `❑`. User ke BSet-upload ke liye poora updated theme workspace me bana (`kpsml_minimal.py`).
 
 **Seekh:** parallel edit_file ke baad verify (grep) karo — do baar (Z, AH) "success" ke baad bhi change persist nahi hua.
+
+### 260902-AK — bar 1-100% proportional + TG download timeout retry
+**Git:** (push ke baad hash)  
+**OLD:** `260902-AI` (bar 96 pe full ho jata tha — user: "12 blocks me 1-100% fit"); TG `Request timed out` = ek exception me task dead (14m wala)  
+**Files:** `bot_utils.py` (bar fn), `telegram_download.py` (`__download` retry)
+
+**Fix:**
+- Bar: `filled = int(p * 0.96)` shades (12×8) — 8.33%/block, 96% pe 11■+▧, 100% pe 12■. Test: 8.33→1■, 50→6■, 96→11■▧, 100→12■ (sab 12 len)
+- TG DL: `download_media` 3 attempts (3s gap, pyrogram partial-file resume); cancel/decrypter-user_sess path same behaviour; sirf sach me 3 fail hone pe error
