@@ -826,7 +826,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Build:** `/build P-260902-T` (S+T ek build — S ke points + T ke 3 fix)
 
 ### 260902-U — S+T build: stitch crash, yl validation, quoting, ffprobe guard, pause spam, out=, 403 silent, pins
-**Git:** (push ke baad hash)  
+**Git:** `1084240`  
 **OLD:** P-260902-R/S/T (teeno plans isi build me execute)  
 **Files:** `mirror_leech.py`, `ytdlp.py`, `bot_utils.py`, `leech_utils.py`, `aria2_listener.py`, `aria2_download.py`, `message_utils.py`, `a2c.conf`, `update.py`, `requirements.txt`
 
