@@ -22,6 +22,10 @@ Alag `plan.md` **mat** banao — plan + built **yahi**.
 4. User **`/build`** us plan ka: code, phir usi `P-` ko **mode: built** + git hash. FIX LOG me bhi short ID.
 5. User ko push se pehle ID; push ke baad hash.
 6. Token / PAT is file me **kabhi mat likho**.
+7. **Chat modes (user-defined):**
+   - `/ask` ya `.ask` = **sirf baat-cheet** — code/cheez par discussion, sawal-jawab. **Plan nahi banana, brain.md me kuch nahi likhna, code nahi chhedna.**
+   - `/plan` ya `.plan` = build/fix se **pehle** PLANS me `P-YYMMDD-X` likho (mode: plan), code nahi.
+   - `/build` = code edit/fix/new + FIX LOG block + push.
 
 ---
 
@@ -887,3 +891,8 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 
 **Execute:** nahi.  
 **Build:** `/build P-260902-W`
+
+### 260902-X — agent rules: chat modes define (/ask par plan banana galti tha)
+**Git:** (push ke baad hash)  
+**Galti:** `/ask` (dead-torrent CPU sawal) me jawab ke saath `P-260902-W` bhi brain.md me likh diya — `/ask` sirf discussion ke liye hai.  
+**Fix:** Agent rules me rule 7 — teen modes: `/ask` (sirf baat, kuch nahi likhna), `/plan` (P- plan), `/build` (code). `P-260902-W` user ne B approve kiya tha isliye plan valid — ab aage `/build` ke bina code nahi, aur `/ask` me brain.md me kuch nahi.
