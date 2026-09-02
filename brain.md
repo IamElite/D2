@@ -897,7 +897,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Build:** `/build P-260902-Y`
 
 ### 260902-Z — GoFile folder-create guard (KeyError → real reason)
-**Git:** (push ke baad hash)  
+**Git:** `da93ff1`  
 **OLD:** `P-260902-Y` (plan)  
 **Files:** `bot/helper/mirror_utils/upload_utils/ddlserver/gofile.py` (sirf yehi, +12/−5)
 
