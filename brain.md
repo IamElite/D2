@@ -964,7 +964,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Fix:** `update.py:62` → `db = conn.kpsmlx`. Repo me `beast` ka yehi ek reference tha. Escape-hatch design same: upstream Mongo se, vars = override.
 
 ### P-260902-AE — /log Web Paste: dead spacebin → BatBin API
-**mode:** `plan` (user: /plan and /build dono — isi me build)  
+**mode:** `built` (260902-AF)  
 **Date:** 2026-09-02  
 **Logs:** user ka traceback — `spaceb.in/api/v1/documents` POST → 404 HTML → `.json()` → JSONDecodeError crash, block pe try/except bhi nahi.
 
@@ -976,7 +976,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 3. Bonus: `else` branch ka undefined-`err` NameError leftover hata (naya except wale me clean hai)
 
 ### 260902-AF — build: webpaste spacebin → BatBin
-**Git:** (push ke baad hash)  
+**Git:** `fca9b85`  
 **OLD:** `P-260902-AE` (plan)  
 **Files:** `bot/modules/mirror_leech.py` (sirf webpaste block, ~+9/−6)
 
