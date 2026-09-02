@@ -1,7 +1,8 @@
 # D2 / arnv1 — brain.md
 
 Nayi chat me bolo: **read brain.md**  
-Is file se pata chalega: kya galti thi, kya fix hua, kaunsi branch, kaunsa hash.
+Is file se pata chalega: kya galti thi, kya fix hua, **kya plan** tha, kaunsi branch, kaunsa hash.  
+Alag `plan.md` **mat** banao — plan + built **yahi**.
 
 **Branch:** `arnv1` only (prod `srmlx` / `main` tab tak nahi jab tak user na kahe)  
 **Repo:** https://github.com/IamElite/D2  
@@ -11,16 +12,16 @@ Is file se pata chalega: kya galti thi, kya fix hua, kaunsi branch, kaunsa hash.
 
 ## Agent rules (har nayi chat + har push se PEHLE)
 
-1. Kaam shuru: pehle **yeh `brain.md` padho**.
-2. **Git push se pehle** is file me naya block add karo:
-   - 6-digit ID (`YYMMDD` + serial, ya `A` + 5 digits)
-   - git short hash (jab push ke baad pata chale, update)
-   - problem / galti
-   - files
-   - kya fix
-   - agar purana fix galat/adhura tha to **OLD: `ID`** mention + naya kya kiya
-3. User ko push se pehle ID + kya fix batao; push ke baad git hash likh do.
-4. Token / PAT is file me **kabhi mat likho**. Chat wala token leaked maano → user revoke kare.
+1. Kaam shuru: pehle **yeh `brain.md` padho** (FIX LOG + **PLANS**). Do files mat.
+2. **Git push se pehle** FIX LOG me naya block:
+   - 6-digit ID (`YYMMDD` + serial)
+   - git short hash (push ke baad)
+   - problem / galti / files / fix
+   - purana adhura ho to **OLD: `ID`**
+3. User **`/plan`**: PLANS me `P-YYMMDD-A`, **mode: plan**. Dono msgs ka matlab (sirf last line mat).
+4. User **`/build`** us plan ka: code, phir usi `P-` ko **mode: built** + git hash. FIX LOG me bhi short ID.
+5. User ko push se pehle ID; push ke baad hash.
+6. Token / PAT is file me **kabhi mat likho**.
 
 ---
 
