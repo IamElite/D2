@@ -1062,7 +1062,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Note:** ye flood AM se PEHLE wale burst (frontierlike) ka zakhm tha — AM ka cache use ne rok diya ki har boot me wapas na bhadke.
 
 ### 260902-AO — Docker self-host: python:3.11.9-slim + heroku.yml (container stack ka sahi rasta)
-**Git:** (push ke baad hash)  
+**Git:** `8fcb3c8`  
 **User flow:** Heroku stack = **container** (`FROM nanthakps/kpsmlx`) — isliye runtime.txt kabhi kaam nahi karta; nanthakps image = ubuntu:22.04 + system py3.10 + **buildkit secrets** (`RUN bash /run/secrets/wzmlx`) = Dockerfile/source kabhi public nahi (registry history se confirm).  
 **Files:** `Dockerfile` (naya), `heroku.yml` (naya)
 
