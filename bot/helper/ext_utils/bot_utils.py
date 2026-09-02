@@ -365,7 +365,7 @@ def is_url(url):
     return bool(url and re_match(URL_REGEX, url))
 
 
-def is_url_torrent(url):
+def is_torrent_link(url):
     if not url or not isinstance(url, str):
         return False
     if re_match(MAGNET_REGEX, url):
@@ -378,8 +378,8 @@ def is_url_torrent(url):
     return False
 
 
-def is_url_ytdlp(url):
-    if not url or not isinstance(url, str) or is_url_torrent(url):
+def is_ytdlp_link(url):
+    if not url or not isinstance(url, str) or is_torrent_link(url):
         return False
     low = url.lower()
     path = low.split("?", 1)[0].rstrip("/")
@@ -388,20 +388,20 @@ def is_url_ytdlp(url):
     return any(h in low for h in _YTDL_HINT)
 
 
-def is_url_rclone(path):
-    return bool(path and re_match(r'^(mrcc:)?(?!(magnet:|mtp:|sa:|tp:))(?![- ])[a-zA-Z0-9_\. -]+(?<! ):(?!.*\/\/).*$|^rcl$', path))
-
-
-def is_url_gdrive(url):
+def is_gdrive_link(url):
     return bool(url) and ("drive.google.com" in url or "drive.usercontent.google.com" in url)
 
 
-def is_url_telegram(url):
+def is_telegram_link(url):
     return bool(url) and url.startswith(('https://t.me/', 'https://telegram.me/', 'https://telegram.dog/', 'https://telegram.space/', 'tg://openmessage?user_id='))
 
 
-def is_url_mega(url):
+def is_mega_link(url):
     return bool(url) and ("mega.nz" in url or "mega.co.nz" in url)
+
+
+def is_rclone_path(path):
+    return bool(path and re_match(r'^(mrcc:)?(?!(magnet:|mtp:|sa:|tp:))(?![- ])[a-zA-Z0-9_\. -]+(?<! ):(?!.*\/\/).*$|^rcl$', path))
 
 
 def is_share_link(url):
@@ -410,13 +410,6 @@ def is_share_link(url):
 
 def is_index_link(url):
      return bool(re_match(r'https?:\/\/.+\/\d+\:\/', url))
-
-
-is_magnet = is_url_torrent
-is_gdrive_link = is_url_gdrive
-is_telegram_link = is_url_telegram
-is_mega_link = is_url_mega
-is_rclone_path = is_url_rclone
 
 
 def get_mega_link_type(url):

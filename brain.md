@@ -723,4 +723,10 @@ wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`;
 
 **Hatao:** `is_url_torrent`, `is_url_ytdlp`, `is_url_rclone`, `is_url_gdrive`, `is_url_telegram`, `is_url_mega` + 5 aliases.
 
-**Execute:** nahi. **`/build P-260902-I`**.
+**Execute:** built `260902-J`.
+
+### 260902-J — old `is_*_link`; `is_url_*` box hata
+**Git:** (local)  
+**Date:** 2026-09-02  
+`is_torrent_link` magnet+.torrent. `is_ytdlp_link`. `is_gdrive_link` etc. naam old. Alias/`is_url_*` delete. Callers `is_magnet` → `is_torrent_link`.
+
