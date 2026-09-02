@@ -663,3 +663,21 @@ True agar koi bhi:
 **Galat jo agent soch raha tha:** `is_url_torrent` alag + `is_magnet` alag + ytdl alag order = teen raaste. User: **dono torrent, pattern ek.**
 
 **Build:** `/build P-260902-D` (ya auto-engine). Code ab nahi.
+
+### `P-260902-E` — `is_url_*` naam ek pattern, pehle block
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** mix mat (`is_magnet` + `is_url_ytdlp`). URL pe kaam = **`is_url_…`**. Naye URL checks **pehle** (file ke upar / `_auto_engine` se pehle import). Ajib-garib naam nahi.
+
+**Ek family (URL):**
+- `is_url` (http/ftp pehle se)
+- `is_url_torrent` — magnet **aur** `.torrent` **ek** (P-260902-D); andar wzv3 magnet regex + endswith `.torrent` + `&tr=`/`announce` usi string
+- `is_url_ytdlp` — hosts + m3u8/.ts; torrent True ho to yeh False
+- `is_url_rclone` — aaj `is_rclone_path` (alias/rename; callers update)
+- `is_url_gdrive` / `is_url_mega` / `is_url_telegram` — same prefix (aaj `is_gdrive_link` etc.)
+
+**Nahi:** `is_magnet` alag + `is_torrent_url` alag. Path-only (`is_archive`) `is_` reh sakta — woh URL nahi.
+
+**Order file:** `bot_utils` me `is_url*` cluster **upar** ek jagah, phir baaki. `_auto_engine`: torrent → ytdlp → rclone → … Aria HTTP.
+
+**Build:** `/build P-260902-E`. Code ab nahi.
