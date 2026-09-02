@@ -15,7 +15,7 @@ from cloudscraper import create_scraper
 
 from .. import bot, DOWNLOAD_DIR, LOGGER, config_dict, bot_name, categories_dict, user_data
 from ..helper.mirror_utils.download_utils.direct_downloader import add_direct_download
-from ..helper.ext_utils.bot_utils import is_url, is_magnet, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats
+from ..helper.ext_utils.bot_utils import is_url, is_magnet, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats, is_url_torrent, is_url_ytdlp, is_url_rclone, is_url_mega, is_url_gdrive, is_url_telegram
 from ..helper.ext_utils.exceptions import DirectDownloadLinkException
 from ..helper.ext_utils.task_manager import task_utils
 from ..helper.mirror_utils.download_utils.aria2_download import add_aria2c_download
@@ -39,43 +39,22 @@ from ..helper.ext_utils.multi_tools import (
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
 
-# Cheap host check — no yt-dlp extract_info (saves CPU/RAM).
-_YTDL_HINT = (
-    "youtube.com/", "youtu.be/", "m.youtube.com/",
-    "vimeo.com/", "dailymotion.com/", "tiktok.com/",
-    "instagram.com/", "facebook.com/", "fb.watch/",
-    "twitter.com/", "x.com/", "reddit.com/",
-    "soundcloud.com/", "twitch.tv/",
-    "pornhub.com/", "xvideos.com/", "xnxx.com/", "xhamster.com/",
-    "redtube.com/", "youporn.com/", "spankbang.com/", "missav.com/",
-    "jable.tv/", "hanime.tv/", "nhentai.net/", "nsfw.net/",
-)
-
-
-def _torrent_src(link):
-    if not link or not isinstance(link, str):
-        return False
-    if is_magnet(link):
-        return True
-    return link.lower().split("?", 1)[0].rstrip("/").endswith(".torrent")
-
-
 def _auto_engine(link, file_=None):
-    """Pick downloader from link type. No extra processes."""
     if file_ is not None:
         return "tg"
     if not link or not isinstance(link, str):
         return "aria"
-    if is_mega_link(link):
+    if is_url_mega(link):
         return "mega"
-    if is_gdrive_link(link):
+    if is_url_gdrive(link):
         return "gd"
-    if is_rclone_path(link):
+    if is_url_rclone(link):
         return "rc"
-    if is_telegram_link(link):
+    if is_url_telegram(link):
         return "tg"
-    low = link.lower()
-    if any(h in low for h in _YTDL_HINT):
+    if is_url_torrent(link):
+        return "aria"
+    if is_url_ytdlp(link):
         return "ytdl"
     return "aria"
 
@@ -328,18 +307,18 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         LOGGER.info(link)
         org_link = link
 
-    if file_ is None and link and isinstance(link, str) and not isQbit and not _torrent_src(link):
+    if file_ is None and link and isinstance(link, str) and not isQbit and not is_url_torrent(link):
         eng = _auto_engine(link)
-        if eng == "ytdl" and not getattr(message, "_ydl_tried", False):
-            LOGGER.info("Auto engine yt-dlp: %s", link[:80])
+        if eng == "ytdl":
+            LOGGER.info("engine=ytdl %s", link[:80])
             from .ytdlp import _ytdl
             _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
             return
 
     if (not is_mega_link(link) or (is_mega_link(link) and not config_dict['MEGA_EMAIL'] and config_dict['DEBRID_LINK_API'])) \
-        and (not is_magnet(link) or (config_dict['REAL_DEBRID_API'] and is_magnet(link))) \
-        and (not isQbit or (config_dict['REAL_DEBRID_API'] and is_magnet(link))) \
-        and not is_rclone_path(link) and not is_gdrive_link(link) and not link.endswith('.torrent') and file_ is None:
+        and not is_url_torrent(link) \
+        and not isQbit \
+        and not is_rclone_path(link) and not is_gdrive_link(link) and file_ is None:
         content_type = await get_content_type(link)
         if content_type is None or re_match(r'text/html|text/plain', content_type):
             process_msg = await sendMessage(message, f"<i><b>Processing:</b></i> <code>{link}</code>")
@@ -356,12 +335,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                 e = str(e)
                 if 'This link requires a password!' not in e:
                     LOGGER.info(e)
-                if str(e).startswith('ERROR:'):
-                    await deleteMessage(process_msg)
-                    LOGGER.info("HTML/direct fail → yt-dlp: %s", str(org_link or link)[:80])
-                    from .ytdlp import _ytdl
-                    _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
-                    return
+                link = org_link or link
             await deleteMessage(process_msg)
 
     if not isLeech:

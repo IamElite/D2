@@ -35,8 +35,18 @@ from .telegraph_helper import telegraph
 from .shortners import short_url
 
 THREADPOOL   = ThreadPoolExecutor(max_workers=24)
-MAGNET_REGEX = r'magnet:\?xt=urn:(btih|btmh):[a-zA-Z0-9]*\s*'
+MAGNET_REGEX = r"^magnet:\?.*xt=urn:(btih|btmh):([a-zA-Z0-9]{32,40}|[a-z2-7]{32}).*"
 URL_REGEX    = r'^(?!\/)(rtmps?:\/\/|mms:\/\/|rtsp:\/\/|https?:\/\/|ftp:\/\/)?([^\/:]+:[^\/@]+@)?(www\.)?(?=[^\/:\s]+\.[^\/:\s]+)([^\/:\s]+\.[^\/:\s]+)(:\d+)?(\/[^#\s]*[\s\S]*)?(\?[^#\s]*)?(#.*)?$'
+_YTDL_HINT = (
+    "youtube.com/", "youtu.be/", "m.youtube.com/",
+    "vimeo.com/", "dailymotion.com/", "tiktok.com/",
+    "instagram.com/", "facebook.com/", "fb.watch/",
+    "twitter.com/", "x.com/", "reddit.com/",
+    "soundcloud.com/", "twitch.tv/",
+    "pornhub.com/", "xvideos.com/", "xnxx.com/", "xhamster.com/",
+    "redtube.com/", "youporn.com/", "spankbang.com/", "missav.com/",
+    "jable.tv/", "hanime.tv/", "nhentai.net/", "nsfw.net/",
+)
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
 STATUS_START = 0
 PAGES        = 1
@@ -351,36 +361,62 @@ def get_readable_time(seconds):
     return result
 
 
-def is_magnet(url):
-    return bool(re_match(MAGNET_REGEX, url))
-
-
 def is_url(url):
-    return bool(re_match(URL_REGEX, url))
+    return bool(url and re_match(URL_REGEX, url))
 
 
-def is_gdrive_link(url):
-    return "drive.google.com" in url
+def is_url_torrent(url):
+    if not url or not isinstance(url, str):
+        return False
+    if re_match(MAGNET_REGEX, url):
+        return True
+    low = url.lower()
+    if low.split("?", 1)[0].rstrip("/").endswith(".torrent"):
+        return True
+    if "&tr=" in low or "?tr=" in low or "announce" in low:
+        return True
+    return False
 
 
-def is_telegram_link(url):
-    return url.startswith(('https://t.me/', 'https://telegram.me/', 'https://telegram.dog/', 'https://telegram.space/', 'tg://openmessage?user_id='))
+def is_url_ytdlp(url):
+    if not url or not isinstance(url, str) or is_url_torrent(url):
+        return False
+    low = url.lower()
+    path = low.split("?", 1)[0].rstrip("/")
+    if path.endswith((".m3u8", ".m3u", ".ts")):
+        return True
+    return any(h in low for h in _YTDL_HINT)
+
+
+def is_url_rclone(path):
+    return bool(path and re_match(r'^(mrcc:)?(?!(magnet:|mtp:|sa:|tp:))(?![- ])[a-zA-Z0-9_\. -]+(?<! ):(?!.*\/\/).*$|^rcl$', path))
+
+
+def is_url_gdrive(url):
+    return bool(url) and ("drive.google.com" in url or "drive.usercontent.google.com" in url)
+
+
+def is_url_telegram(url):
+    return bool(url) and url.startswith(('https://t.me/', 'https://telegram.me/', 'https://telegram.dog/', 'https://telegram.space/', 'tg://openmessage?user_id='))
+
+
+def is_url_mega(url):
+    return bool(url) and ("mega.nz" in url or "mega.co.nz" in url)
 
 
 def is_share_link(url):
     return bool(re_match(r'https?:\/\/.+\.gdtot\.\S+|https?:\/\/(.+\.filepress|filebee|appdrive|gdflix|www.jiodrive)\.\S+', url))
 
 
-def is_index_link(url): 
-     return bool(re_match(r'https?:\/\/.+\/\d+\:\/', url))    
+def is_index_link(url):
+     return bool(re_match(r'https?:\/\/.+\/\d+\:\/', url))
 
 
-def is_mega_link(url):
-    return "mega.nz" in url or "mega.co.nz" in url
-
-
-def is_rclone_path(path):
-    return bool(re_match(r'^(mrcc:)?(?!magnet:)(?![- ])[a-zA-Z0-9_\. -]+(?<! ):(?!.*\/\/).*$|^rcl$', path))
+is_magnet = is_url_torrent
+is_gdrive_link = is_url_gdrive
+is_telegram_link = is_url_telegram
+is_mega_link = is_url_mega
+is_rclone_path = is_url_rclone
 
 
 def get_mega_link_type(url):

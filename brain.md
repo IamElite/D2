@@ -680,4 +680,12 @@ True agar koi bhi:
 
 **Order file:** `bot_utils` me `is_url*` cluster **upar** ek jagah, phir baaki. `_auto_engine`: torrent → ytdlp → rclone → … Aria HTTP.
 
-**Build:** `/build P-260902-E`. Code ab nahi.
+**Build:** `/build P-260902-E`.
+
+### 260902-F — is_url_* + ek torrent + no ytdl fail-chain
+**Git:** (local)  
+**Date:** 2026-09-02  
+**Files:** `bot_utils.py`, `mirror_leech.py`  
+wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`; aliases purane naam. HTML fail → ytdl **hata**. `/l7` Aria2.
+
+**P-260902-A..E mode:** built (isi hash).
