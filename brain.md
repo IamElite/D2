@@ -988,7 +988,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana hai. Koi package/func change nahi.
 
 ### 260902-AH — status style (user design): task no, mention, Done/Time/UP, 〄 footer
-**Git:** (push ke baad hash)  
+**Git:** `f6dc953`  
 **Files:** `kpsml_minimal.py` (7 template lines), `bot_utils.py` (builder: enumerate + USER upar + ID hata)
 
 **User ka naya style (usne khud banaya):**
