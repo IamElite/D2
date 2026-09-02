@@ -864,3 +864,26 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 
 **Execute:** nahi.  
 **Build:** `/build P-260902-V`
+
+### P-260902-W — Dead-torrent smart guard (B): 0-peer hunt 6 min → task stop
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** B select; sawal — Heroku vars me kuch add karna padega? (jawab: **NAHI**, sab hardcoded code me)
+
+**Config-flow sach (code se verify):**
+1. **Heroku vars/config.env** → `Config` class → base (`TORRENT_TIMEOUT` env-only, default = off; isliye dead hunt kabhi nahi ruka)
+2. **Mongo `settings.config`** (BSet saves) → boot pe `environ[key]=str(value)` overlay (`__init__.py:129`) — config.env unchanged ho to **Mongo env ko haraata hai**
+3. **Mongo `settings.aria2c`/`qbittorrent`** → poora options dict boot pe replace (`__init__.py:141-147`)
+→ Guard ke thresholds **hardcoded constants** (repo me) = restart pe auto-fresh (update.py pull), koi var/Mongo/BSet UI nahi (extra code zero).
+
+**Problem recap:** 260901-AA me DHT always-on (dost ke 15-seeder case); 260901-AB me bt-stop-timeout hata (90s slow-start maar deta). TORRENT_TIMEOUT off → dead swarm (DBD-Raws 16GB, 0S 0L) **hamesha** DHT crawl = CPU 73.8%.
+
+**Build pe kya banana (ab nahi) — ~25 lines, ek helper:**
+1. `_spawn_dead_watch(gid, listener)` (aria2_listener.py): per-BT-task ek coroutine, **60s tick, max 6 ticks** — `tellStatus`: `connections==0 && numSeeders==0 && download_payload_speed==0` continuous → tick++; koi bhi peer dikha → **guard khatam** (kabhi kill nahi). 6 ticks → `onDownloadError("Dead Torrent (0 Seeders)")` + `api.remove` — user ko clean msg, CPU aria2 ka hunt band.
+2. Spawn points: `onDownloadComplete`-gid-change path + download-started (final gid ke baad hi — magnet metadata ke baad wala gid). Complete/error/seeding status → watcher khud exit.
+3. Constants top pe: `DEAD_TICK=60`, `DEAD_TICKS=6` (naam saaf, wajah brain.md me).
+4. Status loop/extra thread **nahi** — 1 RPC/min jab BT task ho; CPU net bachat (dead hunt jaldi band).
+5. TORRENT_TIMEOUT jaisa kuch user ko set nahi karna — defaults sane.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-W`
