@@ -730,3 +730,8 @@ wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`;
 **Date:** 2026-09-02  
 `is_torrent_link` magnet+.torrent. `is_ytdlp_link`. `is_gdrive_link` etc. naam old. Alias/`is_url_*` delete. Callers `is_magnet` → `is_torrent_link`.
 
+### 260902-K — magnet stitch (log supraseptal)
+**Git:** (local)  
+Log: tracker tukda `dp.tracker…/announce&tr=` + `HTML/direct fail → yt-dlp` = **dyno purani code** + magnet space/newline split.  
+**Fix:** `stitch_torrent_link` poori magnet ek string; `&` ke aas-paas space hata. Reply/cmd pehle line mat kaato.
+
