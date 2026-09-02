@@ -529,27 +529,42 @@ def new_thread(func):
     return wrapper
 
 
+def _stats_owner(uid):
+    return bool(uid == OWNER_ID or (uid in user_data and user_data[uid].get('is_sudo')))
+
+
 async def compare_versions(v1, v2):
-    v1_parts = [int(part) for part in v1.split('-')[0][1:].split('.')]
-    v2_parts = [int(part) for part in v2.split('-')[0][1:].split('.')]
-    for i in range(3):
-        v1_part, v2_part = v1_parts[i], v2_parts[i]
-        if v1_part < v2_part:
+    try:
+        def _parts(v):
+            s = str(v or "").strip().lstrip("vV").split("-")[0]
+            nums = []
+            for p in s.split("."):
+                d = "".join(c for c in p if c.isdigit())
+                nums.append(int(d) if d else 0)
+            while len(nums) < 3:
+                nums.append(0)
+            return nums[:3]
+        a, b = _parts(v1), _parts(v2)
+        if a < b:
             return "New Version Update is Available! Check Now!"
-        elif v1_part > v2_part:
+        if a > b:
             return "More Updated! Kindly Contribute in Official"
-    return "Already up to date with latest version"
+        return "Already up to date with latest version"
+    except Exception:
+        return "N/A"
 
 
 async def get_stats(event, key="home"):
     user_id = event.from_user.id
+    owner = _stats_owner(user_id)
     btns = ButtonMaker()
     btns.ibutton('Back', f'kpsmlx {user_id} stats home')
     if key == "home":
         btns = ButtonMaker()
         btns.ibutton('Bot Stats', f'kpsmlx {user_id} stats stbot')
         btns.ibutton('OS Stats', f'kpsmlx {user_id} stats stsys')
-        btns.ibutton('Repo Stats', f'kpsmlx {user_id} stats strepo')
+        if owner:
+            btns.ibutton('Repo Stats', f'kpsmlx {user_id} stats strepo')
         btns.ibutton('Bot Limits', f'kpsmlx {user_id} stats botlimits')
         msg = "⌬ <b><i>Bot & OS Statistics!</i></b>"
     elif key == "stbot":
