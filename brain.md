@@ -1048,3 +1048,15 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **(`hyperdl_utils.py`):** cross-DC slots 4→2 (auth pressure aadha, same-DC 4 hi); FileMigrate same-DC → debug (spam band).
 
 **Test:** compile + grep ✅. Expect: pehle task pe 1 export, baaki sab instant sessions; FileMigrate spam gone; CDN ab engage ho sakta hai.
+
+### 260902-AN — export gate: flood ke dauran API-hammering band (psychoanalysts logs)
+**Git:** (push ke baad hash)  
+**OLD:** AM (cache tha, par flood pehle se active hone pe bhi har naya task/retry export try karta raha → penalty 172s→580s chadha, native bhi cross-DC exports pe fail)  
+**Files:** `tg_transfer.py`, `telegram_download.py`
+
+**Fix:**
+- `_auth_block[(ck,dc)]` gate — FLOOD_WAIT aate hi `Auth.create`/`ExportAuthorization` us (client,DC) ke liye `now+v+2` tak band; beech me koi bhi `get_session` **bina API call** ke turant `ExportBlocked` uthata hai (penalty aur lambi nahi hoti)
+- Native retry flood-aware: FLOOD_WAIT >90s → **task clean stop** (`TG flood Xs — baad me resend`, 3 baar hammer nahi); ≤90s → sleep(v+2) phir retry; baaki errors purane jaise 3×
+- Seedhi baat: flood ~10 min me khud utrega; gate us dauran aag pe tel na dalega. Naya boot = fresh cache, gate pehle export try karega, flood hua to block + baad me ek hi retry.
+
+**Note:** ye flood AM se PEHLE wale burst (frontierlike) ka zakhm tha — AM ka cache use ne rok diya ki har boot me wapas na bhadke.

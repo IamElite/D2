@@ -1,4 +1,5 @@
 from asyncio import Event, Lock, gather, sleep
+from time import time as now_ts
 
 from pyrogram import raw, utils
 from pyrogram.errors import AuthBytesInvalid
@@ -86,6 +87,15 @@ def release_hyper_client(idx):
 _auth_cache = {}      # (client_key, dc_id) -> auth_key (DC-agnostic: koi bhi DC, 1 export per client+DC)
 _auth_imported = set()  # (client_key, dc_id) jinka export+import ho chuka
 _auth_locks = {}
+_auth_block = {}      # (client_key, dc_id) -> epoch; flood ke dauran koi export API call nahi
+
+
+class ExportBlocked(Exception):
+    def __init__(self, wait):
+        self.wait = wait
+        super().__init__(f'TG auth export blocked {wait}s (flood)')
+_auth_imported = set()  # (client_key, dc_id) jinka export+import ho chuka
+_auth_locks = {}
 
 
 def hyper_ready():
@@ -117,6 +127,9 @@ class MtprotoPool:
             ak = _auth_cache.get(key)
             if ak is not None:
                 return ak, key not in _auth_imported
+            till = _auth_block.get(key, 0)
+            if till > now_ts():
+                raise ExportBlocked(int(till - now_ts()) + 1)
             test_mode = await client.storage.test_mode()
             main_dc = await client.storage.dc_id()
             if dc_id == main_dc:
@@ -124,7 +137,13 @@ class MtprotoPool:
                 _auth_cache[key] = ak
                 _auth_imported.add(key)
                 return ak, False
-            ak = await Auth(client, dc_id, test_mode).create()
+            try:
+                ak = await Auth(client, dc_id, test_mode).create()
+            except Exception as f:
+                v = getattr(f, 'value', None)
+                if v is not None and str(f).startswith('Telegram'):
+                    _auth_block[key] = now_ts() + int(v) + 2
+                raise
             _auth_cache[key] = ak
             return ak, key not in _auth_imported
 
@@ -157,6 +176,7 @@ class MtprotoPool:
                         e = await client.invoke(
                             raw.functions.auth.ExportAuthorization(dc_id=dc_id)
                         )
+                        _auth_block.pop((ck, dc_id), None)
                         await s.invoke(
                             raw.functions.auth.ImportAuthorization(
                                 id=e.id, bytes=e.bytes
@@ -165,6 +185,11 @@ class MtprotoPool:
                         break
                     except AuthBytesInvalid:
                         await sleep(1)
+                    except Exception as f:
+                        v = getattr(f, 'value', None)
+                        if v is not None and str(f).startswith('Telegram'):
+                            _auth_block[(ck, dc_id)] = now_ts() + int(v) + 2
+                        raise
                 else:
                     await s.stop()
                     raise RuntimeError(f"Auth export/import failed for DC {dc_id}")

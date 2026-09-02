@@ -129,7 +129,17 @@ class TelegramDownloadHelper:
                 break
             except Exception as e:
                 last_err = e
-                LOGGER.warning(f'TG download retry {attempt}/3: {str(e)[:120]}')
+                emsg = str(e)
+                if 'FLOOD_WAIT' in emsg or 'flood' in emsg.lower():
+                    import re as _re
+                    m = _re.search(r'(\d+)\s*seconds?', emsg)
+                    v = int(m.group(1)) if m else 10
+                    if v > 90:
+                        LOGGER.error(f'TG flood {v}s — task stop (baad me resend)')
+                        break
+                    await sleep(v + 2)
+                    continue
+                LOGGER.warning(f'TG download retry {attempt}/3: {emsg[:120]}')
                 await sleep(3)
         if self.__is_cancelled:
             await self.__onDownloadError('Cancelled by user!')
