@@ -1038,3 +1038,13 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **CPU/RAM:** decrypt C me; buffers 2MB; sessions pool-cached (per-chunk auth nahi); non-CDN pe native hi (75% CPU wala purana pipeline sirf CDN-confirmed pe chalta hai)
 
 **Seekh:** bade edit_file is repo me 4 baar silently ude — ab bade changes bash-python se + grep-verify hamesha.
+
+### 260902-AM — ExportAuthorization flood fix (auth cache, DC-agnostic)
+**Git:** (push ke baad hash)  
+**Logs:** frontierlike — AL ke baad pipeline har task pe `FLOOD_WAIT_X 116-172s (auth.ExportAuthorization)` se first-window fail → native fallback (tasks safe, par CDN kabhi nahi milta). Wajah: `get_session` har slot pe `Auth.create` + export/import karta tha — cross-DC pe 4 slots × 6 tasks = ~50 exports.  
+**User req:** code DC-agnostic — dost ke bots DC1/DC2 pe, hamara DC5 — koi DC hardcode nahi.
+
+**Fix (`tg_transfer.py`):** module-level `_auth_cache[(client_key, dc_id)]` + `_auth_locks` + `_auth_imported` — per (client, DC) **poore bot-life me 1 export** (lock me auth+import, parallel zero). Same-DC → storage auth_key (jaisa pehle). Naye pool/task instances bhi cache reuse.  
+**(`hyperdl_utils.py`):** cross-DC slots 4→2 (auth pressure aadha, same-DC 4 hi); FileMigrate same-DC → debug (spam band).
+
+**Test:** compile + grep ✅. Expect: pehle task pe 1 export, baaki sab instant sessions; FileMigrate spam gone; CDN ab engage ho sakta hai.

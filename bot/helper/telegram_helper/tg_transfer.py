@@ -83,6 +83,11 @@ def release_hyper_client(idx):
     loads[idx] = max(0, loads.get(idx, 1) - 1)
 
 
+_auth_cache = {}      # (client_key, dc_id) -> auth_key (DC-agnostic: koi bhi DC, 1 export per client+DC)
+_auth_imported = set()  # (client_key, dc_id) jinka export+import ho chuka
+_auth_locks = {}
+
+
 def hyper_ready():
     return bool(helper_bots or user or bot)
 
@@ -105,13 +110,23 @@ class MtprotoPool:
             return self._client_order[client_key % len(self._client_order)]
         raise KeyError(f"Client key {client_key} not found")
 
-    async def _get_auth_key(self, client, dc_id):
-        test_mode = await client.storage.test_mode()
-        main_dc = await client.storage.dc_id()
-        if dc_id == main_dc:
-            return await client.storage.auth_key(), False
-        ak = await Auth(client, dc_id, test_mode).create()
-        return ak, True
+    async def _get_auth_key(self, client_key, client, dc_id):
+        key = (client_key, dc_id)
+        lock = _auth_locks.setdefault(key, Lock())
+        async with lock:
+            ak = _auth_cache.get(key)
+            if ak is not None:
+                return ak, key not in _auth_imported
+            test_mode = await client.storage.test_mode()
+            main_dc = await client.storage.dc_id()
+            if dc_id == main_dc:
+                ak = await client.storage.auth_key()
+                _auth_cache[key] = ak
+                _auth_imported.add(key)
+                return ak, False
+            ak = await Auth(client, dc_id, test_mode).create()
+            _auth_cache[key] = ak
+            return ak, key not in _auth_imported
 
     async def get_session(self, client_key, dc_id, is_media=True, slot=0):
         ck = self._resolve_key(client_key)
@@ -131,12 +146,12 @@ class MtprotoPool:
                 except Exception:
                     pass
             client = self._client_map[ck]
-            ak, is_cross = await self._get_auth_key(client, dc_id)
+            ak, need_import = await self._get_auth_key(ck, client, dc_id)
             s = Session(
                 client, dc_id, ak, await client.storage.test_mode(), is_media=is_media
             )
             await s.start()
-            if is_cross:
+            if need_import:
                 for _attempt in range(6):
                     try:
                         e = await client.invoke(
@@ -153,6 +168,7 @@ class MtprotoPool:
                 else:
                     await s.stop()
                     raise RuntimeError(f"Auth export/import failed for DC {dc_id}")
+                _auth_imported.add((ck, dc_id))
             self._sessions[cache_key] = s
         return s
 

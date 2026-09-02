@@ -150,12 +150,13 @@ class HypertgDownload(HypertgTransfer):
         bot_dc = await client.storage.dc_id()
         # Do not lock FileId.dc_id (often stale vs bot DC). Start on bot DC; Telegram FileMigrate.
         self._dc = bot_dc
+        slots = NSLOT if self._dc == bot_dc else 2
         sesses = []
-        for slot in range(NSLOT):
+        for slot in range(slots):
             sesses.append(await wait_for(self._pool.get_session(idx, self._dc, is_media=True, slot=slot), 20))
         LOGGER.info(
             "HyperDL start bot_dc=%s file_id_dc=%s using_dc=%s slots=%s size=%s",
-            bot_dc, fid.dc_id, self._dc, NSLOT, size,
+            bot_dc, fid.dc_id, self._dc, slots, size,
         )
 
         done = 0
@@ -165,7 +166,7 @@ class HypertgDownload(HypertgTransfer):
         got_any = [False]
 
         async def _one(off):
-            slot = (off // CHUNK) % NSLOT
+            slot = (off // CHUNK) % len(sesses)
             sess = sesses[slot]
             csz = min(CHUNK, size - off)
             for _ in range(4):
@@ -187,7 +188,8 @@ class HypertgDownload(HypertgTransfer):
                     await sleep(0.2)
                 except FileMigrate as e:
                     new_dc = int(getattr(e, "value", 0) or self._dc)
-                    LOGGER.info("HyperDL FileMigrate %s -> %s", self._dc, new_dc)
+                    (LOGGER.debug if new_dc == self._dc else LOGGER.info)(
+                        "HyperDL FileMigrate %s -> %s", self._dc, new_dc)
                     self._dc = new_dc
                     sesses[slot] = await self._pool.get_session(idx, new_dc, is_media=True, slot=slot)
                     sess = sesses[slot]
