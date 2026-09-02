@@ -67,6 +67,9 @@ class YoutubeDLHelper:
                      'overwrites': True,
                      'writethumbnail': True,
                      'trim_file_name': 220,
+                     'retries': 10,
+                     'fragment_retries': 10,
+                     'socket_timeout': 30,
                      'ffmpeg_location': f"/bin/{bot_cache['pkgs'][2]}",
                      'retry_sleep_functions': {'http': lambda n: 3,
                                                'fragment': lambda n: 3,
@@ -101,22 +104,22 @@ class YoutubeDLHelper:
             if self.is_playlist:
                 self.__last_downloaded = 0
         elif d['status'] == "downloading":
-            self.__download_speed = d['speed']
+            self.__download_speed = d.get('speed') or 0
             if self.is_playlist:
-                downloadedBytes = d['downloaded_bytes']
+                downloadedBytes = d.get('downloaded_bytes') or 0
                 chunk_size = downloadedBytes - self.__last_downloaded
                 self.__last_downloaded = downloadedBytes
                 self.__downloaded_bytes += chunk_size
             else:
                 if d.get('total_bytes'):
-                    self.__size = d['total_bytes']
+                    self.__size = d['total_bytes'] or 0
                 elif d.get('total_bytes_estimate'):
-                    self.__size = d['total_bytes_estimate']
-                self.__downloaded_bytes = d['downloaded_bytes']
+                    self.__size = d['total_bytes_estimate'] or 0
+                self.__downloaded_bytes = d.get('downloaded_bytes') or 0
                 self.__eta = d.get('eta', '-') or '-'
             try:
                 self.__progress = (self.__downloaded_bytes / self.__size) * 100
-            except:
+            except ZeroDivisionError:
                 pass
 
     async def __onDownloadStart(self, from_queue=False):
@@ -148,10 +151,12 @@ class YoutubeDLHelper:
                 for entry in result['entries']:
                     if not entry:
                         continue
+                    if entry.get('ext') == 'unknown_video':
+                        entry['ext'] = 'mp4'
                     elif 'filesize_approx' in entry:
-                        self.__size += entry['filesize_approx']
+                        self.__size += entry.get('filesize_approx') or 0
                     elif 'filesize' in entry:
-                        self.__size += entry['filesize']
+                        self.__size += entry.get('filesize') or 0
                     if not self.name:
                         outtmpl_ = '%(series,playlist_title,channel)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d.%(ext)s'
                         self.name, ext = ospath.splitext(
@@ -159,6 +164,8 @@ class YoutubeDLHelper:
                         if not self.__ext:
                             self.__ext = ext
             else:
+                if result.get('ext') == 'unknown_video':
+                    result['ext'] = 'mp4'
                 outtmpl_ = '%(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s'
                 realName = ydl.prepare_filename(result, outtmpl=outtmpl_)
                 ext = ospath.splitext(realName)[-1]
@@ -243,7 +250,7 @@ class YoutubeDLHelper:
         if self.__listener.isLeech:
             self.opts['postprocessors'].append(
                 {'format': 'jpg', 'key': 'FFmpegThumbnailsConvertor', 'when': 'before_dl'})
-        if self.__ext in ['.mp3', '.mkv', '.mka', '.ogg', '.opus', '.flac', '.m4a', '.mp4', '.mov', 'm4v']:
+        if self.__ext in ['.mp3', '.mkv', '.mka', '.ogg', '.opus', '.flac', '.m4a', '.mp4', '.mov', '.m4v']:
             self.opts['postprocessors'].append(
                 {'already_have_thumbnail': self.__listener.isLeech, 'key': 'EmbedThumbnail'})
         elif not self.__listener.isLeech:
