@@ -1007,7 +1007,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** bar partial-block pe 13 ho jata tha (AH nahi, INITIAL se hi) — ab hamesha 12 (`□' * max(12-len)`, 100% pe 12■). User line = ID hi text + ID mention-link (`tg://user?id={Id}`) — user ko tap karke profile.
 
 ### 260902-AJ — Tno template asli fix (AH ki edit fail thi) + 〄 → ❑
-**Git:** (push ke baad hash)  
+**Git:** `482552e`  
 **OLD:** `260902-AH` (builder Tno bhejta tha par theme me {Tno} hi nahi tha — format_map silently ignore; pichli Mongo-files theory Tno ke liye galat)  
 **Files:** `kpsml_minimal.py` (2 line: STATUS_NAME + FOOTER)
 
