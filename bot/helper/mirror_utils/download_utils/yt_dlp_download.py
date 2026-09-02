@@ -153,9 +153,9 @@ class YoutubeDLHelper:
                         continue
                     if entry.get('ext') == 'unknown_video':
                         entry['ext'] = 'mp4'
-                    elif 'filesize_approx' in entry:
+                    if entry.get('filesize_approx'):
                         self.__size += entry.get('filesize_approx') or 0
-                    elif 'filesize' in entry:
+                    elif entry.get('filesize'):
                         self.__size += entry.get('filesize') or 0
                     if not self.name:
                         outtmpl_ = '%(series,playlist_title,channel)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d.%(ext)s'
