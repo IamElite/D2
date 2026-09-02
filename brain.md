@@ -615,3 +615,33 @@ User: alag plan.md = agent ko 2 file, context waste. Plan + built **isi** file.
 
 **Execute:** nahi.  
 **Build:** `/build` auto-engine **ya** `/build P-260902-B`.
+
+### `P-260902-C` — wzv3 asli `is_*` (andar dekha)
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** wzv3 bhitari `is_url_torrent` / params dikhao; git naam galti mat.
+
+**Sach wzv3 `links_utils.py`:** `is_url_torrent` **fn nahi**. Torrent = `is_magnet` + `link.endswith(".torrent")`. Engine cmd se (`is_qbit`), nahi fail-chain.
+
+**wzv3 `is_magnet` (yeh regex port):**
+```
+^magnet:\?.*xt=urn:(btih|btmh):([a-zA-Z0-9]{32,40}|[a-z2-7]{32}).*
+```
+Params andar: `magnet:?` + koi chars + `xt=urn:btih|btmh` + hash 32–40 alnum **ya** 32 base32 `a-z2-7` + `.*` (poori line: `&tr=` `dn=` `xl=` `ws=` `announce` toot nahi).
+
+**D2 ab:** `magnet:\?xt=urn:(btih|btmh):[a-zA-Z0-9]*\s*` — `.*` nahi, hash length lock nahi, `&tr=` ke baad split.
+
+**wzv3 `is_rclone_path`:**
+```
+^(mrcc:)?(?!(magnet:|mtp:|sa:|tp:))(?![- ])[a-zA-Z0-9_\. -]+(?<! ):(?!.*\/\/).*$|^rcl$
+```
+
+**wzv3 `is_url`:** rtmp/mms/rtsp/http(s)/ftp optional, host, path, query, hash.
+
+**wzv3 `is_mega_link`:** netloc `mega.nz` / `mega.co.nz` (www strip).
+
+**wzv3 mirror:** HTML/direct **sirf** jab NOT magnet, NOT rclone, NOT gdrive, NOT `.torrent`, NOT mega. Magnet/`&tr=` ytdl nahi. Fail pe ERROR msg, **ytdl retry nahi**. `-yt` flag = ytdl. D2 HTML→ytdl extra (hatao).
+
+**Git naam:** commit = `260902-C plan wzv3 is_magnet` — `brain.md: P-… is_*` type mat.
+
+**Build:** `/build P-260902-C` → D2 `is_magnet` = wzv3 regex; `.torrent` endswith; HTML path skip magnet/torrent; no ytdl fail-chain. `/l7` Aria2; qBit `/qb*`.
