@@ -1071,7 +1071,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Deploy flow (user):** push → Heroku image build → release → **sab fixes pakke slug me** + Python 3.11. Restart-only life uske baad bhi (update.py pull code fresh rakhta hai image ke upar).
 
 ### 260902-AP — Dockerfile full-parity (mega SDK compile, poora toolset) + mega lazy-import
-**Git:** (push ke baad hash)  
+**Git:** `aff113f`  
 **OLD:** AO (Dockerfile adhura tha — user sahi pakda: megasdk/zip/AtomicParsley etc. base-image me the, mujhe nahi likhe the)  
 **Files:** `Dockerfile` (rewrite: 2-stage), `bot_utils.py` (mega import lazy)
 
