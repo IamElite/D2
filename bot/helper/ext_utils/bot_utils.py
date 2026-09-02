@@ -154,9 +154,9 @@ def get_progress_bar_string(pct):
     cFull = int(p // 8)
     cPart = int(p % 8 - 1)
     p_str = '■' * cFull
-    if cPart >= 0:
+    if cPart >= 0 and cFull < 12:
         p_str += ['▤', '▥', '▦', '▧', '▨', '▩', '■'][cPart]
-    p_str += '□' * (12 - cFull)
+    p_str += '□' * max(12 - len(p_str), 0)
     return f"[{p_str}]"
 
 
@@ -238,7 +238,7 @@ def get_readable_message():
         elapsed = time() - download.message.date.timestamp()
         msg += BotTheme('STATUS_NAME', Tno=f'{{{tno}}}', Name="Task is being Processed!" if config_dict['SAFE_MODE'] and elapsed >= config_dict['STATUS_UPDATE_INTERVAL'] else escape(f'{download.name()}'))
         msg += BotTheme('USER',
-                        User=download.message.from_user.mention(style="html"))
+                        Id=download.message.from_user.id)
         if download.status() not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
             msg += BotTheme('BAR', Bar=f"{get_progress_bar_string(download.progress())} {download.progress()}")
             msg += BotTheme('PROCESSED', Processed=f"{download.processed_bytes()} of {download.size()}")

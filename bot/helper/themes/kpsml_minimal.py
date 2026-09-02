@@ -201,7 +201,7 @@ Type {help_command} to get a list of available commands</b>'''
     NON_ENGINE =     '\n┠ <b>Engine:</b> {Engine}'
 
     ####--------OVERALL MSG FOOTER----------
-    USER =              '\n┎ <b>User</b>: {User}'
+    USER =              '\n┎ <b>User</b>: <a href="tg://user?id={Id}">{Id}</a>'
     ID =                                                        '<b>ID:</b> <code>{Id}</code>'
     BTSEL =          '\n┠ <b>Select:</b> {Btsel}'
     CANCEL =         '\n┖ {Cancel}\n\n'

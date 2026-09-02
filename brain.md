@@ -998,3 +998,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - Bar `[■▧□□...]` + `#Tg` mode pehle se code me the (koi change nahi — rule 1)
 
 **Render test:** output user ke sample se line-by-line match ✅ (bar, Done, Time, UP, 〄, {1}, mention, ┎/┖)
+
+### 260902-AI — bar 12-fixed + User line me ID-mention
+**Git:** (push ke baad hash)  
+**OLD:** `260902-AH` (User mention tha, ID nahi; bar 13-block bug)  
+**Files:** `bot_utils.py` (bar fn + USER arg), `kpsml_minimal.py` (USER template)
+
+**Fix:** bar partial-block pe 13 ho jata tha (AH nahi, INITIAL se hi) — ab hamesha 12 (`□' * max(12-len)`, 100% pe 12■). User line = ID hi text + ID mention-link (`tg://user?id={Id}`) — user ko tap karke profile.
