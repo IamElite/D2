@@ -556,3 +556,25 @@ Friend /l2 11MB/s 15S Aria2 1.37, 3h uptime. Ours 0S after restart + idle DHT ki
 
 ### 260901-AB — do not Dead-torrent at 90s
 Same file friend 11MB/s. Ours bt-stop-timeout 90 → Dead torrent 1m39s. Removed default 90; only config TORRENT_TIMEOUT.
+
+### 260902-A — plans live in brain.md (no plan.md)
+**Git:** `b90a96e` then this commit  
+User: alag plan.md = agent ko 2 file, context waste. Plan + built **isi** file.
+
+---
+
+## PLANS
+
+`P-` IDs. **mode:** `plan` = socha, code nahi. `built` = arnv1 push + hash.  
+`/plan` pe naya `P-` yahan. `/build` pe mode badlo. FIX LOG se alag.
+
+### `P-260902-A` — /l7 auto-engine detect (no fail-chain)
+**mode:** `plan`  
+**Date:** 2026-09-02  
+
+**User (do messages, dono):**  
+1) Magnet/ytdlp galat detect. WZML jaisa is_rclone / is_magnet. Magnet params: xt=urn:btih, &tr=, announce, udp tracker. Random torrent site / .torrent → BT, yt-dlp mat. Log: magnet toot ke tracker tukda, HTML→ytdl→aria 20+ baar.  
+2) Fail-then-next engine = CPU. Seedha ek check → ek engine. announce → BT. m3u8/.ts → ytdl ek baar. Ek URL = ek add. 20 try nahi.
+
+**Execute:** nahi. Gap = HTML→ytdl loop + magnet split.  
+**Build:** bolo `/build` auto-engine. /l7 magnet = Aria2; qBit sirf /qb7.
