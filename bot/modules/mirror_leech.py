@@ -15,7 +15,7 @@ from cloudscraper import create_scraper
 
 from .. import bot, DOWNLOAD_DIR, LOGGER, config_dict, bot_name, categories_dict, user_data
 from ..helper.mirror_utils.download_utils.direct_downloader import add_direct_download
-from ..helper.ext_utils.bot_utils import is_url, is_torrent_link, is_ytdlp_link, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats
+from ..helper.ext_utils.bot_utils import is_url, is_torrent_link, is_ytdlp_link, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats, stitch_torrent_link
 from ..helper.ext_utils.exceptions import DirectDownloadLinkException
 from ..helper.ext_utils.task_manager import task_utils
 from ..helper.mirror_utils.download_utils.aria2_download import add_aria2c_download
@@ -93,6 +93,10 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     multi = int(args['-i']) if args['-i'].isdigit() else 0
 
     link          = args['link']
+    if message.text and "magnet:" in message.text.lower():
+        rest = message.text.split(None, 1)
+        if len(rest) > 1:
+            link = stitch_torrent_link(rest[1])
     folder_name   = args['-m'] or args['-sd'] or args['-samedir']
     seed          = args['-d'] or args['-seed']
     join          = args['-j'] or args['-join']
@@ -272,7 +276,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         if mval and mval != "web_page":
             file_ = getattr(reply_to, mval, None)
         if file_ is None:
-            reply_text = ((reply_to.text or reply_to.caption or "").split("\n", 1)[0]).strip()
+            raw = reply_to.text or reply_to.caption or ""
+            reply_text = stitch_torrent_link(raw) if "magnet:" in raw.lower() else raw.split("\n", 1)[0].strip()
             if is_url(reply_text) or is_torrent_link(reply_text):
                 link = reply_text
         elif reply_to.document and (getattr(file_, "mime_type", None) == "application/x-bittorrent" or str(getattr(file_, "file_name", "") or "").lower().endswith(".torrent")):

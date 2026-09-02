@@ -365,6 +365,39 @@ def is_url(url):
     return bool(url and re_match(URL_REGEX, url))
 
 
+def stitch_torrent_link(text):
+    if not text or not isinstance(text, str):
+        return text
+    s = " ".join(text.replace("\r", " ").split())
+    i = s.lower().find("magnet:")
+    if i < 0:
+        return text.split("\n", 1)[0].strip()
+    s = s[i:]
+    out = []
+    prev_amp = False
+    for ch in s:
+        if ch.isspace():
+            if prev_amp:
+                continue
+            if out and out[-1] == "&":
+                continue
+            out.append(" ")
+            continue
+        prev_amp = ch == "&"
+        if ch == "&" and out and out[-1] == " ":
+            out[-1] = "&"
+            continue
+        out.append(ch)
+    s = "".join(out).strip()
+    low = s.lower()
+    cut = len(s)
+    for tok in (" -i ", " -b ", " -n ", " -up ", " -z ", " -e ", " -s ", " -m ", " -d "):
+        j = low.find(tok)
+        if 0 < j < cut:
+            cut = j
+    return s[:cut].strip()
+
+
 def is_torrent_link(url):
     if not url or not isinstance(url, str):
         return False
