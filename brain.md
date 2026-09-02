@@ -735,3 +735,7 @@ wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`;
 Log: tracker tukda `dp.tracker…/announce&tr=` + `HTML/direct fail → yt-dlp` = **dyno purani code** + magnet space/newline split.  
 **Fix:** `stitch_torrent_link` poori magnet ek string; `&` ke aas-paas space hata. Reply/cmd pehle line mat kaato.
 
+### 260902-L — Invalid URL = user reply, process band
+**Git:** (local)  
+User: tracker tukda process mat; `ERROR: Invalid URL` pe **user ko Invalid URL**, ytdl/aria/Task Manager nahi. `is_torrent_link` naam hata → `is_magnet` (magnet + `.torrent` only, announce-only nahi).
+
