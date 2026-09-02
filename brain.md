@@ -709,3 +709,18 @@ wzv3 magnet regex; `is_url_torrent` magnet+.torrent+tr/announce; `is_url_ytdlp`;
 **Build:** `bot_utils` se 5 alias lines hatao. Phir **har py** (mirror_leech, ytdlp, clone, gd_*, tasks_listener, pyrogramEngine, users_settings, category_select, direct_link_generator, …): import + call `is_magnet`→`is_url_torrent`, `is_gdrive_link`→`is_url_gdrive`, `is_telegram_link`→`is_url_telegram`, `is_mega_link`→`is_url_mega`, `is_rclone_path`→`is_url_rclone`. `is_url(` generic HTTP rehta. Non-URL `is_archive` etc. mat chhedo.
 
 **Execute:** nahi. **`/build P-260902-H`**.
+
+### `P-260902-I` — old `is_*_link` naam, naya detect andar; `is_url_*` box hatao
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** `is_url_*` extra. Old best — `link` pehle se tha. Naya regex **unhi** fn me. `is_url_*` cluster **delete**. Magnet: `is_magnet_link` **ya** (better) **`is_torrent_link`** — magnet + .torrent dono.
+
+**Rakho (old naam + naya body):**
+- `is_torrent_link` — wzv3 magnet regex + `.torrent` + `&tr=`/`announce` (purana `is_magnet` yahan merge; callers `is_magnet` → yeh)
+- `is_gdrive_link` / `is_telegram_link` / `is_mega_link` / `is_rclone_path` — naam same; andar naya check (gdrive usercontent, rclone magnet/mtp skip, mega netloc)
+- `is_url` — generic HTTP, pehle se
+- ytdl: `is_ytdlp_link` (`*_link` pattern; `is_url_ytdlp` nahi)
+
+**Hatao:** `is_url_torrent`, `is_url_ytdlp`, `is_url_rclone`, `is_url_gdrive`, `is_url_telegram`, `is_url_mega` + 5 aliases.
+
+**Execute:** nahi. **`/build P-260902-I`**.
