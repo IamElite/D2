@@ -953,3 +953,12 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 
 **Execute:** nahi.  
 **Build:** `/build P-260902-AC`
+
+### 260902-AD — update.py db beast → kpsmlx (Mongo-upstream har boot pe)
+**Git:** (push ke baad hash)  
+**OLD:** `P-260902-AC` (plan)  
+**Files:** `update.py` (1 line)
+
+**Galti:** updater `beast` db padhta tha, bot/BSet `kpsmlx` me likhte — dyno start pe Mongo-upstream invisible, sirf /restart (bot-ENV) se sahi pull.
+
+**Fix:** `update.py:62` → `db = conn.kpsmlx`. Repo me `beast` ka yehi ek reference tha. Escape-hatch design same: upstream Mongo se, vars = override.
