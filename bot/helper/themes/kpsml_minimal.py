@@ -174,7 +174,7 @@ Type {help_command} to get a list of available commands</b>'''
 
     # def get_readable_message(): ---> bot_utilis.py
     ####--------OVERALL MSG HEADER----------
-    STATUS_NAME =       '<b><i>{Name}</i></b>'
+    STATUS_NAME =       '{Tno} <b><i>{Name}</i></b>'
 
     #####---------PROGRESSIVE STATUS-------
     BAR =               '\n┃ {Bar}'
@@ -207,7 +207,7 @@ Type {help_command} to get a list of available commands</b>'''
     CANCEL =         '\n┖ {Cancel}\n\n'
 
     ####------FOOTER--------
-    FOOTER = '〄 <b><i>Bot Stats</i></b>\n'
+    FOOTER = '❑ <b><i>Bot Stats</i></b>\n'
     TASKS =  '┠ <b>Tasks:</b> {Tasks}\n'
     BOT_TASKS = '┠ <b>Tasks:</b> {Tasks}/{Ttask} | <b>AVL:</b> {Free}\n'
     Cpu = '┠ <b>CPU:</b> {cpu}% | '

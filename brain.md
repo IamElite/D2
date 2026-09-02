@@ -1005,3 +1005,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `bot_utils.py` (bar fn + USER arg), `kpsml_minimal.py` (USER template)
 
 **Fix:** bar partial-block pe 13 ho jata tha (AH nahi, INITIAL se hi) — ab hamesha 12 (`□' * max(12-len)`, 100% pe 12■). User line = ID hi text + ID mention-link (`tg://user?id={Id}`) — user ko tap karke profile.
+
+### 260902-AJ — Tno template asli fix (AH ki edit fail thi) + 〄 → ❑
+**Git:** (push ke baad hash)  
+**OLD:** `260902-AH` (builder Tno bhejta tha par theme me {Tno} hi nahi tha — format_map silently ignore; pichli Mongo-files theory Tno ke liye galat)  
+**Files:** `kpsml_minimal.py` (2 line: STATUS_NAME + FOOTER)
+
+**Fix:** `STATUS_NAME = '{Tno} <b><i>{Name}</i></b>'` → `{1} Name`; FOOTER `〄` → `❑`. User ke BSet-upload ke liye poora updated theme workspace me bana (`kpsml_minimal.py`).
+
+**Seekh:** parallel edit_file ke baad verify (grep) karo — do baar (Z, AH) "success" ke baad bhi change persist nahi hua.
