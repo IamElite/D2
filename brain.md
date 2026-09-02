@@ -1023,3 +1023,18 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:**
 - Bar: `filled = int(p * 0.96)` shades (12×8) — 8.33%/block, 96% pe 11■+▧, 100% pe 12■. Test: 8.33→1■, 50→6■, 96→11■▧, 100→12■ (sab 12 len)
 - TG DL: `download_media` 3 attempts (3s gap, pyrogram partial-file resume); cancel/decrypter-user_sess path same behaviour; sirf sach me 3 fail hone pe error
+
+### 260902-AL — wzv3 CDN-pull port (asli speed-secret) + AK ka retry sach me
+**Git:** (push ke baad hash)  
+**OLD:** AK (retry sirf naam ka tha — 4th silent-edit fail; `git show 3c0bbc9` = sirf import gaya, body nahi)  
+**Files:** `hyperdl_utils.py`, `telegram_download.py` (bash-python edit, grep-verified)
+
+**Kya port (wzv3 hyperdl_utils se, SilentDemonSD/WZML-X source se padha):**
+- `_getfile` me `FileCdnRedirect` pehle se pakda jata tha par **use nahi hota tha** → ab `_cdnpull`: pool session CDN-DC pe (`get_session(idx, cdn_dc, slot=NSLOT+slot)` — cache-key me dc hai, conflict-safe), `upload.GetCdnFile` → `ctr256_decrypt(key, iv[:-4]+off//16)` (C-level, cheap), `CdnFileReuploadNeeded` → main client `ReuploadCdnFile`, `FileToken/RequestTokenInvalid` → `_cdn=None` → non-CDN GetFile
+- `CHUNK 256→512KB` (invokes aadhe = kam CPU), NSLOT/WINDOW 4 hi (in-flight ≤2MB RAM)
+- `download_media` hot path: **≥50MB pe pipeline-first**; first window me CDN engage nahi → native (native 20MB/s @15% CPU hi best hai non-CDN pe); CDN ho to parallel CDN-DC pull (wzv3 jaisa)
+- `telegram_download.__download`: ≥50MB bot-client pe pipeline try → fail/native fallback; retry 3× (AK ka adhura ab poora)
+
+**CPU/RAM:** decrypt C me; buffers 2MB; sessions pool-cached (per-chunk auth nahi); non-CDN pe native hi (75% CPU wala purana pipeline sirf CDN-confirmed pe chalta hai)
+
+**Seekh:** bade edit_file is repo me 4 baar silently ude — ab bade changes bash-python se + grep-verify hamesha.

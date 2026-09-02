@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 from logging import getLogger, ERROR
 from time import time
-from asyncio import Lock, sleep
+from asyncio import Lock, sleep, sleep
 from pyrogram import Client, StopTransmission
 
 from .... import LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock, bot, user, IS_PREMIUM_USER
-from ...ext_utils.hyperdl_utils import pick_download_client
+from ...ext_utils.hyperdl_utils import pick_download_client, HypertgDownload
 from ..status_utils.telegram_status import TelegramStatus
 from ..status_utils.queue_status import QueueStatus
 from ...telegram_helper.message_utils import sendStatusMessage, sendMessage, delete_links
@@ -90,29 +90,55 @@ class TelegramDownloadHelper:
             GLOBAL_GID.remove(self.__id)
 
     async def __download(self, message, path):
-        try:
-            if self.__client is None and self.__decrypter is not None:
-                try:
-                    async with Client(str(self.__listener.user_id), session_string=self.__decrypter.decrypt(self.__listener.user_dict.get('usess')).decode(), 
-                                    in_memory=True, no_updates=True) as self.__client:
-                        download = await self.__client.download_media(message=message, file_name=path, progress=self.__onDownloadProgress)
-                except Exception as e:
-                    if not self.__is_cancelled:
-                        await self.__onDownloadError(f'ERROR: {e}')
-                        return
-            else:
-                download = await self.__client.download_media(
-                    message=message, file_name=path, progress=self.__onDownloadProgress)
+        media = getattr(message, message.media.value) if message.media else None
+        size = getattr(media, 'file_size', 0) or 0
+        if size >= 50 * 1024 * 1024 and self.__client is not None and self.__decrypter is None:
+            try:
+                hdl = HypertgDownload(self)
+                out = await hdl.download_media(
+                    self.__client, message, path,
+                    progress=self.__onDownloadProgress,
+                    cancelled=lambda: self.__is_cancelled,
+                )
+                if out:
+                    await self.__onDownloadComplete()
+                    return
+                LOGGER.info("HyperDL pipeline no output - native")
+            except Exception as e:
+                if self.__is_cancelled:
+                    await self.__onDownloadError('Cancelled by user!')
+                    return
+                LOGGER.warning("HyperDL pipeline failed: %s - native", str(e)[:120])
+        download = None
+        last_err = None
+        for attempt in range(1, 4):
             if self.__is_cancelled:
-                await self.__onDownloadError('Cancelled by user!')
-                return
-        except Exception as e:
-            LOGGER.error(str(e))
-            await self.__onDownloadError(str(e))
+                break
+            try:
+                if self.__client is None and self.__decrypter is not None:
+                    try:
+                        async with Client(str(self.__listener.user_id), session_string=self.__decrypter.decrypt(self.__listener.user_dict.get('usess')).decode(),
+                                        in_memory=True, no_updates=True) as self.__client:
+                            download = await self.__client.download_media(message=message, file_name=path, progress=self.__onDownloadProgress)
+                    except Exception as e:
+                        last_err = e
+                        break
+                else:
+                    download = await self.__client.download_media(
+                        message=message, file_name=path, progress=self.__onDownloadProgress)
+                break
+            except Exception as e:
+                last_err = e
+                LOGGER.warning(f'TG download retry {attempt}/3: {str(e)[:120]}')
+                await sleep(3)
+        if self.__is_cancelled:
+            await self.__onDownloadError('Cancelled by user!')
             return
         if download is not None:
             await self.__onDownloadComplete()
-        elif not self.__is_cancelled:
+        elif last_err is not None:
+            await self.__onDownloadError(str(last_err))
+        else:
             await self.__onDownloadError('Internal Error occurred')
 
     async def add_download(self, message, path, filename, session, decrypter):

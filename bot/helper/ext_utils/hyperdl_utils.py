@@ -22,9 +22,16 @@ from ..telegram_helper.tg_transfer import HypertgTransfer, media_of
 LOGGER = getLogger(__name__)
 
 KB = 1024
-CHUNK = 256 * KB
+CHUNK = 512 * KB
 NSLOT = 4
 WINDOW = 4
+PIPELINE_MIN_SIZE = 50 * 1024 * 1024
+
+try:
+    from pyrogram.errors import FileTokenInvalid, RequestTokenInvalid
+except ImportError:
+    class FileTokenInvalid(Exception): pass
+    class RequestTokenInvalid(Exception): pass
 
 
 def pick_download_client(session="bot"):
@@ -43,6 +50,7 @@ class HypertgDownload(HypertgTransfer):
         self._cdn = None
         self._cdn_sess = None
         self._dc = None
+        self._cdn_seen = False
 
     async def download_media(self, client, message, path, progress=None, cancelled=None):
         try:
@@ -50,16 +58,27 @@ class HypertgDownload(HypertgTransfer):
         except Exception:
             media = getattr(message, getattr(message, "media", None) and message.media.value, None)
         size = getattr(media, "file_size", 0) or 0
-        # Native download_media: ~20MB/s @ ~15% CPU. 4-slot GetFile was ~13MB/s @ 75%+ CPU
-        # and FileId-DC lock hung at 0B. Pipeline kept for later; not used on the hot path.
-        LOGGER.info("HyperDL via download_media size=%s (no DC pin, no parallel GetFile)", size)
+        # Bade files pe CDN-pipeline pehle (wzv3-style redirect->GetCdnFile+ctr256);
+        # CDN engage nahi hua -> native download_media (~20MB/s @ ~15% CPU, light).
+        if size >= PIPELINE_MIN_SIZE and ctr256_decrypt is not None:
+            try:
+                out = await self._pipeline(client, media, path, size, progress, cancelled)
+                if out:
+                    return out
+                LOGGER.info("HyperDL pipeline fallback -> download_media size=%s", size)
+            except StopTransmission:
+                raise
+            except Exception as e:
+                LOGGER.warning("HyperDL pipeline err %s -> native", e)
         return await client.download_media(message=message, file_name=path, progress=progress)
 
     async def _getfile(self, sess, loc, off, csz):
         kwargs = dict(location=loc, offset=off, limit=csz)
+        if ctr256_decrypt is not None:
+            kwargs["cdn_supported"] = True
         try:
             r = await wait_for(
-                sess.invoke(raw.functions.upload.GetFile(precise=True, cdn_supported=True, **kwargs)),
+                sess.invoke(raw.functions.upload.GetFile(precise=True, **kwargs)),
                 12,
             )
         except TypeError:
@@ -75,8 +94,42 @@ class HypertgDownload(HypertgTransfer):
                 "key": r.encryption_key,
                 "iv": r.encryption_iv,
             }
+            self._cdn_seen = True
             return None
         raise TypeError(type(r))
+
+    async def _cdnpull(self, idx, off, csz, slot):
+        cd = self._cdn
+        if not cd or ctr256_decrypt is None:
+            return None
+        cdn_dc = cd["dc"]
+        try:
+            sess = await wait_for(
+                self._pool.get_session(idx, cdn_dc, is_media=True, slot=NSLOT + slot), 20
+            )
+            r = await wait_for(
+                sess.invoke(raw.functions.upload.GetCdnFile(file_token=cd["token"], offset=off, limit=csz)),
+                12,
+            )
+            if isinstance(r, raw.types.upload.CdnFile):
+                iv_mod = bytearray(cd["iv"][:-4] + (off // 16).to_bytes(4, "big"))
+                return ctr256_decrypt(r.bytes, cd["key"], iv_mod)
+            if isinstance(r, raw.types.upload.CdnFileReuploadNeeded):
+                try:
+                    await bot.invoke(raw.functions.upload.ReuploadCdnFile(file_token=cd["token"], request_token=r.request_token))
+                except Exception:
+                    pass
+                await sleep(1)
+                return None
+            LOGGER.warning("HyperDL CDN unexpected %s", type(r))
+        except (FileTokenInvalid, RequestTokenInvalid) as e:
+            LOGGER.warning("HyperDL CDN %s — non-CDN fallback", type(e).__name__)
+            self._cdn = None
+        except (FloodWait, FloodPremiumWait) as f:
+            await sleep(int(getattr(f, "value", 2)) + 1)
+        except Exception as e:
+            LOGGER.warning("HyperDL CDN pull err %s", str(e)[:80])
+        return None
 
     async def _pipeline(self, client, media, path, size, progress, cancelled):
         fid = FileId.decode(media.file_id)
@@ -119,10 +172,19 @@ class HypertgDownload(HypertgTransfer):
                 if cancelled and cancelled():
                     raise StopTransmission
                 try:
+                    data = None
+                    if self._cdn:
+                        data = await self._cdnpull(idx, off, csz, slot)
+                        if data:
+                            got_any[0] = True
+                            return off, data
                     data = await self._getfile(sess, loc, off, csz)
                     if data:
                         got_any[0] = True
                         return off, data
+                    if self._cdn:
+                        continue
+                    await sleep(0.2)
                 except FileMigrate as e:
                     new_dc = int(getattr(e, "value", 0) or self._dc)
                     LOGGER.info("HyperDL FileMigrate %s -> %s", self._dc, new_dc)
@@ -152,6 +214,9 @@ class HypertgDownload(HypertgTransfer):
                     raise StopTransmission
                 if cur > CHUNK * WINDOW and not got_any[0]:
                     LOGGER.error("HyperDL no bytes after first window err=%s — fallback", first_err[0])
+                    break
+                if cur > CHUNK * WINDOW and not self._cdn_seen:
+                    LOGGER.info("HyperDL CDN not engaged — native path better, fallback")
                     break
                 while len(inflight) < WINDOW and cur < size:
                     t = create_task(_one(cur))
