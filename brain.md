@@ -739,3 +739,41 @@ Log: tracker tukda `dp.tracker…/announce&tr=` + `HTML/direct fail → yt-dlp` 
 **Git:** (local)  
 User: tracker tukda process mat; `ERROR: Invalid URL` pe **user ko Invalid URL**, ytdl/aria/Task Manager nahi. `is_torrent_link` naam hata → `is_magnet` (magnet + `.torrent` only, announce-only nahi).
 
+### 260902-M — stitch hata; `is_torrent_link` rakha (L ka rename revert)
+**Git:** `24ea30a`  
+stitch_torrent_link hata; `is_torrent_link` naam wapas (magnet + .torrent; announce-only nahi). brain me L ka "is_magnet rename" ab purana.
+
+### 260902-O — ytdlp wzv3 core port + unknown_video filesize
+**Git:** `016fe60` + `a5b18b8`  
+yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
+
+### 260902-P — /yl7 quality menu wapas
+**Git:** `48f0a9e`
+
+### 260902-Q — ytdlp quality buttons /l + /yl dono
+**Git:** `08c1a27`
+
+---
+
+### P-260902-R — zyl27aug07 logs: R2 direct-file ytdl hang + filename garbage + delete 403 + uv silent fail
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**Logs:** batbin.me/unfallenness (bot zyl27aug07)
+
+**Log me 4 alag problem:**
+1. **R2 presigned direct link 2 baar yt-dlp generic pe** (08:44:17 + 08:47:59): `...r2.cloudflarestorage.com/hub/...?X-Amz-Signature=...&response-content-disposition=attachment; filename="Kangaroo.2026...mkv"` → `[generic] Extracting URL` + "Downloading webpage" = 40GB body ko HTML samajh ke scrape → hang/CPU. Attempt B (08:46:22) wahi link Aria2 pe gaya = sahi rasta. `_YTDL_HINT` list me match nahi tha + mirror_leech ka `engine=ytdl`/link log bhi absent → ytdl entry **`/ydl` cmd side** se aayi (auto-engine nahi).
+2. **Aria2 filename = query garbage**: `onDownloadStarted: 2e982ff42...?X-Amz-Algorithm=...` — poora query naam ban gaya. Boot WARN `Unknown option: remote-header-name=true` → dyno aria2 ye option nahi jaanta → Content-Disposition header se naam bhi nahi milta.
+3. **403 MESSAGE_DELETE_FORBIDDEN** 2 baar (08:46:24 `[ERROR]`, 08:47:16 `ERROR:bot:`): ek delete path guarded par noisy (deleteMessage → LOGGER.error), ek unguarded (root `ERROR:bot:`). Bot ko us chat me delete right nahi — crash nahi, spam hai.
+4. **uv update silent fail**: boot-2 `error: No virtual environment found` ke sirf **2ms** baad `Successfully Updated all the Packages !` — pip fallback 2ms me possible nahi → rc jhootha / purana update.py path. Boot-1 uv theek tha (`environment at: /usr`). Saath me unpinned majors ude: motor 3.2.0→3.7.1, pymongo 4.4.1→4.17.0.
+
+**Build pe kya banana (ab nahi):**
+1. **`ytdlp.py` direct-file guard**: download se pehle check — URL me `X-Amz-Signature` / `response-content-disposition` / `X-Amz-Expires` presigned pattern (m3u8/.ts chhod ke), ya pehle-bytes GET pe `Content-Disposition: attachment` → ytdl skip, seedha `add_aria2c_download` + log `engine=aria2 (direct-file, ytdl skip)`. Saath me `is_ytdlp_link` hints ko `urlparse(url).netloc+path` pe match karo (full URL pe nahi — query ke `filename="...youtube.com/..."` false-positive se bacho).
+2. **Filename fix (`aria2_download.py`)**: `filename` None → URL query parse `response-content-disposition` unquote → `filename="..."` → `out=`. Fallback HEAD content-disposition. Dyno aria2 version se independent — `remote-header-name` pe depend nahi.
+3. **a2c.conf**: dyno `aria2c --version` dekh ke `remote-header-name` hata/replace (WARN noise band).
+4. **Delete guards**: `deleteMessage` MESSAGE_DELETE_FORBIDDEN pe silent (debug ek line); boot-2 wala unguarded site dhundo (auto_delete_message / delete_links / status cleanup) + wrap. Koi retry-loop nahi.
+5. **update.py UPDATE_PKGS**: exact command + real rc + output-tail log; "success" sirf rc==0 pe; uv ek hi path: `--system --python $(command -v python3)`. requirements.txt: `motor<4`, `pymongo<5` pin.
+6. Restart 08:46:48 (aria2 start ke 24s baad, koi traceback nahi) — manual restart lagta hai; open question, agle logs me dekhenge.
+
+**Execute:** nahi.  
+**Build:** `/build P-260902-R`
+
