@@ -986,3 +986,15 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Git:** `2b923e6`  
 **Files:** `bot_utils.py` (1 line, `STATUS_TG`)  
 User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana hai. Koi package/func change nahi.
+
+### 260902-AH — status style (user design): task no, mention, Done/Time/UP, 〄 footer
+**Git:** (push ke baad hash)  
+**Files:** `kpsml_minimal.py` (7 template lines), `bot_utils.py` (builder: enumerate + USER upar + ID hata)
+
+**User ka naya style (usne khud banaya):**
+- `{1}` task number name se pehle (enumerate page-aware: STATUS_START+1; Tno=f'{{{tno}}}' = literal braces)
+- User line `┎ <b>User</b>: {mention}` upar (name ke turant baad, bar se pehle) — pyrogram mention link; purana `┠ User: <code>| ID:` hata (ID me mention tha hi ab)
+- `Processed` → `Done`, `Elapsed` → `Time`, footer `UPTIME` → `UP`, `⌬` → `〄`
+- Bar `[■▧□□...]` + `#Tg` mode pehle se code me the (koi change nahi — rule 1)
+
+**Render test:** output user ke sample se line-by-line match ✅ (bar, Done, Time, UP, 〄, {1}, mention, ┎/┖)
