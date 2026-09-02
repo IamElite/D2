@@ -645,3 +645,21 @@ Params andar: `magnet:?` + koi chars + `xt=urn:btih|btmh` + hash 32–40 alnum *
 **Git naam:** commit = `260902-C plan wzv3 is_magnet` — `brain.md: P-… is_*` type mat.
 
 **Build:** `/build P-260902-C` → D2 `is_magnet` = wzv3 regex; `.torrent` endswith; HTML path skip magnet/torrent; no ytdl fail-chain. `/l7` Aria2; qBit `/qb*`.
+
+### `P-260902-D` — magnet + torrent = **ek** BT pattern
+**mode:** `plan`  
+**Date:** 2026-09-02  
+**User:** magnet aur torrent dono torrent; alag-alag fn/engine mat.
+
+**Ek check `is_torrent(link)`** (naam D2 me `is_magnet` stretch ya ek wrapper — **do engine nahi**):
+
+True agar koi bhi:
+- wzv3 magnet regex (`xt=urn:btih|btmh` + hash + `.*` taaki `&tr=` saath)
+- path `.torrent` (query strip)
+- `announce` / `&tr=` / `?tr=` / `udp://…/announce` **usi string pe** (magnet ke tukde alag URL nahi)
+
+**Phir:** `/l7` → **Aria2 BT ek add**. qBit nahi. ytdl nahi. HTML fail-chain nahi.
+
+**Galat jo agent soch raha tha:** `is_url_torrent` alag + `is_magnet` alag + ytdl alag order = teen raaste. User: **dono torrent, pattern ek.**
+
+**Build:** `/build P-260902-D` (ya auto-engine). Code ab nahi.
