@@ -983,6 +983,6 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Fix:** BatBin v2 paste (utf-8 bytes, charset header, timeout=15); success → `📨 Web Paste (BatBin)` button `batbin.me/<key>`; fail/exception → LOGGER + user ko fail-msg, crash kabhi nahi (pehle JSONDecodeError pe callback crash hota). `err` NameError leftover gaya. Live E2E test: 200 + success + `batbin.me/carniferrin` ✅
 
 ### 260902-AG — status Engine label: wzgram → notygram (display only)
-**Git:** (push ke baad hash)  
+**Git:** `2b923e6`  
 **Files:** `bot_utils.py` (1 line, `STATUS_TG`)  
 User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana hai. Koi package/func change nahi.
