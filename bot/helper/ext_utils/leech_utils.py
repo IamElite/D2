@@ -98,6 +98,11 @@ async def is_multi_streams(path):
 
 
 async def get_media_info(path, metadata=False):
+    if not str(path).lower().endswith(('.mp4', '.mkv', '.webm', '.avi', '.mov', '.m4v', '.flv', '.wmv', '.ts', '.m2ts',
+                                       '.mp3', '.m4a', '.aac', '.flac', '.opus', '.ogg', '.wav',
+                                       '.jpg', '.jpeg', '.png', '.webp', '.bmp')):
+        LOGGER.info(f'Media Info skipped (not media): {path}')
+        return (0, "", "", "") if metadata else (0, None, None)
     try:
         result = await cmd_exec(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
                                  "json", "-show_format", "-show_streams", path])

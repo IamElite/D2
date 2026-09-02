@@ -17,7 +17,7 @@ from asyncio.subprocess import PIPE
 from functools import partial, wraps
 from concurrent.futures import ThreadPoolExecutor
 
-from aiohttp import ClientSession as aioClientSession
+from aiohttp import ClientSession as aioClientSession, ClientTimeout
 from psutil import virtual_memory, cpu_percent, disk_usage
 from requests import get as rget
 from mega import MegaApi
@@ -381,6 +381,28 @@ def is_ytdlp_link(url):
     if path.endswith((".m3u8", ".m3u", ".ts")):
         return True
     return any(h in low for h in _YTDL_HINT)
+
+
+async def is_ytdlp_supported(url):
+    """False = direct-file/presigned URL, yt-dlp generic pe mat jao."""
+    if not is_url(url) or is_torrent_link(url):
+        return False
+    low = url.lower()
+    if any(h in low for h in _YTDL_HINT) or low.split("?", 1)[0].rstrip("/").endswith((".m3u8", ".m3u", ".ts")):
+        return True
+    if any(x in url for x in ("X-Amz-Signature=", "X-Amz-Algorithm=", "X-Amz-Expires=", "response-content-disposition=")):
+        return False
+    try:
+        async with aioClientSession(headers={"User-Agent": "Mozilla/5.0"}) as session:
+            async with session.get(url, headers={"Range": "bytes=0-0"}, timeout=ClientTimeout(total=10)) as res:
+                if res.headers.get("Content-Disposition", "").lower().startswith("attachment"):
+                    return False
+                ctype = res.headers.get("Content-Type", "text/html").split(";", 1)[0].strip().lower()
+                return not (ctype.startswith(("video/", "audio/", "image/")) or ctype in
+                            ("application/octet-stream", "application/zip", "application/pdf",
+                             "application/x-bittorrent", "application/x-rar-compressed", "application/x-7z-compressed"))
+    except Exception:
+        return True
 
 
 def is_gdrive_link(url):

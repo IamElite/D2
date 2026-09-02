@@ -223,7 +223,10 @@ async def deleteMessage(message):
     try:
         await message.delete()
     except Exception as e:
-        LOGGER.error(str(e))
+        if 'MESSAGE_DELETE_FORBIDDEN' in str(e):
+            LOGGER.debug(str(e))
+        else:
+            LOGGER.error(str(e))
 
 
 async def auto_delete_message(cmd_message=None, bot_message=None):
@@ -249,7 +252,10 @@ async def delete_all_messages():
                 del status_reply_dict[key]
                 await deleteMessage(data[0])
             except Exception as e:
-                LOGGER.error(str(e))
+                if 'MESSAGE_DELETE_FORBIDDEN' in str(e):
+                    LOGGER.debug(str(e))
+                else:
+                    LOGGER.error(str(e))
 
 
 async def get_tg_link_content(link, user_id, decrypter=None):

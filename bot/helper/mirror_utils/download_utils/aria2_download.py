@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from re import search as re_search
+from urllib.parse import parse_qs, urlparse
 from aiofiles.os import remove as aioremove, path as aiopath
 
 from .... import aria2, download_dict_lock, download_dict, LOGGER, config_dict, aria2_options, aria2c_global, non_queued_dl, queue_dict_lock
@@ -24,6 +26,10 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     a2c_opt['dir'] = path
     if filename:
         a2c_opt['out'] = filename
+    elif 'response-content-disposition=' in link:
+        q = parse_qs(urlparse(link).query).get('response-content-disposition', [''])[0]
+        if m := re_search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)', q):
+            a2c_opt['out'] = m.group(1).strip().replace('/', '_')
     if header:
         a2c_opt['header'] = header
     if ratio:

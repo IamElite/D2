@@ -1,6 +1,7 @@
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
 from html import escape
+import shlex
 
 
 def _is_tg_msg(m):
@@ -273,7 +274,9 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             file_ = getattr(reply_to, mval, None)
         if file_ is None:
             raw = reply_to.text or reply_to.caption or ""
-            reply_text = stitch_torrent_link(raw) if "magnet:" in raw.lower() else raw.split("\n", 1)[0].strip()
+            if "magnet:" in raw.lower():
+                raw = " ".join(raw.split())
+            reply_text = raw if is_torrent_link(raw) else raw.split("\n", 1)[0].strip()
             if is_url(reply_text) or is_torrent_link(reply_text):
                 link = reply_text
         elif reply_to.document and (getattr(file_, "mime_type", None) == "application/x-bittorrent" or str(getattr(file_, "file_name", "") or "").lower().endswith(".torrent")):

@@ -756,7 +756,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 ---
 
 ### P-260902-R — zyl27aug07 logs: R2 direct-file ytdl hang + filename garbage + delete 403 + uv silent fail
-**mode:** `plan`  
+**mode:** `built` (260902-U ke saath)  
 **Date:** 2026-09-02  
 **Logs:** batbin.me/unfallenness (bot zyl27aug07)
 
@@ -778,7 +778,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Build:** `/build P-260902-R`
 
 ### P-260902-S — `yl`/`ydl` URL validation + quoting + consistent unsupported msg
-**mode:** `plan`  
+**mode:** `built` (260902-U)  
 **Date:** 2026-09-02  
 **Parent:** `P-260902-R` (R ke points 1,2,4,5 isi build me saath chalege)  
 **User confirm:** 403 delete wala isliye — **bot ke paas us chat me delete power hi nahi**. Fix = silent guard, koi naya message/attempt nahi.
@@ -805,7 +805,7 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 **Build:** `/build P-260902-S`
 
 ### P-260902-T — shipways logs: stitch NameError (LIVE crash) + ffprobe .torrent spam + force_pause errors
-**mode:** `plan`  
+**mode:** `built` (260902-U)  
 **Date:** 2026-09-02  
 **Logs:** batbin.me/shipways (zyl27aug07)  
 **Parent:** `P-260902-S` (403/uv/remote-header-name/filename wahin covered)  
@@ -824,3 +824,20 @@ yt_dlp_download.py wzv3 core D2 stack pe port; unknown_video filesize fix.
 
 **Execute:** nahi.  
 **Build:** `/build P-260902-T` (S+T ek build — S ke points + T ke 3 fix)
+
+### 260902-U — S+T build: stitch crash, yl validation, quoting, ffprobe guard, pause spam, out=, 403 silent, pins
+**Git:** (push ke baad hash)  
+**OLD:** P-260902-R/S/T (teeno plans isi build me execute)  
+**Files:** `mirror_leech.py`, `ytdlp.py`, `bot_utils.py`, `leech_utils.py`, `aria2_listener.py`, `aria2_download.py`, `message_utils.py`, `a2c.conf`, `update.py`, `requirements.txt`
+
+**Fix (minimal, full-repo context):**
+1. **T1 stitch NameError**: `mirror_leech.py:276` — deleted fn ki call hata; magnet multi-line ho to `" ".join(raw.split())` (MAGNET_REGEX phir match), warna first-line logic same. Reply-to magnet ab marta nahi.
+2. **S1 `is_ytdlp_supported()`** (bot_utils, ek hi jagah): hints/m3u8 → True; `X-Amz-*`/`response-content-disposition` presigned → False; warna 1-byte ranged GET (10s timeout) — attachment/video/audio ctype → False. Guard `_ytdl` me extract se pehle → `/l`-auto aur `/yl` dono funnel wahi hai = **ek insertion point, extra code zero**. False → `yt-dlp not support this URL` + cleanup + stop (koi aria fallback nahi).
+3. **S2 shlex** (dono files): `split(' ')` → `shlex.split` (ValueError pe purana split) — quoted URL/`-n "name with space"` ek token.
+4. **T2 ffprobe guard**: `get_media_info` me media-extension check pehle — `.torrent`/unknown pe ffprobe nahi (CPU bachat, spam band).
+5. **T3 force_pause**: `cannot be paused now` → info level (benign race), baaki errors error hi.
+6. **S4**: aria2 `out=` URL query ke `response-content-disposition` se (regex tested: `Kangaroo...mkv` aya); `remote-header-name=true` a2c.conf se hata (WARN band).
+7. **S3 403 silent**: `deleteMessage` + `delete_all_messages` me MESSAGE_DELETE_FORBIDDEN → debug (bot ke paas delete power nahi — user confirmed).
+8. **S5**: update.py error me `rc=` (3ms fake-success ka sach samne aayega); pins `motor<4`, `pymongo<5`, `wzgram<4`.
+
+**Note:** dyno boot-2/3 me PURANA update.py chal raha tha (slug old) — fake success uska; HEAD honest hai. **Heroku pe ek rebuild/redeploy chahiye** taaki slug fresh ho.

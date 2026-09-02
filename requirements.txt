@@ -22,7 +22,7 @@ git+https://github.com/zevtyardt/lk21.git
 httpx
 langcodes[data]
 lxml
-motor
+motor<4
 mutagen
 markdown
 natsort
@@ -31,9 +31,9 @@ pillow
 psutil
 pybase64
 pycountry
-pymongo
+pymongo<5
 # WZML-X wzv3 engine (drop-in pyrogram). HyperUL needs extra helper bots — see brain.md
-wzgram
+wzgram<4
 python-dotenv
 python-magic
 qbittorrent-api

@@ -117,6 +117,6 @@ if UPDATE_PKGS == "true":
         if rc == 0:
             log_info("Successfully Updated all the Packages!")
         else:
-            log_error("Package update failed (uv venv / pip). Bot will continue with existing packages.")
+            log_error(f"Package update failed (rc={rc}, uv/pip). Bot will continue with existing packages.")
     else:
         log_info("requirements.txt not found in repo. Skipping package update.")

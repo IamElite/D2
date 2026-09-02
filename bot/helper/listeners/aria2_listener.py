@@ -162,7 +162,10 @@ async def __onBtDownloadComplete(api, gid):
             try:
                 await sync_to_async(api.client.force_pause, gid)
             except Exception as e:
-                LOGGER.error(f"{e} GID: {gid}")
+                if "cannot be paused now" in str(e):
+                    LOGGER.info(f"Skip pause, already finished. GID: {gid}")
+                else:
+                    LOGGER.error(f"{e} GID: {gid}")
         await listener.onDownloadComplete()
         download = download.live
         if listener.seed:

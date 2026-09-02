@@ -8,12 +8,13 @@ from yt_dlp import YoutubeDL
 from functools import partial
 from time import time
 import os
+import shlex
 
 from .. import DOWNLOAD_DIR, bot, categories_dict, config_dict, user_data, LOGGER
 from ..helper.ext_utils.task_manager import task_utils
 from ..helper.telegram_helper.message_utils import sendMessage, editMessage, deleteMessage, auto_delete_message, delete_links, open_category_btns, open_dump_btns
 from ..helper.telegram_helper.button_build import ButtonMaker
-from ..helper.ext_utils.bot_utils import get_readable_file_size, fetch_user_tds, fetch_user_dumps, is_url, is_gdrive_link, new_task, sync_to_async, new_task, is_rclone_path, new_thread, get_readable_time, arg_parser
+from ..helper.ext_utils.bot_utils import get_readable_file_size, fetch_user_tds, fetch_user_dumps, is_url, is_gdrive_link, new_task, sync_to_async, new_task, is_rclone_path, new_thread, get_readable_time, arg_parser, is_ytdlp_supported
 from ..helper.mirror_utils.download_utils.yt_dlp_download import YoutubeDLHelper
 from ..helper.mirror_utils.rclone_utils.list import RcloneList
 from ..helper.telegram_helper.bot_commands import BotCommands
@@ -246,7 +247,10 @@ async def _mdisk(link, name):
 @new_task
 async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag=None):
     text = message.text.split('\n')
-    input_list = text[0].split(' ')
+    try:
+        input_list = shlex.split(text[0])
+    except ValueError:
+        input_list = text[0].split(' ')
     qual = ''
     arg_base = {'link': '', 
                 '-i': 0, 
@@ -525,6 +529,12 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
     options.setdefault('age_limit', 99)
     _yt_cmds = {c.lower() for c in (*BotCommands.YtdlCommand, *BotCommands.YtdlLeechCommand)}
     yt_cmd = cmd.lower().lstrip('/').split('@')[0] in _yt_cmds
+
+    if not await is_ytdlp_supported(link):
+        await sendMessage(message, f'{tag} <b>yt-dlp not support this URL</b>')
+        __run_multi()
+        await delete_links(message)
+        return
 
     try:
         result = await sync_to_async(extract_info, link, options)
