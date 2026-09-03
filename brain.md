@@ -1136,7 +1136,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** default case me `default: ` + poori sorted list (97 chars, trun-100 fit). Custom list pe sirf list. Edit view: `Default List: <list>`.
 
 ### 260902-AX — .torrent URL bot-side pre-fetch (pornrips HTTP-500 bypass)
-**Git:** (push ke baad hash)  
+**Git:** `3928deb`  
 **OLD:** AX-prior — aria2.add(link) server-side fetch karta tha; pornrips.to jaise trackers aria2 ko 500 dete hain (curl/browser/aiohttp ko 200) = BT task dead  
 **Files:** `aria2_download.py` (`_prefetch_torrent()` + wire-in add pe)
 
