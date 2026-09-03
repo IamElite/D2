@@ -21,6 +21,17 @@ FIRST_SPLIT_REGEX = r'(\.|_)part0*1\.rar$|(\.|_)7z\.0*1$|(\.|_)zip\.0*1$|^(?!.*(
 
 SPLIT_REGEX = r'\.r\d+$|\.7z\.\d+$|\.z\d+$|\.zip\.\d+$'
 
+DEFAULT_EXCLUDED_EXTS = frozenset({'aria2', '!qb', 'index', 'html', 'nfo', 'text', 'bmp', 'webp',
+                                   'tiff', 'tif', 'svg', 'ico', 'raw', 'heic', 'heif', 'txt'})
+
+
+def is_ext_allowed(file_name, inc_exts=frozenset(), exc_exts=DEFAULT_EXCLUDED_EXTS):
+    """User extension filter: inc_exts set -> only those pass, else exc_exts are skipped."""
+    ext = file_name.rsplit('.', 1)[-1].lower() if '.' in file_name else ''
+    if inc_exts:
+        return ext in inc_exts
+    return ext not in exc_exts
+
 
 def is_first_archive_split(file):
     return bool(re_search(FIRST_SPLIT_REGEX, file))

@@ -26,7 +26,7 @@ from ...telegram_helper.tg_transfer import release_hyper_client
 from ...themes import BotTheme
 from ...telegram_helper.button_build import ButtonMaker
 from ...telegram_helper.message_utils import editReplyMarkup, sendMultiMessage, chat_info, deleteMessage, get_tg_link_content
-from ...ext_utils.fs_utils import clean_unwanted, is_archive, get_base_name
+from ...ext_utils.fs_utils import clean_unwanted, is_archive, get_base_name, is_ext_allowed, DEFAULT_EXCLUDED_EXTS
 from ...ext_utils.bot_utils import is_telegram_link, is_url, sync_to_async, download_image_url
 from ...ext_utils.leech_utils import get_audio_thumb, get_media_info, get_document_type, take_ss, get_ss, get_mediainfo_link, format_filename, remux_container
 
@@ -363,6 +363,10 @@ class TgUploader:
 
     async def upload(self, o_files, m_size, size):
         await self.__user_settings()
+        user_dict = user_data.get(self.__user_id, {})
+        inc_exts = {e.lower() for e in (user_dict.get('inc_ext') or [])}
+        raw_exc = user_dict.get('exc_ext')
+        exc_exts = DEFAULT_EXCLUDED_EXTS if raw_exc in (None, '') else {e.lower() for e in raw_exc}
         if not await self.__msg_to_reply():
             return
         isDeleted = False
@@ -371,7 +375,7 @@ class TgUploader:
                 continue
             for file_ in natsorted(files):
                 self.__up_path = ospath.join(dirpath, file_)
-                if file_.lower().endswith(tuple(GLOBAL_EXTENSION_FILTER)):
+                if file_.lower().endswith(tuple(GLOBAL_EXTENSION_FILTER)) or not is_ext_allowed(file_, inc_exts, exc_exts):
                     await aioremove(self.__up_path)
                     continue
                 try:

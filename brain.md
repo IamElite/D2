@@ -1120,3 +1120,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `users_settings.py` (universal block: 3 lines + kwarg), `kpsml_minimal.py` (UNIVERSAL template)
 
 **Fix:** Universal se button + `Bot PM : Enabled` status hata; `Save Mode` ab `┖` closer. **Leech page untouched** (button+status+callback) — functionality zero change (engine/BOT_PM config jaise hai).
+
+### 260902-AV — Include/Exclude Ext user filters (Universal Settings)
+**Git:** (push ke baad hash)  
+**OLD:** AV-prior — koi user ext-filter nahi tha (sirf global GLOBAL_EXTENSION_FILTER)  
+**Files:** `fs_utils.py` (DEFAULT_EXCLUDED_EXTS + `is_ext_allowed()`), `pyrogramEngine.py` (upload() me per-file filter), `users_settings.py` (9 spots: desp/fname dicts, universal buttons+text, edit views, callbacks reuse yt_opt flow, set_custom parser, `/cmd -s` list), `kpsml_minimal.py` (UNIVERSAL +2 lines)
+
+**Design:** Include default `none` (off); Exclude default list `aria2,!qb,index,html,nfo,text,bmp,webp,tiff,tif,svg,ico,raw,heic,heif,txt` har user pe active. Rules: inc set → sirf wahi; warna exc lagega; `default`→default list (exc), `none`→off/allow-all; parse comma/space, lowercase, dot-strip, sorted. Storage: `inc_ext` list / `exc_ext` list; `''` = default-idiom (delete buttons d{key}); `[]` = allow-all. Unwanted files upload-loop me `aioremove` (global-filter pattern). Flow reuse: `event_handler`+`set_custom` (yt_opt jaisa), delete `dinc_ext`/`dexc_ext` → universal refresh + DB. **Tests:** filter 14/14, parser, resolve, render — all PASS.

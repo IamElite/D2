@@ -22,6 +22,7 @@ from ..helper.telegram_helper.button_build import ButtonMaker
 from ..helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..helper.ext_utils.db_handler import DbManger
 from ..helper.ext_utils.bot_utils import getdailytasks, update_user_ldata, get_readable_file_size, sync_to_async, new_thread, is_gdrive_link
+from ..helper.ext_utils.fs_utils import DEFAULT_EXCLUDED_EXTS
 from ..helper.mirror_utils.upload_utils.ddlserver.gofile import Gofile
 from ..helper.themes import BotTheme
 from .autorename import validate_autorename_format
@@ -54,6 +55,8 @@ desp_dict = {'rcc': ['RClone is a command-line program to sync files and directo
             'mremname': ['Mirror Filename Remname is combination of Regex(s) used for removing or manipulating Filename of the Mirrored/Cloned Files', 'Send Mirror Filename Remname. \n<b>Timeout:</b> 60 sec'],
             'thumb': ['Custom Thumbnail to appear on the Leeched files uploaded by the bot', 'Send a photo to save it as custom thumbnail. \n<b>Alternatively: </b><code>/cmd [photo] -s thumb</code> \n<b>Timeout:</b> 60 sec'],
             'yt_opt': ['YT-DLP Options is the Custom Quality for the extraction of videos from the yt-dlp supported sites.', 'Send YT-DLP Options. Timeout: 60 sec\nFormat: key:value|key:value|key:value.\nExample: format:bv*+mergeall[vcodec=none]|nocheckcertificate:True\nCheck all yt-dlp api options from this <a href="https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/YoutubeDL.py#L184">FILE</a> to convert cli arguments to api options.'],
+            'inc_ext': ['Include Extension Filter: only files with these extensions will be uploaded (works for leech & mirror both).', 'Send extensions (comma/space separated).\nExample: <code>mp4, mkv, jpg, pdf</code>\nSend <code>none</code> to disable filter.\n<b>Timeout:</b> 60 sec'],
+            'exc_ext': ['Exclude Extension Filter: files with these extensions are skipped. A default list is already active for every user.', 'Send extensions to exclude (comma/space separated).\nExample: <code>nfo, txt, html</code>\nSend <code>default</code> for default list, <code>none</code> to allow all.\n<b>Timeout:</b> 60 sec'],
             'usess': [f'User Session is Telegram Session used to Download Private Contents from Private Channels with no compromise in Privacy, Build with Encryption.\n{"<b>Warning:</b> This Bot is not secured. We recommend asking the group owner to set the Upstream repo to the Official repo. If it is not the official repo, then KPSML-X is not responsible for any issues that may occur in your account." if config_dict["UPSTREAM_REPO"] != "https://github.com/Tamilupdates/KPSML-X" else "Bot is Secure. You can use the session securely."}', 'Send your Session String.\n<b>Timeout:</b> 60 sec'],
             'split_size': ['Leech Splits Size is the size to split the Leeched File before uploading', f'Send Leech split size in any comfortable size, like 2Gb, 500MB or 1.46gB. \n<b>PREMIUM ACTIVE:</b> {IS_PREMIUM_USER}. \n<b>Timeout:</b> 60 sec'],
             'ddl_servers': ['DDL Servers which uploads your File to their Specific Hosting', ''],
@@ -75,6 +78,8 @@ fname_dict = {'rcc': 'RClone',
              'lcaption': 'Caption',
              'thumb': 'Thumbnail',
              'yt_opt': 'YT-DLP Options',
+             'inc_ext': 'Include Ext',
+             'exc_ext': 'Exclude Ext',
              'usess': 'User Session',
              'split_size': 'Leech Splits',
              'ddl_servers': 'DDL Servers',
@@ -108,6 +113,12 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton(f"{'✅️' if ytopt != 'Not Exists' else ''} YT-DLP Options", f"userset {user_id} yt_opt")
         u_sess = 'Exists' if user_dict.get('usess', False) else 'Not Exists'
         buttons.ibutton(f"{'✅️' if u_sess != 'Not Exists' else ''} User Session", f"userset {user_id} usess")
+        inc_list = user_dict.get('inc_ext') or []
+        raw_exc = user_dict.get('exc_ext')
+        inc_str = ', '.join(inc_list) if inc_list else 'none'
+        exc_str = 'default' if raw_exc in (None, '') else (', '.join(sorted(raw_exc)) if raw_exc else 'none')
+        buttons.ibutton(f"{'✅ ' if inc_list else ''}Include Ext", f"userset {user_id} inc_ext")
+        buttons.ibutton(f"{'✅ ' if raw_exc not in (None, '') else ''}Exclude Ext", f"userset {user_id} exc_ext")
         mediainfo = "Enabled" if user_dict.get('mediainfo', config_dict['SHOW_MEDIAINFO']) else "Disabled"
         buttons.ibutton('Disable MediaInfo' if mediainfo == 'Enabled' else 'Enable MediaInfo', f"userset {user_id} mediainfo")
         if config_dict['SHOW_MEDIAINFO']:
@@ -121,7 +132,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             lastused = f"{t[0]}h {t[1]}m {t[2].split('.')[0]}s ago"
         else: lastused = "Bot Not Used yet.."
 
-        text = BotTheme('UNIVERSAL', NAME=name, YT=escape(trun(ytopt)), DT=f"{dailytas} / {dailytl}", LAST_USED=lastused, MEDIAINFO=mediainfo, SAVE_MODE=save_mode, USESS=u_sess)
+        text = BotTheme('UNIVERSAL', NAME=name, YT=escape(trun(ytopt)), DT=f"{dailytas} / {dailytl}", LAST_USED=lastused, INC_EXT=escape(trun(inc_str, 100)), EXC_EXT=escape(trun(exc_str, 100)), MEDIAINFO=mediainfo, SAVE_MODE=save_mode, USESS=u_sess)
         buttons.ibutton("Back", f"userset {user_id} back", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
@@ -287,6 +298,14 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         elif key == 'usess':
             set_exist = 'Exists' if user_dict.get('usess') else 'Not Exists'
             text += f"➲ <b>{fname_dict[key]} :</b> <code>{set_exist}</code>\n➲ <b>Encryption :</b> {'🔐' if set_exist else '🔓'}\n\n"
+        elif key == 'inc_ext':
+            set_exist = ', '.join(val) if (val := user_dict.get('inc_ext')) else 'Not Exists'
+            text += f"➲ <b>Include Ext :</b> <code>{escape(trun(set_exist, 600))}</code>\n\n"
+        elif key == 'exc_ext':
+            raw_exc = user_dict.get('exc_ext')
+            cur = 'Default List' if raw_exc in (None, '') else (', '.join(sorted(raw_exc)) if raw_exc else 'None (Allow All)')
+            set_exist = 'Not Exists' if raw_exc in (None, '') else cur
+            text += f"➲ <b>Exclude Ext :</b> <code>{escape(trun(cur, 600))}</code>\n\n"
         elif key == 'split_size':
             set_exist = get_readable_file_size(config_dict['LEECH_SPLIT_SIZE']) + ' (Default)' if user_dict.get('split_size', '') == '' else get_readable_file_size(user_dict['split_size'])
             text += f"➲ <b>Leech Split Size :</b> <i>{set_exist}</i>\n\n"
@@ -379,7 +398,7 @@ async def user_settings(client, message):
         if set_arg and (reply_to := message.reply_to_message):
             if message.from_user.id != reply_to.from_user.id:
                 return await editMessage(msg, '<i>Reply to Your Own Message for Setting via Args Directly</i>')
-            if set_arg in ['lprefix', 'lsuffix', 'lremname', 'lcaption', 'ldump', 'yt_opt', 'metadata', 'lattachment', 'autorename_format', 'custom_title'] and reply_to.text:
+            if set_arg in ['lprefix', 'lsuffix', 'lremname', 'lcaption', 'ldump', 'yt_opt', 'metadata', 'lattachment', 'autorename_format', 'custom_title', 'inc_ext', 'exc_ext'] and reply_to.text:
                 return await set_custom(client, reply_to, msg, set_arg, True)
             elif set_arg == 'thumb' and reply_to.media:
                 return await set_thumb(client, reply_to, msg, set_arg, True)
@@ -473,6 +492,15 @@ async def set_custom(client, message, pre_event, key, direct=False):
                 value = encrypt_sess.decode()
             except Exception:
                 value = ""
+        return_key = 'universal'
+    elif key in ['inc_ext', 'exc_ext']:
+        raw = value.strip().lower()
+        if raw in ('', 'none', 'off'):
+            value = []
+        elif raw == 'default':
+            value = [] if key == 'inc_ext' else ''
+        else:
+            value = sorted({e.strip().lower().lstrip('.') for e in value.replace(',', ' ').split() if e.strip()})
         return_key = 'universal'
     elif key in ['autorename_format', 'custom_title']:
         return_key = 'autorename'
@@ -669,7 +697,7 @@ async def edit_user_settings(client, query):
         pfunc = partial(set_thumb, pre_event=query, key=data[2])
         rfunc = partial(update_user_settings, query, data[2], 'leech')
         await event_handler(client, query, pfunc, rfunc, True)
-    elif data[2] in ['yt_opt', 'usess']:
+    elif data[2] in ['yt_opt', 'usess', 'inc_ext', 'exc_ext']:
         await query.answer()
         edit_mode = len(data) == 4
         await update_user_settings(query, data[2], 'universal', edit_mode)
@@ -677,7 +705,7 @@ async def edit_user_settings(client, query):
         pfunc = partial(set_custom, pre_event=query, key=data[2])
         rfunc = partial(update_user_settings, query, data[2], 'universal')
         await event_handler(client, query, pfunc, rfunc)
-    elif data[2] in ['dyt_opt', 'dusess']:
+    elif data[2] in ['dyt_opt', 'dusess', 'dinc_ext', 'dexc_ext']:
         handler_dict[user_id] = False
         await query.answer()
         update_user_ldata(user_id, data[2][1:], '')

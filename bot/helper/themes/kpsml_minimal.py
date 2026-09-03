@@ -269,6 +269,8 @@ Type {help_command} to get a list of available commands</b>'''
 ┠<b> Daily Tasks :</b> <code>{DT}</code> per day
 ┠<b> Last Bot Used :</b> <code>{LAST_USED}</code>
 ┠<b> User Session :</b> <code>{USESS}</code>
+┠<b> Include Ext :</b> <code>{INC_EXT}</code>
+┠<b> Exclude Ext :</b> <code>{EXC_EXT}</code>
 ┠<b> MediaInfo Mode :</b> <code>{MEDIAINFO}</code>
 ┖<b> Save Mode :</b> <code>{SAVE_MODE}</code>'''
 
