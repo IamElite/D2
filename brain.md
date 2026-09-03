@@ -1222,7 +1222,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** API 200-stripped vs 400-zeroful (curl-proof); unit 5/5; **real E2E = 15 formats** (impersonate chrome ke saath); py3.10 102/102. Upstream yt-dlp bug — jab upstream fix ho to normalizer harmless rahega.
 
 ### 260902-BJ — HOTFIX: re_sub NameError (BI ka import-check bug)
-**Git:** (push ke baad hash)  
+**Git:** `b3be0be`  
 **Incident:** BI patch me mera conditional-import logic galat tha — file me `re_search` tha, check `from re import` dhundh ke skip kar gaya, `re_sub` import nahi hua → beeg-link pe runtime `NameError: re_sub is not defined`. Compile-check nahi pakadta (runtime error).  
 **Fix:** line 6 = `from re import search as re_search, sub as re_sub`. Runtime-exec test + py3.10 102/102.  
 **Seekh:** patch me jab bhi "already imported?" conditional ho — to jo SYMBOL chahiye WOHI grep karo, family nahi.
