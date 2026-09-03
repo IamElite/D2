@@ -44,6 +44,8 @@ async def probe_tag_args(path, overlay=None):
     except Exception:
         data = {}
     args = []
+    purge_streams = bool(overlay.get('__purge_stream_titles__'))
+    custom_st = (overlay.get('__stream_title_v__'), overlay.get('__stream_title_a__'))
     fmt = dict((data.get('format') or {}).get('tags') or {})
     key_map = {
         'title': 'title', 'author': 'author', 'artist': 'artist',
@@ -64,7 +66,14 @@ async def probe_tag_args(path, overlay=None):
         tags = dict(st.get('tags') or {})
         ctype = st.get('codec_type')
         extra = overlay.get(ctype) or overlay.get('title')
-        if extra:
+        if purge_streams:
+            # purane stream-titles purge (customize-title demand) — naya chahiye to neeche set hota
+            tags.pop('title', None)
+            if custom_st[0] and ctype == 'video':
+                tags['title'] = custom_st[0]
+            if custom_st[1] and ctype == 'audio':
+                tags['title'] = custom_st[1]
+        elif extra:
             tags['title'] = extra
         if ctype == 'video':
             pref, idx = 'v', vi
@@ -77,6 +86,9 @@ async def probe_tag_args(path, overlay=None):
             si += 1
         else:
             continue
+        if purge_streams and 'title' not in tags:
+            # explicit delete zaroori — arg-missing = purana title INHERIT ho jata
+            args.extend([f'-metadata:s:{pref}:{idx}', 'title='])
         for k, v in tags.items():
             if str(k).lower() in _TAG_SKIP or v is None or v == '':
                 continue
@@ -84,17 +96,25 @@ async def probe_tag_args(path, overlay=None):
     return args
 
 
-async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, metadata: str = ''):
+async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, metadata: str = '', stream_titles: str = ''):
     file_name = os_path.basename(media_file)
     basename = os_path.splitext(file_name)[0]
     basenameX = re_sub(r'www\S+', '', basename)
     basenameX = re_sub(r'(^\s*-\s*|(\s*-\s*){2,})', '', basenameX)
 
-    file_ext = os_path.splitext(file_name)[-1].lower()
-    if file_ext not in ('.mkv', '.mp4'):
-        return
-
     overlay = parse_meta_overlay(metadata, basenameX)
+    # koi bhi media-format pe smart apply (mp4/mkv/webm/avi/mov/ts...) — ext-gate hata (user demand)
+    if stream_titles:
+        # format: 'purge' ya 'purge|v:Custom Video|a:Custom Audio'  (kisi bhi format pe)
+        overlay['__purge_stream_titles__'] = True
+        for part in stream_titles.split('|')[1:]:
+            if ':' in part:
+                k, v = part.split(':', 1)
+                k = k.strip().lower()
+                if k in ('v', 'video'):
+                    overlay['__stream_title_v__'] = v.strip()
+                elif k in ('a', 'audio'):
+                    overlay['__stream_title_a__'] = v.strip()
     tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
@@ -110,7 +130,7 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
         await move(outfile, base_dir)
     else:
         await clean_target(outfile)
-        LOGGER.error('%s. Changing metadata failed, Path %s', await listener.suproc.stderr.read().decode(), media_file)
+        LOGGER.error('%s. Changing metadata failed, Path %s', (await listener.suproc.stderr.read()).decode(errors='ignore'), media_file)
 
 
 async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str, attachment: str = ''):

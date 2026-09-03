@@ -292,6 +292,7 @@ if len(MEGA_EMAIL) == 0 or len(MEGA_PASSWORD) == 0:
     MEGA_PASSWORD = ''
 
 METADATA = environ.get('METADATA', '')
+STREAM_TITLES = environ.get('STREAM_TITLES', '')
 if len(METADATA) == 0:
     METADATA = ''
 
@@ -676,6 +677,7 @@ config_dict = {'ANIME_TEMPLATE': ANIME_TEMPLATE,
                'CMD_SUFFIX': CMD_SUFFIX,
                'DATABASE_URL': DATABASE_URL,
                'METADATA': METADATA,
+               'STREAM_TITLES': STREAM_TITLES,
                'ATTACHMENT': ATTACHMENT,
                'REAL_DEBRID_API': REAL_DEBRID_API,
                'DEBRID_LINK_API': DEBRID_LINK_API,

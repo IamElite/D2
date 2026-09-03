@@ -308,6 +308,7 @@ class MirrorLeechListener:
                 up_path = dl_path
 
         metadata = self.user_dict.get('metadata') or config_dict.get('METADATA', '')
+        stream_titles = self.user_dict.get('stream_titles') or config_dict.get('STREAM_TITLES', '')
         if self.isLeech and metadata:
             meta_path = up_path or dl_path
             self.newDir = f'{self.dir}10000'
@@ -317,7 +318,7 @@ class MirrorLeechListener:
             if await aiopath.isfile(meta_path) and (await get_document_type(meta_path))[0]:
                 base_dir, file_name = ospath.split(meta_path)
                 outfile = ospath.join(self.newDir, file_name)
-                await edit_metadata(self, base_dir, meta_path, outfile, metadata)
+                await edit_metadata(self, base_dir, meta_path, outfile, metadata, stream_titles)
                 if self.suproc == 'cancelled':
                     return
             elif await aiopath.isdir(meta_path):
@@ -328,7 +329,7 @@ class MirrorLeechListener:
                         video_file = ospath.join(dirpath, file)
                         if (await get_document_type(video_file))[0]:
                             outfile = ospath.join(self.newDir, file)
-                            await edit_metadata(self, dirpath, video_file, outfile, metadata)
+                            await edit_metadata(self, dirpath, video_file, outfile, metadata, stream_titles)
 
         if attachment := self.user_dict.get("lattachment") or config_dict['ATTACHMENT']:
             meta_path = up_path or dl_path
