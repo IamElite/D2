@@ -1134,3 +1134,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `users_settings.py` (2 lines: universal `exc_str` + edit-view `cur`)
 
 **Fix:** default case me `default: ` + poori sorted list (97 chars, trun-100 fit). Custom list pe sirf list. Edit view: `Default List: <list>`.
+
+### 260902-AX — .torrent URL bot-side pre-fetch (pornrips HTTP-500 bypass)
+**Git:** (push ke baad hash)  
+**OLD:** AX-prior — aria2.add(link) server-side fetch karta tha; pornrips.to jaise trackers aria2 ko 500 dete hain (curl/browser/aiohttp ko 200) = BT task dead  
+**Files:** `aria2_download.py` (`_prefetch_torrent()` + wire-in add pe)
+
+**Design:** `.torrent` URL → aiohttp fetch (browser UA + Referer origin, user -h headers merge-override, 30s timeout, 10MB cap) → validate (b`4:info` bencode ya ctype bittorrent) → `/tmp/{uuid}.torrent` → `add_torrent(file)` → finally remove. HAR fail (non-200/oversize/not-torrent/timeout/exception) → `None` → purana direct `aria2.add` fallback. Magnet/local-file untouched. **Tests:** real pornrips fetch 39791B bencode-OK + 5 gate/fallback tests = 6/6 PASS. qBit route scope me nahi.
