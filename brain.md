@@ -1233,3 +1233,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `yt_dlp_download.py` (`is_generic_title()` + `fix_generic_title()`; extractMetaData me non-playlist `result['title']` patch — single choke-point: self.name/outtmpl/leech-name sab isi se)  
 **Scope (user-dandi):** sirf generic-pattern titles + sirf beeg (verified source). Good titles/non-beeg = untouched. API-dead = original title, no crash.  
 **Tests:** sandbox T1-T6 + real-module T1-T5 (impersonate-loaded urlopen, guards, dead-API, urllib fallback); filename E2E = `St. Patrick's Day Cosplay Compilation [id].mp4`; py3.10 102/102.
+
+### 260902-BL — Avg + Max DL/UL speed summary (user design)
+**Git:** (push ke baad hash)  
+**Root:** summary me sirf max tha; user ko avg (kitna mila) + max (top speed) dono chahiye. Beeg ke template-suffix `1575` (tbr, height-missing) = alag issue (BL-2 pending, user ne option nahi chuna).  
+**Files:** `tasks_listener.py` (`avg_dl` size/dl-window @download-end; render AVGSPD+MAXSPD; tg.upload-post avg_ul=size/engine-window fallback), `pyrogramEngine.py` (`_ul_engine_t0` @__user_settings), `kpsml_minimal.py` (AVGSPD key `Avg DL/UL Speed` + `┃` + MAXSPD labels `Max DL/UL Speed`)  
+**Avg math:** bytes ÷ total-seconds (true average; inst-sampling ka jhooth nahi). Fallbacks: engine-t0 miss → old _ul_t0/size path.  
+**Tests:** render preview exact user-design; avg-math 3.91MB/s sample-match; py3.10 102/102.

@@ -139,7 +139,8 @@ Type {help_command} to get a list of available commands</b>'''
     NAME =                  '<b><i>{Name}</i></b>\n┃\n'
     SIZE =                  '┠ <b>Size: </b>{Size}\n'
     ELAPSE =                '┠ <b>Elapsed: </b>{Time}\n'
-    MAXSPD =                '┠ <b>DL Speed:</b> {DL}\n┠ <b>UL Speed:</b> {UL}\n'
+    AVGSPD =                '┠ <b>Avg DL Speed:</b> {DL}\n┠ <b>Avg UL Speed:</b> {UL}\n┃\n'
+    MAXSPD =                '┠ <b>Max DL Speed:</b> {DL}\n┠ <b>Max UL Speed:</b> {UL}\n'
     MODE =                  '┠ <b>Mode: </b>{Mode}\n'
 
     # ----- LEECH -------

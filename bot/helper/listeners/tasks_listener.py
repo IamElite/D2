@@ -85,7 +85,7 @@ class MirrorLeechListener:
         self.linkslogmsg = None
         self.botpmmsg = None
         self.start_msgs = []
-        self.upload_details = {'max_dl': 0, 'max_ul': 0, '_dl_t0': time()}
+        self.upload_details = {'max_dl': 0, 'max_ul': 0, 'avg_dl': 0, 'avg_ul': 0, '_dl_t0': time()}
         self.leech_utils = leech_utils
         self.source_url = (
             source_url
@@ -221,6 +221,7 @@ class MirrorLeechListener:
         size = await get_path_size(dl_path)
         t0 = self.upload_details.get('_dl_t0') or time()
         dt = max(1.0, time() - t0)
+        self.upload_details['avg_dl'] = size / dt
         if not self.upload_details.get('max_dl'):
             self.upload_details['max_dl'] = size / dt
         self.upload_details['_ul_t0'] = time()
@@ -463,6 +464,10 @@ class MirrorLeechListener:
                 download_dict[self.uid] = tg_upload_status
             await update_all_messages()
             await tg.upload(o_files, m_size, size)
+            if not self.upload_details.get('avg_ul'):
+                _et0 = self.upload_details.get('_ul_engine_t0')
+                if _et0:
+                    self.upload_details['avg_ul'] = size / max(1.0, time() - _et0)
         elif self.upPath == 'gd':
             size = await get_path_size(up_path)
             LOGGER.info(f"Upload Name: {up_name}")
@@ -508,6 +513,17 @@ class MirrorLeechListener:
             if t0u:
                 dt = max(1.0, time() - t0u)
                 mul = size / dt
+        adl = self.upload_details.get('avg_dl') or mdl
+        _et0 = self.upload_details.get('_ul_engine_t0')
+        if not self.upload_details.get('avg_ul'):
+            aul = size / max(1.0, time() - _et0) if _et0 else mul
+        else:
+            aul = self.upload_details['avg_ul']
+        msg += BotTheme(
+            'AVGSPD',
+            DL=f"{get_readable_file_size(adl)}/s" if adl else "—",
+            UL=f"{get_readable_file_size(aul)}/s" if aul else "—",
+        )
         msg += BotTheme(
             'MAXSPD',
             DL=f"{get_readable_file_size(mdl)}/s" if mdl else "—",

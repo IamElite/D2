@@ -205,6 +205,8 @@ class TgUploader:
 
     async def __user_settings(self):
         user_dict = user_data.get(self.__user_id, {})
+        ud0 = self.__listener.upload_details
+        ud0.setdefault('_ul_engine_t0', time())
         self.__as_doc = bool(user_dict.get('as_doc', False))
         self.__media_group = user_dict.get('media_group') or (config_dict['MEDIA_GROUP'] if 'media_group' not in user_dict else False)
         self.__bot_pm = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
