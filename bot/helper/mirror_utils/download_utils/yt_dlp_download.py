@@ -3,7 +3,7 @@ from os import path as ospath, listdir
 from secrets import token_hex
 from logging import getLogger
 from yt_dlp import YoutubeDL, DownloadError
-from re import search as re_search
+from re import search as re_search, sub as re_sub
 
 from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lock, bot_cache
 from ...telegram_helper.message_utils import sendStatusMessage
