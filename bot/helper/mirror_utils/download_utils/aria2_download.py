@@ -18,6 +18,9 @@ TORRENT_MAX_SIZE = 10 * 1024 * 1024  # 10MB cap — .torrent files are KB-scale
 
 BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
+# Wget/1.12 UA qBit-route pe proven hai — kai trackers aria2/Chrome-fingerprint ko block karte hain
+UA_CANDIDATES = ('Wget/1.12', BROWSER_UA)
+
 
 async def _prefetch_torrent(link, user_headers=None):
     """HTTP(S) .torrent URL ko bot-side fetch karo — kuch trackers aria2c ke
@@ -26,35 +29,36 @@ async def _prefetch_torrent(link, user_headers=None):
     if not isinstance(link, str) or not link.startswith(('http://', 'https://')) or not _bt_link(link):
         return None
     p = urlparse(link)
-    req_headers = {
-        'User-Agent': BROWSER_UA,
-        'Accept': '*/*',
-        'Referer': f'{p.scheme}://{p.netloc}/',
-    }
+    req_headers = {'Accept': '*/*', 'Referer': f'{p.scheme}://{p.netloc}/'}
+    user_ua = None
     if user_headers:
         if isinstance(user_headers, str):
             user_headers = [user_headers]
         for h in user_headers:
             if isinstance(h, str) and ':' in h:
                 k, v = h.split(':', 1)
-                req_headers[k.strip()] = v.strip()
+                if k.strip().lower() == 'user-agent':
+                    user_ua = v.strip()
+                else:
+                    req_headers[k.strip()] = v.strip()
+    uas = (user_ua,) if user_ua else UA_CANDIDATES
     tmp_path = f'/tmp/{uuid4().hex}.torrent'
     # Generic unblock: TORRENT_PREFETCH_PROXY env — relay-template ('...{url}...') ya HTTP proxy.
     # Direct 4xx/5xx pe hi engage hota hai; koi bhi blocked site ke liye kaam karta hai.
-    attempts = [(link, None)]
+    attempts = [(link, None, ua) for ua in uas]
     relay = environ.get('TORRENT_PREFETCH_PROXY', '').strip()
     if relay:
         if '{url}' in relay:
-            attempts.append((relay.replace('{url}', quote(link, safe='')), None))
+            attempts.append((relay.replace('{url}', quote(link, safe='')), None, uas[-1]))
         else:
-            attempts.append((link, relay))
+            attempts.append((link, relay, uas[-1]))
     try:
         status = 0
-        for fetch_url, proxy in attempts:
-            tag = 'direct' if proxy is None and fetch_url is link else 'relay'
+        for fetch_url, proxy, ua in attempts:
+            tag = 'relay' if proxy else f"ua[{ua.split('/')[0].lower()}]"
             try:
                 async with aioClientSession(trust_env=True) as session:
-                    async with session.get(fetch_url, headers=req_headers, proxy=proxy,
+                    async with session.get(fetch_url, headers={**req_headers, 'User-Agent': ua}, proxy=proxy,
                                            timeout=ClientTimeout(total=30), verify_ssl=False) as resp:
                         status = resp.status
                         ctype = resp.headers.get('Content-Type', '').lower()

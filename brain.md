@@ -1162,3 +1162,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `status_utils/`: qbit, attachment, ddl, direct, extract, gdrive, mega_download, metadata, yt_dlp(2 spots), zip — eta-block `get_readable_time`→`clock_fmt` + imports; rclone — `clock_fmt(obj.eta) or obj.eta` (unparseable fallback); split — `'0s'`→`'00:00:00'`; queue `'-'` untouched
 
 **Seekh:** format-style change me SAB status-classes ka sweep karo, sirf jo dikhe nahi. Multi-line import regex ne direct_status toota tha — haath se fix. Final sweep: koi eta old-format me nahi.
+
+### 260902-BB — prefetch UA-chain (Wget-first; qBit ke Wget-1.12 proof se)
+**Git:** (push ke baad hash)  
+**Discovery:** qBit route `torrents_add(headers={'user-agent':'Wget/1.12'})` se pornrips fetch karta = site UA/fingerprint-block (pure-IP nahi). Wget UA Heroku se pass.  
+**Files:** `aria2_download.py` (`UA_CANDIDATES=('Wget/1.12',BROWSER_UA)`; req_headers UA-free; user `-h User-Agent` → single-attempt override; relay last, uas[-1] ke saath; tag `ua[wget]/ua[mozilla]/relay`)
+
+**Sweep-proof:** .torrent HTTP-fetch sirf 2 jagah — aria2 prefetch (patched) + qbit (already Wget, untouched). direct_listener=DDL, get_content_type-branch torrent-link pe skip — koi purana path nahi.  
+**Tests (UA-aware mock):** T1 wget-first-single-attempt, T2 wget-500→browser-retry, T3 relay-fallback, T4 all-fail-None, T5 user-UA-override single, T6 gates, T7 REAL pornrips Wget-UA 39791B — 7/7 PASS. (Test-assertion bug: REQ_LOG raw-path record.)
