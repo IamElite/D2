@@ -1255,3 +1255,9 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 ### 260902-BO — summary order: Mode Avg-Max ke beech (user design)
 **Git:** `333fe3a`  
 **Fix:** onUploadComplete render order = AVGSPD → MODE → MAXSPD (pehle MODE baad me tha). L_TOTAL_FILES apni jagah last. Render user-sample se exact match; py3.10 102/102.
+
+### 260902-BP — heal-metadata artifacts fix (graph.org diff report: .heal suffix + title-doubling + Menus:3 + fonts-lost)
+**Git:** (push ke baad hash)  
+**Root (BM ka heal mp4 me convert kar raha tha):** mkv→mp4 remux = container change → fonts-drop, stream-title doubling (mp4 title/handler merge), 3x menu-tracks, filename `.heal.mp4` leak.  
+**Fix:** `repair_moov` v2 — **same-container heal** (mkv→mkv `map 0` full-preserving [sandbox: tags byte-identical + attachment survives], mp4→mp4 + stream-title clear flags +faststart); **`os.replace` wapas ORIGINAL naam** (suffix leak root-fixed; khud-banaya `await os_replace` bug test me pakda — sync syscall). Engine: `healed != up_path` guard.  
+**Tests:** mkv same-name/identical-tags/no-leftover, fonts ✓, duration ✓, mp4 branch ✓, unfixable-graceful ✓; py3.10 102/102. BP-note: MetadataX-style caption cards ab clean (no .heal, single Menu, fonts listed).

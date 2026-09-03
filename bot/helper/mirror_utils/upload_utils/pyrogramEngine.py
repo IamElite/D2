@@ -484,13 +484,14 @@ class TgUploader:
                 key = 'videos'
                 duration = (await get_media_info(self.__up_path))[0]
                 if not duration:
-                    # TG-pipeline holes / moov-issues: index rebuild (stream-copy, fast) — phir duration wapas
+                    # TG-pipeline holes / moov-issues: same-container index rebuild (fast) — duration wapas
                     healed = await repair_moov(self.__up_path)
                     if healed:
-                        await aioremove(self.__up_path)
-                        self.__up_path = healed
+                        if healed != self.__up_path:
+                            await aioremove(self.__up_path)
+                            self.__up_path = healed
                         duration = (await get_media_info(self.__up_path))[0]
-                        LOGGER.info(f'Media healed (moov rebuild): {ospath.basename(self.__up_path)}')
+                        LOGGER.info(f'Media healed (index rebuild): {ospath.basename(self.__up_path)}')
                 if thumb is None:
                     thumb = await take_ss(self.__up_path, duration)
                 if thumb is not None:

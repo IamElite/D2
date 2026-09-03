@@ -3,7 +3,7 @@ from time import strftime, gmtime, time
 from re import IGNORECASE, sub as re_sub, search as re_search
 from shlex import split as ssplit
 from natsort import natsorted
-from os import path as ospath
+from os import path as ospath, replace as os_replace
 from aiofiles.os import remove as aioremove, path as aiopath, mkdir, makedirs, listdir
 from aioshutil import rmtree as aiormtree
 from contextlib import suppress
@@ -191,24 +191,39 @@ async def get_audio_thumb(audio_file):
 
 
 async def repair_moov(path):
-    """Duration-0 videos ka moov/index repair — stream-copy (re-encode NahiN, CPU-light).
-    Hole/truncated/index-less files me TG-player 00:00 dikhata tha. Return: repaired path ya None."""
+    """Duration-0 videos ka index/moov repair — stream-copy (re-encode NahiN, CPU-light).
+    SAME-container heal (mkv->mkv, mp4->mp4): attachments/titles/chapters preserve,
+    koi doubling nahi (BM wale mp4-conversion ke artifacts ka fix).
+    Atomic os.replace -> ORIGINAL filename (koi .heal suffix leak nahi). Return: path ya None."""
+    ext = ospath.splitext(path)[1].lower()
+    tmp = path + '.healing' + ext
     try:
-        if await aiopath.exists(path + '.heal.mp4'):
-            await aioremove(path + '.heal.mp4')
-        _, err, rc = await cmd_exec(['ffmpeg', '-y', '-v', 'error', '-i', path,
-                                     '-c', 'copy', '-movflags', '+faststart', path + '.heal.mp4'])
-        if rc != 0 or not await aiopath.exists(path + '.heal.mp4'):
+        if await aiopath.exists(tmp):
+            await aioremove(tmp)
+        if ext in ('.mp4', '.m4v'):
+            cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
+                   '-map_chapters', '0', '-c', 'copy',
+                   '-map_metadata:s:v:0', '-1', '-map_metadata:s:a:0', '-1',
+                   '-movflags', '+faststart', tmp]
+        else:
+            cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
+                   '-map_chapters', '0', '-c', 'copy', tmp]
+        _, err, rc = await cmd_exec(cmd)
+        if rc != 0 or not await aiopath.exists(tmp):
             LOGGER.warning(f'Media heal failed (rc={rc}): {err[-150:]}')
             return None
         chk = await cmd_exec(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                              '-of', 'csv=p=0', path + '.heal.mp4'])
+                              '-of', 'csv=p=0', tmp])
         if not chk[0] or float(chk[0].strip() or 0) <= 0:
-            await aioremove(path + '.heal.mp4')
+            await aioremove(tmp)
             return None
-        return path + '.heal.mp4'
+        os_replace(tmp, path)                # wapas ORIGINAL naam — atomic (sync syscall)
+        return path
     except Exception as e:
         LOGGER.warning(f'Media heal error: {e}')
+        if await aiopath.exists(tmp):
+            with suppress(Exception):
+                await aioremove(tmp)
         return None
 
 
