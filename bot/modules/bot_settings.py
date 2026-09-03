@@ -973,6 +973,9 @@ async def edit_variable(_, message, pre_message, key):
         await initiate_search_tools()
     elif key in ['QUEUE_ALL', 'QUEUE_DOWNLOAD', 'QUEUE_UPLOAD']:
         await start_from_queued()
+    elif key == 'HELPER_TOKENS':
+        from ..helper.ext_utils.hyperul_utils import start_helper_bots
+        await start_helper_bots(str(value))
     elif key in ['RCLONE_SERVE_URL', 'RCLONE_SERVE_PORT', 'RCLONE_SERVE_USER', 'RCLONE_SERVE_PASS']:
         await rclone_serve_booter()
 
@@ -1254,6 +1257,9 @@ async def edit_bot_settings(client, query):
             await initiate_search_tools()
         elif data[2] in ['QUEUE_ALL', 'QUEUE_DOWNLOAD', 'QUEUE_UPLOAD']:
             await start_from_queued()
+        elif data[2] == 'HELPER_TOKENS':
+            from ..helper.ext_utils.hyperul_utils import start_helper_bots
+            await start_helper_bots(str(value))
         elif data[2] in ['RCLONE_SERVE_URL', 'RCLONE_SERVE_PORT', 'RCLONE_SERVE_USER', 'RCLONE_SERVE_PASS']:
             await rclone_serve_booter()
     elif data[1] == 'resetaria':

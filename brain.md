@@ -1198,3 +1198,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `bot_utils.py` (`_cg_read`, `get_container_memory()` cgroup v2/v1→psutil fallback, `get_container_cpu()` usage-delta; get_readable_message footer + get_stats stbot cgroup-aware), `__main__.py` (restart: update.py ko env-override UPSTREAM_REPO/BRANCH = bot ka proven config; rc!=0 → user-visible warning), `update.py` (pull-success pe `Running commit: <hash>` log)
 
 **Tests:** py3.10 full-repo 102/102; cpu helper delta-live (None→1.0); memory fallback; env-override sim PASS. Heroku pe RAM% ab container-limit ka hoga.
+
+### 260902-BG — Helper hot-swap (bina restart; user demand)
+**Git:** (push ke baad hash)  
+**Gap:** `_persist_helpers` (buttons add/remove) already sync karta tha, par generic config-set paths (text editvar + callback editvar) HELPER_TOKENS pe sync nahi karte the + purane helper clients kabhi stop nahi hote (leak).  
+**Files:** `hyperul_utils.py` (`_stop_client` clean-stop, `_started_tokens`+`get_active_helper_tokens()`, `asyncio.Lock`-wrapped `start_helper_bots`→`_locked`), `bot_settings.py` (donon generic config-paths me `HELPER_TOKENS` → instant `start_helper_bots`), `__main__.py` (`_helper_watcher` 30s drift-check → auto-resync; create_task in main)
+
+**Flows covered:** buttons add/remove (pehle se), generic /bset text+callback (naya instant), DB-direct edit (watcher ≤30s). Lock = watcher/handler double-start race safe. Invalid token = fail-ignored, baaki helpers/bot safe.  
+**Tests:** py3.10 full-repo 102/102; stub-client functional A-F (add/remove/clean/invalid/re-add/drift-compare) ALL PASS.

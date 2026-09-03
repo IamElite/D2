@@ -2,7 +2,7 @@ from time import time, monotonic
 from datetime import datetime
 from sys import executable
 from os import environ, execl as osexecl
-from asyncio import create_subprocess_exec, gather, run as asyrun
+from asyncio import create_subprocess_exec, create_task, gather, run as asyrun, sleep as asleep
 from uuid import uuid4
 from base64 import b64decode
 from importlib import import_module, reload
@@ -249,6 +249,20 @@ async def log_check():
                 LOGGER.error(f"Not Connected Chat ID : {chat_id}, ERROR: {e}")
     
 
+async def _helper_watcher():
+    # 30s safety: DB-direct/env edits bhi pick — drift ho to bina-restart resync
+    from .helper.ext_utils.hyperul_utils import start_helper_bots, get_active_helper_tokens
+    while True:
+        await asleep(30)
+        try:
+            want = {t for t in str(config_dict.get('HELPER_TOKENS', '') or '').split() if t.strip()}
+            if want != get_active_helper_tokens():
+                LOGGER.info('HyperUP watcher: HELPER_TOKENS drift — resyncing helpers (no restart)')
+                await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
+        except Exception as e:
+            LOGGER.error(f'HyperUP watcher: {e}')
+
+
 async def main():
     await gather(start_cleanup(), torrent_search.initiate_search_tools(), restart_notification(), search_images(), set_commands(bot), log_check())
     try:
@@ -281,6 +295,7 @@ async def main():
         LOGGER.info(f"HyperUP helpers online: {len(helper_bots)}")
     else:
         LOGGER.info("HyperUP helpers: none (set HELPER_TOKENS for extra bots)")
+    create_task(_helper_watcher())
     signal(SIGINT, exit_clean_up)
 
 async def stop_signals():

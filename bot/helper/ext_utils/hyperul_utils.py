@@ -27,8 +27,42 @@ from ..telegram_helper.tg_transfer import (
 
 LOGGER = getLogger(__name__)
 
+_started_tokens = set()
+_helper_lock = None  # lazy asyncio.Lock (loop-bound safe)
+
+
+def get_active_helper_tokens():
+    return set(_started_tokens)
+
+
+def _get_lock():
+    global _helper_lock
+    if _helper_lock is None:
+        from asyncio import Lock
+        _helper_lock = Lock()
+    return _helper_lock
+
+
+async def _stop_client(c):
+    try:
+        st = c.stop()
+        if hasattr(st, '__await__'):
+            await st
+    except Exception as e:
+        ROOT.warning('HyperUP helper stop failed (ignored): %s', e)
+
 
 async def start_helper_bots(tokens: str):
+    async with _get_lock():
+        await _start_helper_bots_locked(tokens)
+
+
+async def _start_helper_bots_locked(tokens: str):
+    # purane extra helpers clean stop (leak-free rebuild; main bot {0} bacha rehta)
+    for no, c in list(helper_bots.items()):
+        if no != 0 and c is not bot:
+            await _stop_client(c)
+    _started_tokens.clear()
     reset_work_loads()
     helper_bots.clear()
     helper_loads.clear()
@@ -56,6 +90,7 @@ async def start_helper_bots(tokens: str):
                 await st
             helper_bots[no] = h
             helper_loads[no] = 0
+            _started_tokens.add(token.strip())
             uname = getattr(h.me, "username", None) or h.me.first_name
             ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
         except Exception as e:
