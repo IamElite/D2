@@ -1249,5 +1249,5 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** ffprobe-holed=dur-missing (proof), mid-hole=30s (index-safe), heal-missing=graceful, heal-capability=30s-repaired, guard code-verified; py3.10 102/102. BL ka 1575-suffix issue alag pending (user option nahi chuna).
 
 ### 260902-BN — Avg/Max divider removal (user: tight layout)
-**Git:** (push ke baad hash)  
+**Git:** `a4f9ac3`  
 **Fix:** AVGSPD se `┃` divider hata (BL me maine add kiya tha, user ko bhaari/bekaar laga). Ab Avg UL → Max DL seedha, jaise Mode-Total-Files lines. Render-verified + py3.10 102/102.
