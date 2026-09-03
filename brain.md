@@ -1264,6 +1264,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 ## 260902-BQ — Stream-title purge + all-format metadata (STREAM_TITLES)
 **Git:** `90e4a77`  
+**Push:** `71b0174..1e4cf35` DONE. **ORIGIN URL CHANGE: `github.com/IamElite/D2.git`** (purana arnv1/wzv3 404; PAT IamElite account ka, repo list me IamElite/D2 hi hai — arnv1 branch wahi, HEAD 71b0174 se match hua). PAT brain me NAHI — user dena hoga har window me.  
 - **Demand:** user custom stream-titles/tags find karne me dikkat → purane stream-titles REMOVE karke apne lagane; metadata code kisi bhi file-format pe smartly chale (`.mkv/.mp4` ext-gate unacceptable).
 - **Config:** `STREAM_TITLES` env (bot/__init__.py, config_dict) — `''`=off | `purge`=sab stream-titles delete | `purge|v:Video Title|a:Audio Title`=delete+custom set. Per-user overlay BAAD me (users_settings abhi nahi).
 - **ffmpeg.py:** `edit_metadata(..., stream_titles='')` — ext-gate REMOVED (sab formats); overlay me `__purge_stream_titles__`/`__stream_title_v__`/`__stream_title_a__`; `probe_tag_args` purge branch: `tags.pop('title')` + explicit delete-arg `-metadata:s:{pref}:{idx} title=` (EMPTY-VALUE DELETE — arg-missing = INHERIT, yahi root-trick hai) + custom set. tasks_listener: dono edit_metadata calls stream_titles pass.
