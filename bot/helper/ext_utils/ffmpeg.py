@@ -46,7 +46,9 @@ async def probe_tag_args(path, overlay=None):
     args = []
     purge_streams = bool(overlay.get('__purge_stream_titles__'))
     custom_st = (overlay.get('__stream_title_v__'), overlay.get('__stream_title_a__'))
-    fmt = dict((data.get('format') or {}).get('tags') or {})
+    # user-metadata set = auto-purge (uploader ke custom tags GONE, sirf user ke)
+    has_user_meta = any(not k.startswith('__') and v for k, v in overlay.items())
+    fmt = {} if has_user_meta else dict((data.get('format') or {}).get('tags') or {})
     key_map = {
         'title': 'title', 'author': 'author', 'artist': 'artist',
         'comment': 'comment', 'copyright': 'copyright', 'publisher': 'publisher',
@@ -148,6 +150,8 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
+    if any(not k.startswith('__') and v for k, v in overlay.items()):
+        cmd.extend(['-map_metadata', '-1'])  # auto-purge: original tags copy nahi
     cmd.extend(tag_args)
     cmd.append(outfile)
 

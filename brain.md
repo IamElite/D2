@@ -1315,3 +1315,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** `os_path.join` typo; `-y` flag add (repair_moov me tha, edit_metadata me upstream-se missing); move() → `os_replace` (same-fs atomic + overwrite — duplicate-completion idempotent).
 **Lesson (test-harness):** sandbox ns me extra `ospath` tha isliye typo pakda nahi — ab ns = REAL module imports only.
 **Tests:** T1 ext-less+return ✓; T2 duplicate-completion (outfile+dest pre-existing) overwrite + naya title ✓; T3 in-place ✓; T4 purge ✓; ospath-repo-check NONE; py3.10 102/102.
+
+### 260903-BV — Auto-purge: METADATA set = uploader tags CLEAN (user-ask via /ask + graph 47073/47058 diff)
+**Git:** pending  
+
+**Proof:** real (47073) — Movie name/EncodedBy/OFFICIAL_SITE `Power By @Otaku.../AnimeDubHindi`; bot (47058) — user keys overlay ✓ lekin `OFFICIAL_SITE: animedubhindi.co` BACHA (preserve-mode jo key user ne set nahi ki uska purana tag rehta).
+**Design (user chose B):** METADATA set = AUTO-PURGE — `probe_tag_args` has_user_meta → `fmt={}` (original format-tags drop, sirf user keys emit); `edit_metadata` cmd me `-map_metadata -1` (global copy band). METADATA empty → preserve (STREAM_TITLES-only purge ka old behavior intact).
+**Result (T1 tags):** title/copyright/encoded by/telly_hub sirf user ke; OFFICIAL_SITE/ARTIST GONE; encoder=Lavf naya (muxer standard). Stream-titles STREAM_TITLES/system jaisa pehle.
+**Tests:** T1 purge+sirf-user-tags ✓; T2 stream user ✓; T3 metadata-empty preserve+stream-purge ✓; T4 no-config full-preserve ✓; py3.10 102/102.
