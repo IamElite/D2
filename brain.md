@@ -1323,3 +1323,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Design (user chose B):** METADATA set = AUTO-PURGE — `probe_tag_args` has_user_meta → `fmt={}` (original format-tags drop, sirf user keys emit); `edit_metadata` cmd me `-map_metadata -1` (global copy band). METADATA empty → preserve (STREAM_TITLES-only purge ka old behavior intact).
 **Result (T1 tags):** title/copyright/encoded by/telly_hub sirf user ke; OFFICIAL_SITE/ARTIST GONE; encoder=Lavf naya (muxer standard). Stream-titles STREAM_TITLES/system jaisa pehle.
 **Tests:** T1 purge+sirf-user-tags ✓; T2 stream user ✓; T3 metadata-empty preserve+stream-purge ✓; T4 no-config full-preserve ✓; py3.10 102/102.
+
+### 260903-BW — Auto-purge attachment-fix (-map_metadata -1 → per-tag delete)
+**Git:** pending  
+
+**Source:** live — `[matroska] Attachment stream 2 has no filename tag` + `Could not write header` metadata-fail (fail-open OK; heal ne baad me .mkv heal kar diya). BV ka `-map_metadata -1` attachment streams ka mimetype/filename bhi clear karta — matroska inko mangta. Sandbox-PROVEN: A(no -1) attach ✓; B(-1) exact live-error; C(per-tag delete) purge ✓ attach ✓.
+**Fix:** probe_tag_args — orig_fmt snapshot; has_user_meta → jo original keys user ne set NAHI ki (ukeys = key_map.get(uk,uk)) unpe `-metadata k=` delete-args + fmt.pop (emit-loop double na likhe); user keys set/override baad me. edit_metadata se `-map_metadata -1` REMOVED. _TAG_SKIP keys skip (muxer fresh likhta).
+**Tests:** T1 ext-less+attachment+user-meta → .mkv, purge ✓, attachment filename+mimetype intact ✓; T3 metadata-empty full-preserve ✓; T4 override+purge ✓; py3.10 102/102.

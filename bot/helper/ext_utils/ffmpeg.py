@@ -48,7 +48,8 @@ async def probe_tag_args(path, overlay=None):
     custom_st = (overlay.get('__stream_title_v__'), overlay.get('__stream_title_a__'))
     # user-metadata set = auto-purge (uploader ke custom tags GONE, sirf user ke)
     has_user_meta = any(not k.startswith('__') and v for k, v in overlay.items())
-    fmt = {} if has_user_meta else dict((data.get('format') or {}).get('tags') or {})
+    orig_fmt = dict((data.get('format') or {}).get('tags') or {})
+    fmt = dict(orig_fmt)
     key_map = {
         'title': 'title', 'author': 'author', 'artist': 'artist',
         'comment': 'comment', 'copyright': 'copyright', 'publisher': 'publisher',
@@ -65,6 +66,15 @@ async def probe_tag_args(path, overlay=None):
             continue
         if uv:
             fmt[uk] = uv
+    if has_user_meta:
+        # per-tag delete (-map_metadata -1 ki jagah — wo attachment mimetype/filename bhi uda deta)
+        ukeys = {key_map.get(uk, uk).lower() for uk in overlay if not uk.startswith('__') and overlay.get(uk)}
+        for k in list(orig_fmt):
+            kl = str(k).lower()
+            if kl in _TAG_SKIP or kl in ukeys or kl.replace('_', ' ') in ukeys:
+                continue
+            args.extend(['-metadata', f'{k}='])   # empty-value = delete
+            fmt.pop(k, None)                      # emit-loop dobara na likhe
     for k, v in fmt.items():
         if str(k).lower() in _TAG_SKIP or v is None or v == '':
             continue
@@ -150,8 +160,6 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
-    if any(not k.startswith('__') and v for k, v in overlay.items()):
-        cmd.extend(['-map_metadata', '-1'])  # auto-purge: original tags copy nahi
     cmd.extend(tag_args)
     cmd.append(outfile)
 
