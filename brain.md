@@ -1317,7 +1317,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 ext-less+return ✓; T2 duplicate-completion (outfile+dest pre-existing) overwrite + naya title ✓; T3 in-place ✓; T4 purge ✓; ospath-repo-check NONE; py3.10 102/102.
 
 ### 260903-BV — Auto-purge: METADATA set = uploader tags CLEAN (user-ask via /ask + graph 47073/47058 diff)
-**Git:** pending  
+**Git:** `4945d07`  
 
 **Proof:** real (47073) — Movie name/EncodedBy/OFFICIAL_SITE `Power By @Otaku.../AnimeDubHindi`; bot (47058) — user keys overlay ✓ lekin `OFFICIAL_SITE: animedubhindi.co` BACHA (preserve-mode jo key user ne set nahi ki uska purana tag rehta).
 **Design (user chose B):** METADATA set = AUTO-PURGE — `probe_tag_args` has_user_meta → `fmt={}` (original format-tags drop, sirf user keys emit); `edit_metadata` cmd me `-map_metadata -1` (global copy band). METADATA empty → preserve (STREAM_TITLES-only purge ka old behavior intact).
