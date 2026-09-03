@@ -1206,3 +1206,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Flows covered:** buttons add/remove (pehle se), generic /bset text+callback (naya instant), DB-direct edit (watcher ≤30s). Lock = watcher/handler double-start race safe. Invalid token = fail-ignored, baaki helpers/bot safe.  
 **Tests:** py3.10 full-repo 102/102; stub-client functional A-F (add/remove/clean/invalid/re-add/drift-compare) ALL PASS.
+
+### 260902-BH — yt-dlp impersonation (CF anti-bot 403 fix; luciferdonghua/Rumble case)
+**Git:** (push ke baad hash)  
+**Root:** CF-fronted hosts (rumble embed/hls, luciferdonghua-page) Heroku pe yt-dlp ko 403 challenge dete hain; bot ke yt-dlp me curl_cffi nahi → impersonation unavailable → /yl crash. Sandbox IP blocked nahi (403 repro impossible) — fix = yt-dlp ka apna recommended path.  
+**Files:** `requirements.txt` (+curl-cffi), `yt_dlp_download.py` (`_detect_impersonate()` module-singleton: curl_cffi-import + YoutubeDL-init hard-validate; `add_impersonate()` copy-on-add + user-override setdefault), `ytdlp.py` (extract_info wire)
+
+**Learnings:** python-API me `impersonate` = **ImpersonateTarget object** (string → AssertionError); curl_cffi missing + blind-set = **hard YoutubeDLError** (sab /yl mar jate) — isliye detect-validate pattern. Global option = host-agnostic (rumble/dood/koi bhi CF-host).  
+**Tests:** py3.10 102/102; helper A/B/C (detect-add-copy, user-override, no-dep untouched); E2E rumble m3u8 with ImpersonateTarget = 6 formats. Luci-page iframe-hunter = future /plan (scope tight rakha).

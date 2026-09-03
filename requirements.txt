@@ -46,6 +46,7 @@ uv
 uvloop==0.21.0
 xattr
 yt-dlp
+curl-cffi
 setuptools
 pymediainfo
 pyaes

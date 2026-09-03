@@ -15,6 +15,32 @@ from ...ext_utils.task_manager import is_queued, stop_duplicate_check, limit_che
 LOGGER = getLogger(__name__)
 
 
+def _detect_impersonate():
+    """curl_cffi + yt-dlp impersonation available ho tabhi target — warna None.
+    Validation wahi jo YoutubeDL init karta hai (missing dep pe hard-error hota hai,
+    isliye blind-set kabhi nahi — /yl CF-403 sites ke liye chrome TLS-fingerprint)."""
+    try:
+        from curl_cffi import __version__ as _ccv  # noqa: F401
+        from yt_dlp import YoutubeDL as _YDL
+        from yt_dlp.networking.impersonate import ImpersonateTarget
+        target = ImpersonateTarget('chrome')
+        with _YDL({'quiet': True, 'impersonate': target}):
+            return target
+    except Exception:
+        return None
+
+
+_IMPERSONATE_TARGET = _detect_impersonate()
+
+
+def add_impersonate(opts):
+    """opts me impersonation add karo (agar available + user ne khud set na kiya ho)."""
+    if _IMPERSONATE_TARGET is not None and 'impersonate' not in opts:
+        opts = dict(opts)
+        opts['impersonate'] = _IMPERSONATE_TARGET
+    return opts
+
+
 class MyLogger:
     def __init__(self, obj):
         self.obj = obj
@@ -75,6 +101,7 @@ class YoutubeDLHelper:
                                                'fragment': lambda n: 3,
                                                'file_access': lambda n: 3,
                                                'extractor': lambda n: 3}}
+        self.opts = add_impersonate(self.opts)
 
     @property
     def download_speed(self):
