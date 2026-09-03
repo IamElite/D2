@@ -1115,7 +1115,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Seekh dobara:** naya format har status-class ke type pe test hota (aria2 timedelta vs TG seconds).
 
 ### 260902-AU — Bot PM option Universal Settings se remove (Leech me rakha)
-**Git:** (push ke baad hash)  
+**Git:** `9b4d53b`  
 **OLD:** AU-prior — Bot PM toggle 2 jagah (Universal + Leech) duplicate  
 **Files:** `users_settings.py` (universal block: 3 lines + kwarg), `kpsml_minimal.py` (UNIVERSAL template)
 
