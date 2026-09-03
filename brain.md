@@ -1228,7 +1228,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Seekh:** patch me jab bhi "already imported?" conditional ho — to jo SYMBOL chahiye WOHI grep karo, family nahi.
 
 ### 260902-BK — beeg generic-title fix (site-caption se asli naam; scoped)
-**Git:** (push ke baad hash)  
+**Git:** `d8a7402`  
 **Root:** beeg API ne schema badla (`stuff.sf_name` → `file.data[] cd_column/cd_value`) — yt-dlp extractor purane path pe → title generic fallback `Beeg video #<id>` → filename garbage.  
 **Files:** `yt_dlp_download.py` (`is_generic_title()` + `fix_generic_title()`; extractMetaData me non-playlist `result['title']` patch — single choke-point: self.name/outtmpl/leech-name sab isi se)  
 **Scope (user-dandi):** sirf generic-pattern titles + sirf beeg (verified source). Good titles/non-beeg = untouched. API-dead = original title, no crash.  
