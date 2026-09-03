@@ -1279,7 +1279,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - **Tests (sandbox real.mkv 2 streams+chapters):** purge-only ✓ titles-gone; purge+custom `['JoJo 1080p HQ','Hindi 5.1']` ✓; chapters ✓; mp4-out ✓; empty-config old-path ✓; incompatible-remux (h264→webm) graceful fail ✓. py3.10 102/102.
 
 ### 260903-BR — Metadata settings UI: Set/Remove per-key + Custom Tag buttons (2x2)
-**Git:** pending  
+**Git:** `73e1a9e`  
 
 **Demand:** user-settings leech metadata me tag set karne ke baad REMOVE ka option hi nahi tha. Per-key tap pe: set hai → Set/Change + Remove + Back; not-set → only Set + Back. End me Custom Tag favourite-buttons (add/remove) — click pe 4 options 2x2: Set Value | Remove Value / Remove Button | Back.
 **Files:** `users_settings.py` (META_KEYS constant — 3 dup lists collapse; `get_custom_btns()` helper; menu-builder custom-buttons section + ➕ New Button header; new callbacks: `md_key` submenu, `md_rm`, `md_cbtn` 2x2, `md_cset`, `md_crmval`, `md_crmbtn`, `md_cadd`; `add_custom_md_btn()` setter; md_edit Cancel→`md_key {idx}`), `ffmpeg.py` (`probe_tag_args` unknown-key passthrough — custom labels raw tags bane).
