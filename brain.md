@@ -1157,7 +1157,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Design:** direct-first; fail (non-200/exception) pe env `TORRENT_PREFETCH_PROXY` engage — `{url}` placeholder = relay-template (quote-encoded), warna HTTP-proxy (aiohttp proxy=). Sab routes fail → None → direct-add fallback (AZ-prior chain intact). **Site-agnostic** — koi bhi blocked site. **Tests (mock-relay e2e):** direct+file-survives-return (finally-bug regression — cleanup sirf except me), 404→template-relay OK, 404→dead-proxy graceful-None, no-env-404 None, gates — 5/5 PASS. CF-worker snippet chat me diya.
 
 ### 260902-BA — ETA clock-format poore status-family me (qbit+9 missed, user ne pakda)
-**Git:** (push ke baad hash)  
+**Git:** `2cbf21a`  
 **OLD:** AQ slip — sirf aria2+telegram patch hue the; qBit status me `ETA: 33m57s` purana dikh raha tha  
 **Files:** `status_utils/`: qbit, attachment, ddl, direct, extract, gdrive, mega_download, metadata, yt_dlp(2 spots), zip — eta-block `get_readable_time`→`clock_fmt` + imports; rclone — `clock_fmt(obj.eta) or obj.eta` (unparseable fallback); split — `'0s'`→`'00:00:00'`; queue `'-'` untouched
 
