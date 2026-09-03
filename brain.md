@@ -1277,3 +1277,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - **ffmpeg.py:** `edit_metadata(..., stream_titles='')` — ext-gate REMOVED (sab formats); overlay me `__purge_stream_titles__`/`__stream_title_v__`/`__stream_title_a__`; `probe_tag_args` purge branch: `tags.pop('title')` + explicit delete-arg `-metadata:s:{pref}:{idx} title=` (EMPTY-VALUE DELETE — arg-missing = INHERIT, yahi root-trick hai) + custom set. tasks_listener: dono edit_metadata calls stream_titles pass.
 - **Bonus fix (pre-existing):** error-path `await suproc.stderr.read().decode()` → AttributeError on ffmpeg-fail; fixed `(await ...read()).decode(errors='ignore')` — fail-open (original intact, upload unchanged).
 - **Tests (sandbox real.mkv 2 streams+chapters):** purge-only ✓ titles-gone; purge+custom `['JoJo 1080p HQ','Hindi 5.1']` ✓; chapters ✓; mp4-out ✓; empty-config old-path ✓; incompatible-remux (h264→webm) graceful fail ✓. py3.10 102/102.
+
+### 260903-BR — Metadata settings UI: Set/Remove per-key + Custom Tag buttons (2x2)
+**Git:** pending  
+
+**Demand:** user-settings leech metadata me tag set karne ke baad REMOVE ka option hi nahi tha. Per-key tap pe: set hai → Set/Change + Remove + Back; not-set → only Set + Back. End me Custom Tag favourite-buttons (add/remove) — click pe 4 options 2x2: Set Value | Remove Value / Remove Button | Back.
+**Files:** `users_settings.py` (META_KEYS constant — 3 dup lists collapse; `get_custom_btns()` helper; menu-builder custom-buttons section + ➕ New Button header; new callbacks: `md_key` submenu, `md_rm`, `md_cbtn` 2x2, `md_cset`, `md_crmval`, `md_crmbtn`, `md_cadd`; `add_custom_md_btn()` setter; md_edit Cancel→`md_key {idx}`), `ffmpeg.py` (`probe_tag_args` unknown-key passthrough — custom labels raw tags bane).
+**Storage:** `user_dict['md_custom']` = `Label1|Label2` (sanitize: `:|` strip, 32-char, max 10, dedupe case-insensitive); custom VALUES normal `metadata` string me `Label:Value` — leech-time tasks_listener automatically apply. Label == metadata key.
+**Container-limit (proven):** mp4 muxer unknown keys silently drop karta hai (exit-0, whitelist-only: title/comment/artist...) — custom tags sirf mkv/webm pe likhe jate hain (MY_CHANNEL uppercase-normalized). No crash, graceful.
+**Tests:** T1a mkv custom+known+purge ✓; T1b mp4 comment ✓ + unknown-drop ✓; T2 parse/rejoin/labels/sanitize ✓; T3 7 new callbacks wired + META_KEYS single-source ✓; T4 layouts (2x2 + submenu) ✓; py3.10 102/102.

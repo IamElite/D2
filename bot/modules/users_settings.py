@@ -9,6 +9,7 @@ from os import path as ospath, getcwd
 from PIL import Image
 from time import time
 from functools import partial
+from re import sub as re_sub
 from html import escape
 from io import BytesIO
 from asyncio import sleep
@@ -42,6 +43,10 @@ def parse_metadata_str(string):
     return d
 
 handler_dict = {}
+META_KEYS = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
+
+def get_custom_btns(user_dict):
+    return [l for l in (user_dict.get('md_custom') or '').split('|') if l]
 desp_dict = {'rcc': ['RClone is a command-line program to sync files and directories to and from different cloud storage providers like GDrive, OneDrive...', 'Send rclone.conf. \n<b>Timeout:</b> 60 sec'],
             'lprefix': ['Leech Filename Prefix is the Front Part attacted with the Filename of the Leech Files.', 'Send Leech Filename Prefix. Documentation Here : <a href="https://t.me/Rare_Leech_Mirror_Hub/5">Click Me</a> \n<b>Timeout:</b> 60 sec'],
             'lsuffix': ['Leech Filename Suffix is the End Part attached with the Filename of the Leech Files', 'Send Leech Filename Suffix. Documentation Here : <a href="https://t.me/Rare_Leech_Mirror_Hub/5">Click Me</a> \n<b>Timeout:</b> 60 sec'],
@@ -232,13 +237,21 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
-        text += "\n<i>Click on any field below to modify its value manually:</i>"
-        
-        meta_keys = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
+        text += "\n<i>Tap any field below to configure it (Set / Remove):</i>"
+
+        meta_keys = META_KEYS
         for index, mkey in enumerate(meta_keys):
             has_val = "✅ " if mkey in meta_dict else "❌ "
-            buttons.ibutton(f"{has_val}{mkey}", f"userset {user_id} md_edit {index}")
-            
+            buttons.ibutton(f"{has_val}{mkey}", f"userset {user_id} md_key {index}")
+
+        custom_btns = get_custom_btns(user_dict)
+        if custom_btns:
+            text += "\n\n<i>Your Custom Tag Buttons:</i>"
+            for index, label in enumerate(custom_btns):
+                has_val = "✅ " if label in meta_dict else "❌ "
+                buttons.ibutton(f"🎯 {has_val}{label}", f"userset {user_id} md_cbtn {index}")
+
+        buttons.ibutton("➕ New Button", f"userset {user_id} md_cadd", "header")
         buttons.ibutton("✨ Set All Metadata", f"userset {user_id} md_set_all", "header")
         buttons.ibutton("↻ Clear All", f"userset {user_id} md_clear_all", "header")
         buttons.ibutton("Back", f"userset {user_id} back leech", "footer")
@@ -548,12 +561,27 @@ async def set_metadata_key(client, message, pre_event, mkey):
     if DATABASE_URL:
         await DbManger().update_user_data(user_id)
 
+async def add_custom_md_btn(client, message, pre_event):
+    user_id = message.from_user.id
+    handler_dict[user_id] = False
+    label = (message.text or '').strip()
+    await deleteMessage(message)
+    if label:
+        label = re_sub(r'\s+', ' ', label.replace(':', ' ').replace('|', ' '))[:32].strip()
+        labels = get_custom_btns(user_data.get(user_id, {}))
+        if label and len(labels) < 10 and label.lower() not in [l.lower() for l in labels]:
+            labels.append(label)
+            update_user_ldata(user_id, 'md_custom', '|'.join(labels))
+    await update_user_settings(pre_event, 'metadata_menu')
+    if DATABASE_URL:
+        await DbManger().update_user_data(user_id)
+
 async def set_all_metadata(client, message, pre_event):
     user_id = message.from_user.id
     handler_dict[user_id] = False
     value = message.text.strip() if message.text else ""
     if value:
-        meta_keys = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
+        meta_keys = META_KEYS
         new_meta_str = '|'.join([f"{k}:{value}" for k in meta_keys])
         update_user_ldata(user_id, 'metadata', new_meta_str)
     else:
@@ -826,11 +854,11 @@ async def edit_user_settings(client, query):
     elif data[2] == 'md_edit':
         await query.answer()
         idx = int(data[3])
-        meta_keys = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
+        meta_keys = META_KEYS
         mkey = meta_keys[idx]
         text = f"⚙️ <b><u>Set Leech Metadata: {mkey}</u></b>\n\nSend the value you want to assign to <b>{mkey}</b>.\n\n<b>Timeout:</b> 60 sec"
         buttons = ButtonMaker()
-        buttons.ibutton("Cancel / Back", f"userset {user_id} metadata")
+        buttons.ibutton("Cancel / Back", f"userset {user_id} md_key {idx}")
         await editMessage(message, text, buttons.build_menu(1))
         pfunc = partial(set_metadata_key, pre_event=query, mkey=mkey)
         rfunc = partial(update_user_settings, query, 'metadata_menu')
@@ -850,6 +878,98 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'metadata_menu')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
+    elif data[2] == 'md_key':
+        await query.answer()
+        idx = int(data[3])
+        mkey = META_KEYS[idx]
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+        cur = meta_dict.get(mkey)
+        state = f"➲ Current Value: <code>{escape(trun(cur, 60))}</code>" if cur else "➲ Status: <i>Not Set</i>"
+        text = f"⚙️ <b><u>Leech Metadata: {mkey}</u></b>\n\n{state}\n\n<i>Tap 'Set' to enter value{' / Remove to delete it' if cur else ''}.</i>"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton(f"✏️ {'Change' if cur else 'Set'}", f"userset {user_id} md_edit {idx}")
+        if cur:
+            mbuttons.ibutton("🗑 Remove", f"userset {user_id} md_rm {idx}")
+        mbuttons.ibutton("⬅ Back", f"userset {user_id} metadata")
+        await editMessage(message, text, mbuttons.build_menu(2))
+    elif data[2] == 'md_rm':
+        idx = int(data[3])
+        mkey = META_KEYS[idx]
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+        meta_dict.pop(mkey, None)
+        update_user_ldata(user_id, 'metadata', '|'.join([f"{k}:{v}" for k, v in meta_dict.items() if v]))
+        await query.answer(f"{mkey} removed!")
+        await update_user_settings(query, 'metadata_menu')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
+    elif data[2] == 'md_cbtn':
+        await query.answer()
+        idx = int(data[3])
+        labels = get_custom_btns(user_dict)
+        if idx >= len(labels):
+            return await update_user_settings(query, 'metadata_menu')
+        label = labels[idx]
+        cur = parse_metadata_str(user_dict.get('metadata', '')).get(label)
+        state = f"➲ Current Value: <code>{escape(trun(cur, 60))}</code>" if cur else "➲ Status: <i>No Value Set</i>"
+        text = f"🎯 <b><u>Custom Tag Button: {escape(label)}</u></b>\n\n{state}"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("✏️ Set Value", f"userset {user_id} md_cset {idx}")
+        mbuttons.ibutton("🗑 Remove Value", f"userset {user_id} md_crmval {idx}")
+        mbuttons.ibutton("❌ Remove Button", f"userset {user_id} md_crmbtn {idx}")
+        mbuttons.ibutton("⬅ Back", f"userset {user_id} metadata")
+        await editMessage(message, text, mbuttons.build_menu(2))
+    elif data[2] == 'md_cset':
+        await query.answer()
+        idx = int(data[3])
+        labels = get_custom_btns(user_dict)
+        if idx >= len(labels):
+            return await update_user_settings(query, 'metadata_menu')
+        label = labels[idx]
+        text = f"🎯 <b><u>Set Value: {escape(label)}</u></b>\n\nSend the value for <b>{escape(label)}</b>.\n\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} md_cbtn {idx}")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_metadata_key, pre_event=query, mkey=label)
+        rfunc = partial(update_user_settings, query, 'metadata_menu')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'md_crmval':
+        idx = int(data[3])
+        labels = get_custom_btns(user_dict)
+        if idx >= len(labels):
+            return await update_user_settings(query, 'metadata_menu')
+        label = labels[idx]
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+        meta_dict.pop(label, None)
+        update_user_ldata(user_id, 'metadata', '|'.join([f"{k}:{v}" for k, v in meta_dict.items() if v]))
+        await query.answer(f"Value of {label} removed!")
+        await update_user_settings(query, 'metadata_menu')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
+    elif data[2] == 'md_crmbtn':
+        idx = int(data[3])
+        labels = get_custom_btns(user_dict)
+        if idx >= len(labels):
+            return await update_user_settings(query, 'metadata_menu')
+        label = labels.pop(idx)
+        update_user_ldata(user_id, 'md_custom', '|'.join(labels))
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+        meta_dict.pop(label, None)
+        update_user_ldata(user_id, 'metadata', '|'.join([f"{k}:{v}" for k, v in meta_dict.items() if v]))
+        await query.answer(f"Button {label} removed!")
+        await update_user_settings(query, 'metadata_menu')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
+    elif data[2] == 'md_cadd':
+        await query.answer()
+        text = ("➕ <b><u>New Custom Tag Button</u></b>\n\n"
+                "Send a name for your favourite tag button (e.g. <code>My Channel</code>).\n"
+                "➲ Max 10 buttons, <code>:</code> and <code>|</code> not allowed.\n\n<b>Timeout:</b> 60 sec")
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} metadata")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(add_custom_md_btn, pre_event=query)
+        rfunc = partial(update_user_settings, query, 'metadata_menu')
+        await event_handler(client, query, pfunc, rfunc)
     elif data[2] in ['lprefix', 'lsuffix', 'lremname', 'lcaption', 'ldump', 'mprefix', 'msuffix', 'mremname', 'lattachment', 'autorename_format', 'custom_title']:
         handler_dict[user_id] = False
         await query.answer()

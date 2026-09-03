@@ -57,6 +57,12 @@ async def probe_tag_args(path, overlay=None):
     for uk, fk in key_map.items():
         if overlay.get(uk):
             fmt[fk] = overlay[uk]
+    # unknown/custom keys pass-through raw (custom-tag buttons) — _TAG_SKIP emit-loop me filter hota
+    for uk, uv in overlay.items():
+        if uk.startswith('__') or uk in key_map:
+            continue
+        if uv:
+            fmt[uk] = uv
     for k, v in fmt.items():
         if str(k).lower() in _TAG_SKIP or v is None or v == '':
             continue
