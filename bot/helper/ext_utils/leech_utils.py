@@ -113,6 +113,9 @@ async def get_media_info(path, metadata=False):
         return (0, "", "", "") if metadata else (0, None, None)
     ffresult = eval(result[0])
     fields = ffresult.get('format')
+    if fields is None or not fields.get('duration'):
+        # diagnosis: moov-missing/truncated/hole files ka sign — downstream heal/verify inko pakdega
+        LOGGER.warning(f"Media duration missing (size={await aiopath.getsize(path) if await aiopath.exists(path) else '?'}): ff-stderr={result[1][-200:] or 'none'}")
     if fields is None:
         LOGGER.error(f"Media Info Sections: {result}")
         return (0, "", "", "") if metadata else (0, None, None)
@@ -185,6 +188,28 @@ async def get_audio_thumb(audio_file):
             f'Error while extracting thumbnail from audio. Name: {audio_file} stderr: {err}')
         return None
     return des_dir
+
+
+async def repair_moov(path):
+    """Duration-0 videos ka moov/index repair — stream-copy (re-encode NahiN, CPU-light).
+    Hole/truncated/index-less files me TG-player 00:00 dikhata tha. Return: repaired path ya None."""
+    try:
+        if await aiopath.exists(path + '.heal.mp4'):
+            await aioremove(path + '.heal.mp4')
+        _, err, rc = await cmd_exec(['ffmpeg', '-y', '-v', 'error', '-i', path,
+                                     '-c', 'copy', '-movflags', '+faststart', path + '.heal.mp4'])
+        if rc != 0 or not await aiopath.exists(path + '.heal.mp4'):
+            LOGGER.warning(f'Media heal failed (rc={rc}): {err[-150:]}')
+            return None
+        chk = await cmd_exec(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                              '-of', 'csv=p=0', path + '.heal.mp4'])
+        if not chk[0] or float(chk[0].strip() or 0) <= 0:
+            await aioremove(path + '.heal.mp4')
+            return None
+        return path + '.heal.mp4'
+    except Exception as e:
+        LOGGER.warning(f'Media heal error: {e}')
+        return None
 
 
 async def take_ss(video_file, duration=None, total=1, gen_ss=False):

@@ -28,7 +28,7 @@ from ...telegram_helper.button_build import ButtonMaker
 from ...telegram_helper.message_utils import editReplyMarkup, sendMultiMessage, chat_info, deleteMessage, get_tg_link_content
 from ...ext_utils.fs_utils import clean_unwanted, is_archive, get_base_name, is_ext_allowed, DEFAULT_EXCLUDED_EXTS
 from ...ext_utils.bot_utils import is_telegram_link, is_url, sync_to_async, download_image_url
-from ...ext_utils.leech_utils import get_audio_thumb, get_media_info, get_document_type, take_ss, get_ss, get_mediainfo_link, format_filename, remux_container
+from ...ext_utils.leech_utils import get_audio_thumb, get_media_info, get_document_type, take_ss, get_ss, get_mediainfo_link, format_filename, remux_container, repair_moov
 
 LOGGER = getLogger(__name__)
 getLogger("pyrogram").setLevel(ERROR)
@@ -483,6 +483,14 @@ class TgUploader:
             elif is_video:
                 key = 'videos'
                 duration = (await get_media_info(self.__up_path))[0]
+                if not duration:
+                    # TG-pipeline holes / moov-issues: index rebuild (stream-copy, fast) — phir duration wapas
+                    healed = await repair_moov(self.__up_path)
+                    if healed:
+                        await aioremove(self.__up_path)
+                        self.__up_path = healed
+                        duration = (await get_media_info(self.__up_path))[0]
+                        LOGGER.info(f'Media healed (moov rebuild): {ospath.basename(self.__up_path)}')
                 if thumb is None:
                     thumb = await take_ss(self.__up_path, duration)
                 if thumb is not None:

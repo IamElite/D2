@@ -204,7 +204,7 @@ class HypertgDownload(HypertgTransfer):
         async def _write(off, data):
             nonlocal done
             if not data:
-                return
+                raise RuntimeError(f'HyperDL empty chunk @ {off} — hole-proof fallback')
             pwrite(fd, data, off)
             done += len(data)
             if progress:
@@ -241,7 +241,9 @@ class HypertgDownload(HypertgTransfer):
             for t in inflight:
                 t.cancel()
             os_close(fd)
-        if done < size * 0.95:
+        if done < size:
+            # STRICT 100%: holes = corrupt media (moov/END chunks missing -> duration 00:00).
+            # Purana 95% allow TG-file me holes chhod raha tha — ab native fallback self-heal karega.
             LOGGER.error("HyperDL incomplete %s/%s err=%s using_dc=%s — fallback", done, size, first_err[0], self._dc)
             return None
         LOGGER.info("HyperDL done %s bytes dc=%s", done, self._dc)

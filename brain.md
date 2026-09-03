@@ -1240,3 +1240,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `tasks_listener.py` (`avg_dl` size/dl-window @download-end; render AVGSPD+MAXSPD; tg.upload-post avg_ul=size/engine-window fallback), `pyrogramEngine.py` (`_ul_engine_t0` @__user_settings), `kpsml_minimal.py` (AVGSPD key `Avg DL/UL Speed` + `┃` + MAXSPD labels `Max DL/UL Speed`)  
 **Avg math:** bytes ÷ total-seconds (true average; inst-sampling ka jhooth nahi). Fallbacks: engine-t0 miss → old _ul_t0/size path.  
 **Tests:** render preview exact user-design; avg-math 3.91MB/s sample-match; py3.10 102/102.
+
+### 260902-BM — TG-download duration 00:00 fix (pipeline holes + moov heal)
+**Git:** (push ke baad hash)  
+**Root (sandbox-proof):** HyperDL `_pipeline` me `done < size*0.95` → 5% holes ACCEPT; TG-video ka moov END me — end-chunks hole → ffprobe `moov atom not found` → duration=0 → player 00:00. Pipeline sirf TG ≥50MB use hota — isliye sirf TG files me (yt-dlp/torrent normal-write).  
+**Files:** `hyperdl_utils.py` (`done < size` STRICT 100% → native fallback self-heal; empty-chunk silent-skip → RuntimeError→fallback), `leech_utils.py` (`get_media_info` duration-missing diagnostic warn; `repair_moov()` — ffmpeg `-c copy +faststart` re-encode-NAHI, verified-duration ya None), `pyrogramEngine.py` (video-branch: duration==0 → heal → replace+re-fetch; guard = sirf broken)
+
+**Tests:** ffprobe-holed=dur-missing (proof), mid-hole=30s (index-safe), heal-missing=graceful, heal-capability=30s-repaired, guard code-verified; py3.10 102/102. BL ka 1575-suffix issue alag pending (user option nahi chuna).
