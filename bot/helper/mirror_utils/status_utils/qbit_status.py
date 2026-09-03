@@ -2,7 +2,7 @@
 from asyncio import sleep
 
 from .... import LOGGER, get_client, QbTorrents, qb_listener_lock
-from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time, sync_to_async
+from ...ext_utils.bot_utils import clock_fmt, EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time, sync_to_async
 
 
 def get_download(client, tag):
@@ -49,7 +49,7 @@ class QbittorrentStatus:
         return get_readable_file_size(self.__info.size)
 
     def eta(self):
-        return get_readable_time(self.__info.eta)
+        return clock_fmt(self.__info.eta)
 
     def status(self):
         self.__update()

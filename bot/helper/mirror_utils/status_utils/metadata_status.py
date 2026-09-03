@@ -2,7 +2,7 @@
 from time import time
 
 from .... import LOGGER
-from ...ext_utils.bot_utils import EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time, async_to_sync
+from ...ext_utils.bot_utils import clock_fmt, EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time, async_to_sync
 from ...ext_utils.fs_utils import get_path_size
 
 
@@ -44,7 +44,7 @@ class MetadataStatus:
     def eta(self):
         try:
             seconds = (self.__size - self.processed_raw()) / self.speed_raw()
-            return get_readable_time(seconds)
+            return clock_fmt(seconds)
         except:
             return '-'
 

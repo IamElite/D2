@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time, async_to_sync
+from ...ext_utils.bot_utils import clock_fmt, EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time, async_to_sync
 from ...ext_utils.fs_utils import get_path_size
 
 
@@ -40,11 +40,11 @@ class YtDlpDownloadStatus:
 
     def eta(self):
         if self.__obj.eta != '-':
-            return get_readable_time(self.__obj.eta)
+            return clock_fmt(self.__obj.eta)
         try:
             seconds = (self.__obj.size - self.processed_raw()) / \
                 self.__obj.download_speed
-            return get_readable_time(seconds)
+            return clock_fmt(seconds)
         except:
             return '-'
 

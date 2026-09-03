@@ -28,7 +28,7 @@ class SplitStatus:
         return get_readable_file_size(self.__size)
 
     def eta(self):
-        return '0s'
+        return '00:00:00'
 
     def status(self):
         return MirrorStatus.STATUS_SPLITTING

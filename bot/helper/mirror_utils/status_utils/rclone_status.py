@@ -1,4 +1,4 @@
-from ...ext_utils.bot_utils import EngineStatus, MirrorStatus
+from ...ext_utils.bot_utils import clock_fmt, EngineStatus, MirrorStatus
 
 
 class RcloneStatus:
@@ -25,7 +25,7 @@ class RcloneStatus:
         return self.__obj.size
 
     def eta(self):
-        return self.__obj.eta
+        return clock_fmt(self.__obj.eta) or self.__obj.eta
 
     def status(self):
         if self.__status == 'dl':

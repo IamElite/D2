@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from ...ext_utils.bot_utils import EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time
+from ...ext_utils.bot_utils import clock_fmt, EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time
 
 
 class MegaDownloadStatus:
@@ -34,7 +34,7 @@ class MegaDownloadStatus:
         try:
             seconds = (self.__size - self.__obj.downloaded_bytes) / \
                 self.__obj.speed
-            return get_readable_time(seconds)
+            return clock_fmt(seconds)
         except ZeroDivisionError:
             return '-'
 
