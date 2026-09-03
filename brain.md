@@ -1122,7 +1122,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** Universal se button + `Bot PM : Enabled` status hata; `Save Mode` ab `┖` closer. **Leech page untouched** (button+status+callback) — functionality zero change (engine/BOT_PM config jaise hai).
 
 ### 260902-AV — Include/Exclude Ext user filters (Universal Settings)
-**Git:** (push ke baad hash)  
+**Git:** `8297dda`  
 **OLD:** AV-prior — koi user ext-filter nahi tha (sirf global GLOBAL_EXTENSION_FILTER)  
 **Files:** `fs_utils.py` (DEFAULT_EXCLUDED_EXTS + `is_ext_allowed()`), `pyrogramEngine.py` (upload() me per-file filter), `users_settings.py` (9 spots: desp/fname dicts, universal buttons+text, edit views, callbacks reuse yt_opt flow, set_custom parser, `/cmd -s` list), `kpsml_minimal.py` (UNIVERSAL +2 lines)
 
