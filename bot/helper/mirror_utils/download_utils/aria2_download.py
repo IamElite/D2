@@ -32,12 +32,13 @@ async def _rclone_fetch(link, tmp_path):
     try:
         _, err, rc = await cmd_exec(['rclone', 'copyurl', link, tmp_path,
                                      '--no-check-certificate',
+                                     '--header', 'User-Agent: Wget/1.12',
                                      '--contimeout', '30s', '--timeout', '30s'])
     except Exception as e:
         LOGGER.warning(f'Torrent pre-fetch [rclone]: {e}')
         return False
     if rc != 0 or not await aiopath.exists(tmp_path):
-        LOGGER.warning(f'Torrent pre-fetch [rclone]: exit={rc} {err[:120]}')
+        LOGGER.warning(f'Torrent pre-fetch [rclone]: exit={rc} {err.replace(chr(10), ' | ')}')
         return False
     if await aiopath.getsize(tmp_path) > TORRENT_MAX_SIZE:
         LOGGER.warning('Torrent pre-fetch [rclone]: oversized, skip')
