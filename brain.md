@@ -1296,3 +1296,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix (probe sirf ext-less pe — ext-present old-path byte-identical):** `ffmpeg.py` `_MUX_PRIORITY` + `media_muxer()` (ffprobe format_name → mp4/matroska/webm/mov/mpegts/avi/... ya None); `edit_metadata` outfile ext-less → `-f <mux>` (probe-None → skip, junk-safe); `leech_utils.repair_moov` ext-less → same `-f` + mp4_mode by mux (same-container heal preserve); `.mka` `get_media_info` whitelist me added (mediainfo ab audio pe bhi).
 **Trap caught (own test):** pehle probe-gate dono pe laga tha → broken-moov (heal ka MAIN case) ffprobe-se unknown hota hai → heal skip ho jata — gate sirf ext-less pe shift kiya.
 **Tests:** T1 ext-less mp4 metadata ✓; T2 ext-less mkv purge ✓; T3 junk skip ✓; T4 .mkv regression ✓; T5 heal ext-less mp4 ✓; T6a broken .mp4 = old-code identical graceful ✓ (T6b healthy heal ✓); T7 heal ext-less mkv ✓; T8 broken ext-less skip ✓; T9 .mka whitelist ✓; py3.10 102/102.
+
+### 260903-BT — Metadata har media pe + ext-less default .mkv
+**Git:** pending  
+
+**Demand:** (1) koi bhi file pe metadata lage (audio bhi), (3) ext-less filename → default `.mkv`. (#2 remove-caption stale — state-logic simulation CLEAN nikla, user-se clarify pending.)
+**Changes:** `edit_metadata` — video||audio gate (listener dono paths single+dir), ext-less outfile → probe-confirm → `.mkv` append (matroska default, mp4-content bhi matroska me copy); return moved-path; `tasks_listener` up_path sync; `repair_moov` ext-less → `<name>.mkv` heal (engine guard old remove karta).
+**Own-bugs caught (tests):** same-dir move crash → dirname-guard; same-path outfile == input → ffmpeg "Output same as Input" reject → `.meta.<ext>` tmp + atomic os_replace; error-branch clean_target(outfile) original delete → abspath-guard (original KABHI delete nahi).
+**Env-note:** /tmp test-assets turn-reset me udte — T7/T8 ke phantom-fail isi se the (audio.mka missing), code clean.
+**Tests:** T1 ext-less→.mkv+tags; T2 junk skip; T3 mp4 in-place; T4 ext-less purge→.mkv; T5 heal ext-less→.mkv; T6 heal .mp4 regression; T7 mp3 metadata; T8 mka purge; T9 broken-ext-less skip; T10 corrupt in-place safe. py3.10 102/102.

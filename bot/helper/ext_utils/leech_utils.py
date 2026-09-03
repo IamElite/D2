@@ -197,15 +197,17 @@ async def repair_moov(path):
     Atomic os.replace -> ORIGINAL filename (koi .heal suffix leak nahi). Return: path ya None."""
     ext = ospath.splitext(path)[1].lower()
     mp4_mode = ext in ('.mp4', '.m4v')
-    force = ''
+    new_path = path
     if ext == '':
-        # ext-less: probe-se container (broken-moov ext-less = unknown → skip hi sahi)
-        force = await media_muxer(path)
-        if not force:
-            LOGGER.warning(f'Media heal skipped (unknown ext-less container): {path}')
+        # ext-less: probe-se media confirm, phir default .mkv heal (user-spec)
+        if not await media_muxer(path):
+            LOGGER.warning(f'Media heal skipped (not media): {path}')
             return None
-        mp4_mode = force == 'mp4'
-    tmp = path + '.healing' + ext
+        ext = '.mkv'
+        new_path = path + ext
+        tmp = path + '.healing' + ext
+    else:
+        tmp = path + '.healing' + ext
     try:
         if await aiopath.exists(tmp):
             await aioremove(tmp)
@@ -217,8 +219,6 @@ async def repair_moov(path):
         else:
             cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
                    '-map_chapters', '0', '-c', 'copy']
-        if force:
-            cmd.extend(['-f', force])
         cmd.append(tmp)
         _, err, rc = await cmd_exec(cmd)
         if rc != 0 or not await aiopath.exists(tmp):
@@ -229,8 +229,11 @@ async def repair_moov(path):
         if not chk[0] or float(chk[0].strip() or 0) <= 0:
             await aioremove(tmp)
             return None
-        os_replace(tmp, path)                # wapas ORIGINAL naam — atomic (sync syscall)
-        return path
+        if new_path != path:
+            os_replace(tmp, new_path)        # ext-less → default .mkv naam (engine purana remove karta)
+        else:
+            os_replace(tmp, path)            # wapas ORIGINAL naam — atomic (sync syscall)
+        return new_path
     except Exception as e:
         LOGGER.warning(f'Media heal error: {e}')
         if await aiopath.exists(tmp):

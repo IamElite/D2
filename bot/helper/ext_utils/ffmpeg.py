@@ -1,4 +1,4 @@
-from os import path as os_path
+from os import path as os_path, replace as os_replace
 import json
 import logging
 from re import sub as re_sub
@@ -134,30 +134,40 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
                     overlay['__stream_title_v__'] = v.strip()
                 elif k in ('a', 'audio'):
                     overlay['__stream_title_a__'] = v.strip()
+    if not os_path.splitext(outfile)[1]:
+        # ext-less file — probe-se media confirm, phir default .mkv (user-spec)
+        mux = await media_muxer(media_file)
+        if not mux:
+            LOGGER.info(f'Metadata skipped (not media): {media_file}')
+            return None
+        outfile += '.mkv'
+    inplace = os_path.abspath(outfile) == os_path.abspath(media_file)
+    if inplace:
+        # same-file pe ffmpeg reject karta — original-ext tmp me likh ke atomic swap
+        outfile += '.meta' + os_path.splitext(media_file)[1].lower()
     tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
     cmd.extend(tag_args)
-    if not os_path.splitext(outfile)[1]:
-        # ext-less outfile — probe-se muxer force, warna ffmpeg infer nahi kar pata
-        # (probe fail = container unknown/broken — ext-less me guess nahi, skip)
-        mux = await media_muxer(media_file)
-        if not mux:
-            LOGGER.info(f'Metadata skipped (unknown ext-less container): {media_file}')
-            return
-        cmd.extend(['-f', mux])
     cmd.append(outfile)
 
     listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
     code = await listener.suproc.wait()
 
     if code == 0:
+        if inplace:
+            os_replace(outfile, media_file)  # atomic in-place (sync syscall)
+            return media_file
         await clean_target(media_file)
+        if os_path.dirname(outfile) != base_dir:
+            await move(outfile, base_dir)
         listener.seed = False
-        await move(outfile, base_dir)
+        return ospath.join(base_dir, os_path.basename(outfile))
     else:
-        await clean_target(outfile)
+        if os_path.abspath(outfile) != os_path.abspath(media_file):
+            await clean_target(outfile)  # guard: original kabhi delete nahi
         LOGGER.error('%s. Changing metadata failed, Path %s', (await listener.suproc.stderr.read()).decode(errors='ignore'), media_file)
+        return None
 
 
 async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str, attachment: str = ''):

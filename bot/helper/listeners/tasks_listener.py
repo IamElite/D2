@@ -315,19 +315,24 @@ class MirrorLeechListener:
             await makedirs(self.newDir, exist_ok=True)
             async with download_dict_lock:
                 download_dict[self.uid] = MetadataStatus(name, size, gid, self)
-            if await aiopath.isfile(meta_path) and (await get_document_type(meta_path))[0]:
-                base_dir, file_name = ospath.split(meta_path)
-                outfile = ospath.join(self.newDir, file_name)
-                await edit_metadata(self, base_dir, meta_path, outfile, metadata, stream_titles)
-                if self.suproc == 'cancelled':
-                    return
+            if await aiopath.isfile(meta_path):
+                _dt = await get_document_type(meta_path)
+                if _dt[0] or _dt[1]:  # video ya audio — kisi bhi media pe metadata
+                    base_dir, file_name = ospath.split(meta_path)
+                    outfile = ospath.join(self.newDir, file_name)
+                    new_path = await edit_metadata(self, base_dir, meta_path, outfile, metadata, stream_titles)
+                    if self.suproc == 'cancelled':
+                        return
+                    if new_path:
+                        up_path = new_path
             elif await aiopath.isdir(meta_path):
                 for dirpath, _, files in await sync_to_async(walk, meta_path):
                     for file in files:
                         if self.suproc == 'cancelled':
                             return
                         video_file = ospath.join(dirpath, file)
-                        if (await get_document_type(video_file))[0]:
+                        _dt = await get_document_type(video_file)
+                        if _dt[0] or _dt[1]:  # video ya audio dono pe metadata
                             outfile = ospath.join(self.newDir, file)
                             await edit_metadata(self, dirpath, video_file, outfile, metadata, stream_titles)
 
