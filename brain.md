@@ -1179,7 +1179,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Design:** chain = aiohttp[Wget] → aiohttp[browser] → **rclone copyurl** (default rclone UA = sabse alag fingerprint; --no-check-certificate; 30s contimeout/timeout; size+bencode validate; partial-file cleanup) → relay-env → direct-add fallback. rclone absent → skip gracefully. **Tests (real rclone + UA-aware mock):** R1 wget500→mozilla500→rclone200, R2 no-binary None, R3 all-dead None, R4 single-attempt regression, R5 gates, R6 real-site — 6/6 PASS. Heroku verdict live task se hoga; fail → relay env.
 
 ### 260902-BD — rclone Wget-UA + full-error log (refragate log: exit=1 reason kata tha)
-**Git:** (push ke baad hash)  
+**Git:** `abf542b`  
 **Files:** `aria2_download.py` (2 lines: `--header User-Agent: Wget/1.12` rclone args; stderr full, newlines→` | `)
 
 **Note:** `rclone.conf not found` NOTICE = routine (copyurl ko config nahi chahiye; mirror apna --config path use karta hai — unrelated). BD aim: agli Heroku run pe ya pass (Wget-UA formula) ya asli fail-reason visible.
