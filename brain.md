@@ -1170,3 +1170,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Sweep-proof:** .torrent HTTP-fetch sirf 2 jagah — aria2 prefetch (patched) + qbit (already Wget, untouched). direct_listener=DDL, get_content_type-branch torrent-link pe skip — koi purana path nahi.  
 **Tests (UA-aware mock):** T1 wget-first-single-attempt, T2 wget-500→browser-retry, T3 relay-fallback, T4 all-fail-None, T5 user-UA-override single, T6 gates, T7 REAL pornrips Wget-UA 39791B — 7/7 PASS. (Test-assertion bug: REQ_LOG raw-path record.)
+
+### 260902-BC — rclone fallback prefetch (user idea; permission ke baad)
+**Git:** (push ke baad hash)  
+**Context:** BB ke baad bhi Heroku pe leech fail (no log) → block TLS-fingerprint-level (qBit/Qt pass, aiohttp/aria2 fail). rclone = Go-HTTP client, alag family.  
+**Files:** `aria2_download.py` (`_rclone_fetch()` + wire-in for-else, `shutil.which`-guard, `cmd_exec` import)
+
+**Design:** chain = aiohttp[Wget] → aiohttp[browser] → **rclone copyurl** (default rclone UA = sabse alag fingerprint; --no-check-certificate; 30s contimeout/timeout; size+bencode validate; partial-file cleanup) → relay-env → direct-add fallback. rclone absent → skip gracefully. **Tests (real rclone + UA-aware mock):** R1 wget500→mozilla500→rclone200, R2 no-binary None, R3 all-dead None, R4 single-attempt regression, R5 gates, R6 real-site — 6/6 PASS. Heroku verdict live task se hoga; fail → relay env.

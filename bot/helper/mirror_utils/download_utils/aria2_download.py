@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from os import environ
 from re import search as re_search
+from shutil import which as swhich
 from uuid import uuid4
 from urllib.parse import parse_qs, quote, urlparse
 from aiofiles import open as aiopen
@@ -8,7 +9,7 @@ from aiofiles.os import remove as aioremove, path as aiopath
 from aiohttp import ClientSession as aioClientSession, ClientTimeout
 
 from .... import aria2, download_dict_lock, download_dict, LOGGER, config_dict, aria2_options, aria2c_global, non_queued_dl, queue_dict_lock
-from ...ext_utils.bot_utils import bt_selection_buttons, sync_to_async
+from ...ext_utils.bot_utils import bt_selection_buttons, cmd_exec, sync_to_async
 from ..status_utils.aria2_status import Aria2Status
 from ...telegram_helper.message_utils import sendStatusMessage, sendMessage
 from ...ext_utils.task_manager import is_queued
@@ -20,6 +21,34 @@ BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 # Wget/1.12 UA qBit-route pe proven hai — kai trackers aria2/Chrome-fingerprint ko block karte hain
 UA_CANDIDATES = ('Wget/1.12', BROWSER_UA)
+
+
+async def _rclone_fetch(link, tmp_path):
+    """aiohttp/aria2 fingerprints (TLS-level) block hon to rclone try karo —
+    Go-HTTP client, qBit/Qt jaisa alag family (pornrips-type blockers ke liye)."""
+    if not swhich('rclone'):
+        LOGGER.warning('Torrent pre-fetch [rclone]: binary not found, skip')
+        return False
+    try:
+        _, err, rc = await cmd_exec(['rclone', 'copyurl', link, tmp_path,
+                                     '--no-check-certificate',
+                                     '--contimeout', '30s', '--timeout', '30s'])
+    except Exception as e:
+        LOGGER.warning(f'Torrent pre-fetch [rclone]: {e}')
+        return False
+    if rc != 0 or not await aiopath.exists(tmp_path):
+        LOGGER.warning(f'Torrent pre-fetch [rclone]: exit={rc} {err[:120]}')
+        return False
+    if await aiopath.getsize(tmp_path) > TORRENT_MAX_SIZE:
+        LOGGER.warning('Torrent pre-fetch [rclone]: oversized, skip')
+        return False
+    async with aiopen(tmp_path, 'rb') as f:
+        head = await f.read(8192)
+    if b'4:info' not in head:
+        LOGGER.warning('Torrent pre-fetch [rclone]: not a bittorrent payload, skip')
+        return False
+    LOGGER.info(f'Torrent pre-fetched via HTTP [rclone] ({await aiopath.getsize(tmp_path)} bytes): {link[:100]}')
+    return True
 
 
 async def _prefetch_torrent(link, user_headers=None):
@@ -71,6 +100,10 @@ async def _prefetch_torrent(link, user_headers=None):
                 continue
             break
         else:
+            if await _rclone_fetch(link, tmp_path):
+                return tmp_path
+            if await aiopath.exists(tmp_path):
+                await aioremove(tmp_path)
             LOGGER.warning('Torrent pre-fetch: all routes failed, fallback to direct add')
             return None
         if not data or len(data) > TORRENT_MAX_SIZE:
