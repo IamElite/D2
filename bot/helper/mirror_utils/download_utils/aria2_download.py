@@ -38,7 +38,7 @@ async def _rclone_fetch(link, tmp_path):
         LOGGER.warning(f'Torrent pre-fetch [rclone]: {e}')
         return False
     if rc != 0 or not await aiopath.exists(tmp_path):
-        LOGGER.warning(f'Torrent pre-fetch [rclone]: exit={rc} {err.replace(chr(10), ' | ')}')
+        LOGGER.warning('Torrent pre-fetch [rclone]: exit=%s %s', rc, err.replace('\n', ' | '))
         return False
     if await aiopath.getsize(tmp_path) > TORRENT_MAX_SIZE:
         LOGGER.warning('Torrent pre-fetch [rclone]: oversized, skip')
