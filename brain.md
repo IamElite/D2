@@ -1096,7 +1096,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - TG path: eta clock; i to TG pe pehle se nahi tha
 
 ### 260902-AR — Status plain text (hyperlink hata)
-**Git:** (push ke baad hash)  
+**Git:** `55650f9`  
 **OLD:** AQ (Status <a href> me tha; user: default plain hi rakho — line chhoti, overflow safe)  
 **Files:** `kpsml_minimal.py` (1 line: STATUS template)
 
