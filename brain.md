@@ -1214,3 +1214,9 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Learnings:** python-API me `impersonate` = **ImpersonateTarget object** (string → AssertionError); curl_cffi missing + blind-set = **hard YoutubeDLError** (sab /yl mar jate) — isliye detect-validate pattern. Global option = host-agnostic (rumble/dood/koi bhi CF-host).  
 **Tests:** py3.10 102/102; helper A/B/C (detect-add-copy, user-override, no-dep untouched); E2E rumble m3u8 with ImpersonateTarget = 6 formats. Luci-page iframe-hunter = future /plan (scope tight rakha).
+
+### 260902-BI — beeg leading-zero id fix (normalize_ydl_link)
+**Git:** (push ke baad hash)  
+**Root:** beeg.com ke naye ids leading-zero wale (`-0943576720716295`); yt-dlp Beeg extractor id as-is `store.externulls.com/facts/file/` API ko deta hai → API int-parse `invalid syntax` → **400 Bad Request** (CF/impersonation se koi lena-dena nahi). API response ne khud bataya.  
+**Fix:** `normalize_ydl_link()` — beeg URLs pe leading-zero strip (`-09435…`→`-9435…`); no-zero ids/query/non-beeg untouched. Wire: `extractMetaData` + `add_download` + `ytdlp.extract_info` (3 entry-points, ek helper).  
+**Tests:** API 200-stripped vs 400-zeroful (curl-proof); unit 5/5; **real E2E = 15 formats** (impersonate chrome ke saath); py3.10 102/102. Upstream yt-dlp bug — jab upstream fix ho to normalizer harmless rahega.

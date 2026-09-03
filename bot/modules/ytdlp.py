@@ -225,7 +225,8 @@ class YtSelection:
 
 
 def extract_info(link, options):
-    from ..helper.mirror_utils.download_utils.yt_dlp_download import add_impersonate
+    from ..helper.mirror_utils.download_utils.yt_dlp_download import add_impersonate, normalize_ydl_link
+    link = normalize_ydl_link(link)
     options = add_impersonate(options)
     with YoutubeDL(options) as ydl:
         result = ydl.extract_info(link, download=False)

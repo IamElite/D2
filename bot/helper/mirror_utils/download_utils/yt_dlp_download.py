@@ -33,6 +33,15 @@ def _detect_impersonate():
 _IMPERSONATE_TARGET = _detect_impersonate()
 
 
+def normalize_ydl_link(link):
+    """Host-quirks jo extractor nahi sambhalte:
+    beeg.com — leading-zero video-id par facts-API 400 deta hai (int-parse);
+    zero-strip karke URL do to extractor+API dono khush (E2E-verified)."""
+    if link and 'beeg.com/' in link:
+        link = re_sub(r'(beeg\.com/-?)0+(\d)', r'\1\2', link)
+    return link
+
+
 def add_impersonate(opts):
     """opts me impersonation add karo (agar available + user ne khud set na kiya ho)."""
     if _IMPERSONATE_TARGET is not None and 'impersonate' not in opts:
@@ -162,6 +171,7 @@ class YoutubeDLHelper:
         async_to_sync(self.__listener.onDownloadError, error)
 
     def extractMetaData(self, link, name):
+        link = normalize_ydl_link(link)
         if link.startswith(('rtmp', 'mms', 'rstp', 'rtmps')):
             self.opts['external_downloader'] = 'ffmpeg'
         with YoutubeDL(self.opts) as ydl:
@@ -224,6 +234,7 @@ class YoutubeDLHelper:
             self.__onDownloadError("Download Stopped by User!")
 
     async def add_download(self, link, path, name, qual, playlist, options):
+        link = normalize_ydl_link(link)
         if playlist:
             self.opts['ignoreerrors'] = True
             self.is_playlist = True
