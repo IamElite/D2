@@ -1172,7 +1172,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests (UA-aware mock):** T1 wget-first-single-attempt, T2 wget-500→browser-retry, T3 relay-fallback, T4 all-fail-None, T5 user-UA-override single, T6 gates, T7 REAL pornrips Wget-UA 39791B — 7/7 PASS. (Test-assertion bug: REQ_LOG raw-path record.)
 
 ### 260902-BC — rclone fallback prefetch (user idea; permission ke baad)
-**Git:** (push ke baad hash)  
+**Git:** `b6e74f8`  
 **Context:** BB ke baad bhi Heroku pe leech fail (no log) → block TLS-fingerprint-level (qBit/Qt pass, aiohttp/aria2 fail). rclone = Go-HTTP client, alag family.  
 **Files:** `aria2_download.py` (`_rclone_fetch()` + wire-in for-else, `shutil.which`-guard, `cmd_exec` import)
 
