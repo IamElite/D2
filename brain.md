@@ -1143,7 +1143,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Design:** `.torrent` URL → aiohttp fetch (browser UA + Referer origin, user -h headers merge-override, 30s timeout, 10MB cap) → validate (b`4:info` bencode ya ctype bittorrent) → `/tmp/{uuid}.torrent` → `add_torrent(file)` → finally remove. HAR fail (non-200/oversize/not-torrent/timeout/exception) → `None` → purana direct `aria2.add` fallback. Magnet/local-file untouched. **Tests:** real pornrips fetch 39791B bencode-OK + 5 gate/fallback tests = 6/6 PASS. qBit route scope me nahi.
 
 ### 260902-AY — clock_fmt bogus-ETA cap (24000000000:00:00 → 00:00:00)
-**Git:** (push ke baad hash)  
+**Git:** `0779c50`  
 **OLD:** AY-prior — aria2p speed=0/metadata-wait pe `timedelta.max` (≈24e9 hrs) raw print hota tha  
 **Files:** `bot_utils.py` (clock_fmt: `seconds > 31536000` → `00:00:00`; ek line, AT ke robust block me)
 
