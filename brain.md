@@ -1253,5 +1253,5 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** AVGSPD se `┃` divider hata (BL me maine add kiya tha, user ko bhaari/bekaar laga). Ab Avg UL → Max DL seedha, jaise Mode-Total-Files lines. Render-verified + py3.10 102/102.
 
 ### 260902-BO — summary order: Mode Avg-Max ke beech (user design)
-**Git:** (push ke baad hash)  
+**Git:** `333fe3a`  
 **Fix:** onUploadComplete render order = AVGSPD → MODE → MAXSPD (pehle MODE baad me tha). L_TOTAL_FILES apni jagah last. Render user-sample se exact match; py3.10 102/102.
