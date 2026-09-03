@@ -1192,7 +1192,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Regression (hotfix ke baad):** mock full-chain (sab-block→None, full-err visible: `CopyURL failed: 500` x3 — BD logging perfect), gates, **REAL pornrips via rclone[Wget-UA] = 39,791B** (F5). Note: test-env (rclone binary, /tmp, pip pkgs) turn ke beech reset hota hai — rerun me reinstall.
 
 ### 260902-BF — container-truth RAM/CPU + restart pull-fix (user report: 85%+ readings, /restart purana code)
-**Git:** (push ke baad hash)  
+**Git:** `e50ad02`  
 **Root 1 (RAM/CPU):** psutil `virtual_memory()/cpu_percent()` = **HOST-wide** (dyno /proc host ka) — padosi dynos + boot-churn (uv sync, qbit recheck) ka bhisht. Boot 2min-window samples the, task-wale nahi.  
 **Root 2 (restart):** /restart me update.py stale config.env se pull karta — drift pe fail/old → bot old-code pe boot. Race nahi (gather wait tha); config-resolution drift tha.  
 **Files:** `bot_utils.py` (`_cg_read`, `get_container_memory()` cgroup v2/v1→psutil fallback, `get_container_cpu()` usage-delta; get_readable_message footer + get_stats stbot cgroup-aware), `__main__.py` (restart: update.py ko env-override UPSTREAM_REPO/BRANCH = bot ka proven config; rc!=0 → user-visible warning), `update.py` (pull-success pe `Running commit: <hash>` log)
