@@ -146,7 +146,7 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
         # same-file pe ffmpeg reject karta — original-ext tmp me likh ke atomic swap
         outfile += '.meta' + os_path.splitext(media_file)[1].lower()
     tag_args = await probe_tag_args(media_file, overlay)
-    cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
+    cmd = [bot_cache['pkgs'][2], '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
     cmd.extend(tag_args)
     cmd.append(outfile)
@@ -159,10 +159,12 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
             os_replace(outfile, media_file)  # atomic in-place (sync syscall)
             return media_file
         await clean_target(media_file)
-        if os_path.dirname(outfile) != base_dir:
-            await move(outfile, base_dir)
+        final_path = os_path.join(base_dir, os_path.basename(outfile))
+        if final_path != outfile:
+            # newDir<->base_dir same-fs: os_replace atomic + overwrite (duplicate-completion safe)
+            os_replace(outfile, final_path)
         listener.seed = False
-        return ospath.join(base_dir, os_path.basename(outfile))
+        return final_path
     else:
         if os_path.abspath(outfile) != os_path.abspath(media_file):
             await clean_target(outfile)  # guard: original kabhi delete nahi

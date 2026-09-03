@@ -1306,3 +1306,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Env-note:** /tmp test-assets turn-reset me udte — T7/T8 ke phantom-fail isi se the (audio.mka missing), code clean.
 **Followup REVERTED (user clarify):** value-inline galat samjha — user ko BUTTON pe sirf label chahiye (✅/❌ + naam); asli point caption-text stale tha (remove ke baad) — md_rm/md_crmval/md_crmbtn/update_user_settings re-render verified clean; live me phir stale dikhe to exact-button-steps lena.  
 **Tests:** T1 ext-less→.mkv+tags; T2 junk skip; T3 mp4 in-place; T4 ext-less purge→.mkv; T5 heal ext-less→.mkv; T6 heal .mp4 regression; T7 mp3 metadata; T8 mka purge; T9 broken-ext-less skip; T10 corrupt in-place safe. py3.10 102/102.
+
+### 260903-BU — Live-crash fix: `ospath` typo + missing `-y` (duplicate-completion)
+**Git:** pending  
+
+**Source:** live log (batbin spottier, commit 763b085) — `shutil.Error: Destination 'test metadata.mkv' already exists` + `HyperDL pipeline failed: name 'ospath' is not defined - native` → 434MB DOUBLE-download → task fail.
+**Root-chain (dono mere BT se):** (1) edit_metadata return-path me `ospath.join` typo (alias `os_path` hai) → SUCCESS pe NameError → HyperDL wrapper (telegram_download L110) ne "pipeline failed" samjha → native RE-download → duplicate completion. (2) pass-2 me outfile pre-existing + `-y` flag MISSING → ffmpeg "Not overwriting - exiting" **rc=0** → stale file move → shutil.Error.
+**Fix:** `os_path.join` typo; `-y` flag add (repair_moov me tha, edit_metadata me upstream-se missing); move() → `os_replace` (same-fs atomic + overwrite — duplicate-completion idempotent).
+**Lesson (test-harness):** sandbox ns me extra `ospath` tha isliye typo pakda nahi — ab ns = REAL module imports only.
+**Tests:** T1 ext-less+return ✓; T2 duplicate-completion (outfile+dest pre-existing) overwrite + naya title ✓; T3 in-place ✓; T4 purge ✓; ospath-repo-check NONE; py3.10 102/102.
