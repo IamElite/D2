@@ -1094,3 +1094,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - Builder: Done `of` → `/`; Elapsed clock
 - Labels: `Speed:`→`SPD:`, `Time:`→`TT:`; **Status hyperlink rakha** (user confirm — paste me plain dikhta tha bas)
 - TG path: eta clock; i to TG pe pehle se nahi tha
+
+### 260902-AR — Status plain text (hyperlink hata)
+**Git:** (push ke baad hash)  
+**OLD:** AQ (Status <a href> me tha; user: default plain hi rakho — line chhoti, overflow safe)  
+**Files:** `kpsml_minimal.py` (1 line: STATUS template)
+
+**Fix:** `Status: <a href="{Url}">{Status}</a>` → `Status: {Status}` — plain, builder Url pass karta rahega (unused, harmless).

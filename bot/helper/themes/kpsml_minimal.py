@@ -179,7 +179,7 @@ Type {help_command} to get a list of available commands</b>'''
     #####---------PROGRESSIVE STATUS-------
     BAR =               '\n┃ {Bar}'
     PROCESSED =         '\n┠ <b>Done:</b> {Processed}'
-    STATUS =            '\n┠ <b>Status:</b> <a href="{Url}">{Status}</a>'
+    STATUS =            '\n┠ <b>Status:</b> {Status}'
     ETA =                                                ' | <b>ETA:</b> {Eta}'
     SPEED =             '\n┠ <b>SPD:</b> {Speed}'
     ELAPSED =                                     ' | <b>TT:</b> {Elapsed}'
