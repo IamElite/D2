@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time
+from ...ext_utils.bot_utils import clock_fmt,  EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time
 
 
 class TelegramStatus:
@@ -39,7 +39,7 @@ class TelegramStatus:
         try:
             seconds = (self.__size - self.__obj.processed_bytes) / \
                 self.__obj.speed
-            return get_readable_time(seconds)
+            return clock_fmt(seconds)
         except:
             return '-'
 

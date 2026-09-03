@@ -245,11 +245,11 @@ def get_readable_message():
                         Id=download.message.from_user.id)
         if download.status() not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
             msg += BotTheme('BAR', Bar=f"{get_progress_bar_string(download.progress())} {download.progress()}")
-            msg += BotTheme('PROCESSED', Processed=f"{download.processed_bytes()} of {download.size()}")
+            msg += BotTheme('PROCESSED', Processed=f"{download.processed_bytes()} / {download.size()}")
             msg += BotTheme('STATUS', Status=download.status(), Url=msg_link)
             msg += BotTheme('ETA', Eta=download.eta())
             msg += BotTheme('SPEED', Speed=download.speed())
-            msg += BotTheme('ELAPSED', Elapsed=get_readable_time(elapsed))
+            msg += BotTheme('ELAPSED', Elapsed=clock_fmt(elapsed))
             msg += BotTheme('ENGINE', Engine=download.eng())
             msg += BotTheme('STA_MODE', Mode=download.upload_details['mode'])
             if hasattr(download, 'seeders_num'):
@@ -352,6 +352,13 @@ async def turn_page(data):
             else:
                 STATUS_START -= STATUS_LIMIT
                 PAGE_NO -= 1
+
+
+def clock_fmt(seconds):
+    seconds = max(0, int(seconds))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f'{h:02d}:{m:02d}:{s:02d}'
 
 
 def get_readable_time(seconds):

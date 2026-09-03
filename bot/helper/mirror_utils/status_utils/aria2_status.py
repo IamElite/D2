@@ -2,7 +2,7 @@
 from time import time
 
 from .... import aria2, LOGGER
-from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, get_readable_time, sync_to_async
+from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, clock_fmt, get_readable_file_size, get_readable_time, sync_to_async
 
 
 def get_download(gid):
@@ -35,22 +35,25 @@ class Aria2Status:
             self.__download = get_download(self.__gid)
 
     def progress(self):
-        return self.__download.progress_string()
+        try:
+            return f'{self.__download.completed_length / self.__download.total_length * 100:.2f}'
+        except Exception:
+            return 0.0
 
     def processed_bytes(self):
-        return self.__download.completed_length_string()
+        return get_readable_file_size(self.__download.completed_length)
 
     def speed(self):
-        return self.__download.download_speed_string()
+        return f'{get_readable_file_size(self.__download.download_speed)}/s'
 
     def name(self):
         return self.__download.name
 
     def size(self):
-        return self.__download.total_length_string()
+        return get_readable_file_size(self.__download.total_length)
 
     def eta(self):
-        return self.__download.eta_string()
+        return clock_fmt(self.__download.eta)
         
     def listener(self):
         return self.__listener

@@ -1082,3 +1082,15 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Naya Dockerfile:** multi-stage — STAGE1 `meganz/sdk v4.8.0` cmake+swig compile (**py3.11 bindings** — purane `.so` 3.10-ABI the, reuse impossible), STAGE2 runtime (sab tools + zip/unzip + atomicparsley + rclone static + deps build-time). `WITH_MEGA=0` build-arg = fast build (MEGA creds use hi nahi karte). `bot_utils` mega import lazy — SDK bina bhi bot kabhi crash nahi.
 
 **Verify:** docker sandbox me nahi hai — pehla real build user karega; build-log issues → turant fix.
+
+### 260902-AQ — status style v2 (user design): SPD/TT, clock ETA, slash, i-free
+**Git:** `9e69c2e` (approx — push pe final)  
+**OLD:** AH/AI (of→link-overflow, aria2p MiB)  
+**Files:** `kpsml_minimal.py` (SPD/TT labels), `bot_utils.py` (builder slash + clock_fmt + elapsed clock), `aria2_status.py`, `telegram_status.py`
+
+**Fix:**
+- aria2p *_string() (MiB/GiB wala **i**) hata → `get_readable_file_size(raw)` = clean MB/GB/KB (Done/Size/SPD sab); `progress()` ab pure percent float
+- `clock_fmt()` naya — ETA + TT dono `HH:MM:SS` (blank-ETA bug bhi gaya, 0s = 00:00:00)
+- Builder: Done `of` → `/`; Elapsed clock
+- Labels: `Speed:`→`SPD:`, `Time:`→`TT:`; **Status hyperlink rakha** (user confirm — paste me plain dikhta tha bas)
+- TG path: eta clock; i to TG pe pehle se nahi tha
