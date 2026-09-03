@@ -1164,7 +1164,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Seekh:** format-style change me SAB status-classes ka sweep karo, sirf jo dikhe nahi. Multi-line import regex ne direct_status toota tha — haath se fix. Final sweep: koi eta old-format me nahi.
 
 ### 260902-BB — prefetch UA-chain (Wget-first; qBit ke Wget-1.12 proof se)
-**Git:** (push ke baad hash)  
+**Git:** `df06932`  
 **Discovery:** qBit route `torrents_add(headers={'user-agent':'Wget/1.12'})` se pornrips fetch karta = site UA/fingerprint-block (pure-IP nahi). Wget UA Heroku se pass.  
 **Files:** `aria2_download.py` (`UA_CANDIDATES=('Wget/1.12',BROWSER_UA)`; req_headers UA-free; user `-h User-Agent` → single-attempt override; relay last, uas[-1] ke saath; tag `ua[wget]/ua[mozilla]/relay`)
 
