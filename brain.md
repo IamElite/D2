@@ -1183,3 +1183,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `aria2_download.py` (2 lines: `--header User-Agent: Wget/1.12` rclone args; stderr full, newlines→` | `)
 
 **Note:** `rclone.conf not found` NOTICE = routine (copyurl ko config nahi chahiye; mirror apna --config path use karta hai — unrelated). BD aim: agli Heroku run pe ya pass (Wget-UA formula) ya asli fail-reason visible.
+
+### 260902-BE — HOTFIX: BD f-string py3.10 crash (bot-down!) + py3.10 audit-method
+**Git:** `762a557`  
+**Incident:** BD ka `f'...{err.replace(chr(10), ' | ')}'` = nested same-quotes = py3.12+ feature; Heroku py3.10 → SyntaxError aria2_download.py:41 → **poora bot boot-crash** (drusean log chunk-2 me pakda). Sandbox py3.13-compile ne pass kiya tha = blind spot.  
+**Fix:** logger %-style args (`LOGGER.warning('...%s %s', rc, err.replace('\n', ' | '))`) — version-safe.  
+**Naya standing audit:** `uv python install 3.10` + `uv run --python 3.10 python -m py_compile` **poore repo** pe (101/101 OK). `ast feature_version` f-string-nesting pakadta hi nahi — bharosa nahi. Har push se pehle real-3.10 compile.  
+**Regression (hotfix ke baad):** mock full-chain (sab-block→None, full-err visible: `CopyURL failed: 500` x3 — BD logging perfect), gates, **REAL pornrips via rclone[Wget-UA] = 39,791B** (F5). Note: test-env (rclone binary, /tmp, pip pkgs) turn ke beech reset hota hai — rerun me reinstall.
