@@ -1106,3 +1106,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Git:** `30cadad`  
 **User ka matlab:** "default jaisa rehne do" = **default me link hai, wahi raho**. AR me plain kar diya tha — ulta.  
 **Fix:** `STATUS` template wapas `'\n┠ <b>Status:</b> <a href="{Url}">{Status}</a>'` — bilkul default. Baaki AQ ke sab (SPD/TT/clock/i-free/slash) bane rahenge.
+
+### 260902-AT — clock_fmt timedelta crash fix (AQ regression, meshier logs)
+**Git:** (push ke baad hash)  
+**OLD:** AQ (aria2 `.eta` = `datetime.timedelta` — `int()` TypeError → status-render crash → **BT task download-error**)  
+**Files:** `bot_utils.py` (clock_fmt robust: timedelta.total_seconds(), None→'', junk→'')
+
+**Seekh dobara:** naya format har status-class ke type pe test hota (aria2 timedelta vs TG seconds).

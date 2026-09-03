@@ -355,7 +355,14 @@ async def turn_page(data):
 
 
 def clock_fmt(seconds):
-    seconds = max(0, int(seconds))
+    try:
+        if seconds is None:
+            return ''
+        if hasattr(seconds, 'total_seconds'):      # aria2p: datetime.timedelta
+            seconds = seconds.total_seconds()
+        seconds = max(0, int(float(seconds)))
+    except (TypeError, ValueError):
+        return ''
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f'{h:02d}:{m:02d}:{s:02d}'
