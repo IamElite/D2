@@ -1298,7 +1298,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 ext-less mp4 metadata ✓; T2 ext-less mkv purge ✓; T3 junk skip ✓; T4 .mkv regression ✓; T5 heal ext-less mp4 ✓; T6a broken .mp4 = old-code identical graceful ✓ (T6b healthy heal ✓); T7 heal ext-less mkv ✓; T8 broken ext-less skip ✓; T9 .mka whitelist ✓; py3.10 102/102.
 
 ### 260903-BT — Metadata har media pe + ext-less default .mkv
-**Git:** pending  
+**Git:** `5556ed9`  
 
 **Demand:** (1) koi bhi file pe metadata lage (audio bhi), (3) ext-less filename → default `.mkv`. (#2 remove-caption stale — state-logic simulation CLEAN nikla, user-se clarify pending.)
 **Changes:** `edit_metadata` — video||audio gate (listener dono paths single+dir), ext-less outfile → probe-confirm → `.mkv` append (matroska default, mp4-content bhi matroska me copy); return moved-path; `tasks_listener` up_path sync; `repair_moov` ext-less → `<name>.mkv` heal (engine guard old remove karta).
