@@ -116,7 +116,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         inc_list = user_dict.get('inc_ext') or []
         raw_exc = user_dict.get('exc_ext')
         inc_str = ', '.join(inc_list) if inc_list else 'none'
-        exc_str = 'default' if raw_exc in (None, '') else (', '.join(sorted(raw_exc)) if raw_exc else 'none')
+        exc_str = 'default: ' + ', '.join(sorted(DEFAULT_EXCLUDED_EXTS)) if raw_exc in (None, '') else (', '.join(sorted(raw_exc)) if raw_exc else 'none')
         buttons.ibutton(f"{'✅ ' if inc_list else ''}Include Ext", f"userset {user_id} inc_ext")
         buttons.ibutton(f"{'✅ ' if raw_exc not in (None, '') else ''}Exclude Ext", f"userset {user_id} exc_ext")
         mediainfo = "Enabled" if user_dict.get('mediainfo', config_dict['SHOW_MEDIAINFO']) else "Disabled"
@@ -303,7 +303,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             text += f"➲ <b>Include Ext :</b> <code>{escape(trun(set_exist, 600))}</code>\n\n"
         elif key == 'exc_ext':
             raw_exc = user_dict.get('exc_ext')
-            cur = 'Default List' if raw_exc in (None, '') else (', '.join(sorted(raw_exc)) if raw_exc else 'None (Allow All)')
+            cur = 'Default List: ' + ', '.join(sorted(DEFAULT_EXCLUDED_EXTS)) if raw_exc in (None, '') else (', '.join(sorted(raw_exc)) if raw_exc else 'None (Allow All)')
             set_exist = 'Not Exists' if raw_exc in (None, '') else cur
             text += f"➲ <b>Exclude Ext :</b> <code>{escape(trun(cur, 600))}</code>\n\n"
         elif key == 'split_size':

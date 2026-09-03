@@ -1127,3 +1127,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `fs_utils.py` (DEFAULT_EXCLUDED_EXTS + `is_ext_allowed()`), `pyrogramEngine.py` (upload() me per-file filter), `users_settings.py` (9 spots: desp/fname dicts, universal buttons+text, edit views, callbacks reuse yt_opt flow, set_custom parser, `/cmd -s` list), `kpsml_minimal.py` (UNIVERSAL +2 lines)
 
 **Design:** Include default `none` (off); Exclude default list `aria2,!qb,index,html,nfo,text,bmp,webp,tiff,tif,svg,ico,raw,heic,heif,txt` har user pe active. Rules: inc set → sirf wahi; warna exc lagega; `default`→default list (exc), `none`→off/allow-all; parse comma/space, lowercase, dot-strip, sorted. Storage: `inc_ext` list / `exc_ext` list; `''` = default-idiom (delete buttons d{key}); `[]` = allow-all. Unwanted files upload-loop me `aioremove` (global-filter pattern). Flow reuse: `event_handler`+`set_custom` (yt_opt jaisa), delete `dinc_ext`/`dexc_ext` → universal refresh + DB. **Tests:** filter 14/14, parser, resolve, render — all PASS.
+
+### 260902-AW — Exclude Ext default list ab visible
+**Git:** (push ke baad hash)  
+**OLD:** AV — default pe sirf `default` word dikhta tha, user ko list ka pata nahi  
+**Files:** `users_settings.py` (2 lines: universal `exc_str` + edit-view `cur`)
+
+**Fix:** default case me `default: ` + poori sorted list (97 chars, trun-100 fit). Custom list pe sirf list. Edit view: `Default List: <list>`.
