@@ -1263,6 +1263,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** mkv same-name/identical-tags/no-leftover, fonts ✓, duration ✓, mp4 branch ✓, unfixable-graceful ✓; py3.10 102/102. BP-note: MetadataX-style caption cards ab clean (no .heal, single Menu, fonts listed).
 
 ## 260902-BQ — Stream-title purge + all-format metadata (STREAM_TITLES)
+**Git:** `90e4a77`  
 - **Demand:** user custom stream-titles/tags find karne me dikkat → purane stream-titles REMOVE karke apne lagane; metadata code kisi bhi file-format pe smartly chale (`.mkv/.mp4` ext-gate unacceptable).
 - **Config:** `STREAM_TITLES` env (bot/__init__.py, config_dict) — `''`=off | `purge`=sab stream-titles delete | `purge|v:Video Title|a:Audio Title`=delete+custom set. Per-user overlay BAAD me (users_settings abhi nahi).
 - **ffmpeg.py:** `edit_metadata(..., stream_titles='')` — ext-gate REMOVED (sab formats); overlay me `__purge_stream_titles__`/`__stream_title_v__`/`__stream_title_a__`; `probe_tag_args` purge branch: `tags.pop('title')` + explicit delete-arg `-metadata:s:{pref}:{idx} title=` (EMPTY-VALUE DELETE — arg-missing = INHERIT, yahi root-trick hai) + custom set. tasks_listener: dono edit_metadata calls stream_titles pass.
