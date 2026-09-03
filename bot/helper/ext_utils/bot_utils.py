@@ -363,6 +363,8 @@ def clock_fmt(seconds):
         seconds = max(0, int(float(seconds)))
     except (TypeError, ValueError):
         return ''
+    if seconds > 31536000:               # >1yr = aria2p timedelta.max sentinel (speed=0 / metadata wait)
+        return '00:00:00'
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f'{h:02d}:{m:02d}:{s:02d}'

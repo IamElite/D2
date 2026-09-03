@@ -1141,3 +1141,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `aria2_download.py` (`_prefetch_torrent()` + wire-in add pe)
 
 **Design:** `.torrent` URL → aiohttp fetch (browser UA + Referer origin, user -h headers merge-override, 30s timeout, 10MB cap) → validate (b`4:info` bencode ya ctype bittorrent) → `/tmp/{uuid}.torrent` → `add_torrent(file)` → finally remove. HAR fail (non-200/oversize/not-torrent/timeout/exception) → `None` → purana direct `aria2.add` fallback. Magnet/local-file untouched. **Tests:** real pornrips fetch 39791B bencode-OK + 5 gate/fallback tests = 6/6 PASS. qBit route scope me nahi.
+
+### 260902-AY — clock_fmt bogus-ETA cap (24000000000:00:00 → 00:00:00)
+**Git:** (push ke baad hash)  
+**OLD:** AY-prior — aria2p speed=0/metadata-wait pe `timedelta.max` (≈24e9 hrs) raw print hota tha  
+**Files:** `bot_utils.py` (clock_fmt: `seconds > 31536000` → `00:00:00`; ek line, AT ke robust block me)
+
+**Note:** user ka explicit design — unknown/wait ETA = `00:00:00`. Real bade ETA (3din=72:00:00) safe. Aadha bypass: AX pre-fetch ke baad metadata jaldi aata hai.
