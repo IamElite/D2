@@ -524,12 +524,12 @@ class MirrorLeechListener:
             DL=f"{get_readable_file_size(adl)}/s" if adl else "—",
             UL=f"{get_readable_file_size(aul)}/s" if aul else "—",
         )
+        msg += BotTheme('MODE', Mode=self.upload_details['mode'])
         msg += BotTheme(
             'MAXSPD',
             DL=f"{get_readable_file_size(mdl)}/s" if mdl else "—",
             UL=f"{get_readable_file_size(mul)}/s" if mul else "—",
         )
-        msg += BotTheme('MODE', Mode=self.upload_details['mode'])
         LOGGER.info(f'Task Done: {name}')
         
         buttons = ButtonMaker()
