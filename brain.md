@@ -1308,7 +1308,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 ext-less→.mkv+tags; T2 junk skip; T3 mp4 in-place; T4 ext-less purge→.mkv; T5 heal ext-less→.mkv; T6 heal .mp4 regression; T7 mp3 metadata; T8 mka purge; T9 broken-ext-less skip; T10 corrupt in-place safe. py3.10 102/102.
 
 ### 260903-BU — Live-crash fix: `ospath` typo + missing `-y` (duplicate-completion)
-**Git:** pending  
+**Git:** `23d2642`  
 
 **Source:** live log (batbin spottier, commit 763b085) — `shutil.Error: Destination 'test metadata.mkv' already exists` + `HyperDL pipeline failed: name 'ospath' is not defined - native` → 434MB DOUBLE-download → task fail.
 **Root-chain (dono mere BT se):** (1) edit_metadata return-path me `ospath.join` typo (alias `os_path` hai) → SUCCESS pe NameError → HyperDL wrapper (telegram_download L110) ne "pipeline failed" samjha → native RE-download → duplicate completion. (2) pass-2 me outfile pre-existing + `-y` flag MISSING → ffmpeg "Not overwriting - exiting" **rc=0** → stale file move → shutil.Error.
