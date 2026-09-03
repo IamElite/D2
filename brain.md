@@ -1113,3 +1113,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `bot_utils.py` (clock_fmt robust: timedelta.total_seconds(), None→'', junk→'')
 
 **Seekh dobara:** naya format har status-class ke type pe test hota (aria2 timedelta vs TG seconds).
+
+### 260902-AU — Bot PM option Universal Settings se remove (Leech me rakha)
+**Git:** (push ke baad hash)  
+**OLD:** AU-prior — Bot PM toggle 2 jagah (Universal + Leech) duplicate  
+**Files:** `users_settings.py` (universal block: 3 lines + kwarg), `kpsml_minimal.py` (UNIVERSAL template)
+
+**Fix:** Universal se button + `Bot PM : Enabled` status hata; `Save Mode` ab `┖` closer. **Leech page untouched** (button+status+callback) — functionality zero change (engine/BOT_PM config jaise hai).
