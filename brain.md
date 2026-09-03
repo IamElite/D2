@@ -1084,7 +1084,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Verify:** docker sandbox me nahi hai — pehla real build user karega; build-log issues → turant fix.
 
 ### 260902-AQ — status style v2 (user design): SPD/TT, clock ETA, slash, i-free
-**Git:** `9e69c2e` (approx — push pe final)  
+**Git:** `ed9d834`  
 **OLD:** AH/AI (of→link-overflow, aria2p MiB)  
 **Files:** `kpsml_minimal.py` (SPD/TT labels), `bot_utils.py` (builder slash + clock_fmt + elapsed clock), `aria2_status.py`, `telegram_status.py`
 
