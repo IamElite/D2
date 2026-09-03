@@ -1108,7 +1108,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** `STATUS` template wapas `'\n┠ <b>Status:</b> <a href="{Url}">{Status}</a>'` — bilkul default. Baaki AQ ke sab (SPD/TT/clock/i-free/slash) bane rahenge.
 
 ### 260902-AT — clock_fmt timedelta crash fix (AQ regression, meshier logs)
-**Git:** (push ke baad hash)  
+**Git:** `1a93eaf`  
 **OLD:** AQ (aria2 `.eta` = `datetime.timedelta` — `int()` TypeError → status-render crash → **BT task download-error**)  
 **Files:** `bot_utils.py` (clock_fmt robust: timedelta.total_seconds(), None→'', junk→'')
 
