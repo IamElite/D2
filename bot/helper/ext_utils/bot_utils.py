@@ -325,9 +325,12 @@ def get_readable_message():
         buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref")
         buttons.ibutton(BotTheme('NEXT'), "status nex")
     button = buttons.build_menu(3)
-    msg += BotTheme('Cpu', cpu=cpu_percent())
+    _ccpu = get_container_cpu()
+    _cmem = get_container_memory()
+    _ram = round(_cmem[0] / _cmem[1] * 100, 1) if _cmem else virtual_memory().percent
+    msg += BotTheme('Cpu', cpu=_ccpu if _ccpu is not None else cpu_percent())
     msg += BotTheme('FREE', free=get_readable_file_size(disk_usage(config_dict['DOWNLOAD_DIR']).free), free_p=round(100-disk_usage(config_dict['DOWNLOAD_DIR']).percent, 1))
-    msg += BotTheme('Ram', ram=virtual_memory().percent)
+    msg += BotTheme('Ram', ram=_ram)
     msg += BotTheme('uptime', uptime=get_readable_time(time() - botStartTime))
     msg += BotTheme('DL', DL=get_readable_file_size(dl_speed))
     msg += BotTheme('UL', UL=get_readable_file_size(up_speed))
@@ -501,6 +504,62 @@ async def get_content_type(url):
         return None
 
 
+def _cg_read(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except (OSError, ValueError):
+        return None
+
+
+def get_container_memory():
+    """Container-cgroup RAM (used, limit) bytes — dyno pe host-wide psutil misleading hota hai."""
+    v2c, v2l = _cg_read('/sys/fs/cgroup/memory.current'), _cg_read('/sys/fs/cgroup/memory.max')
+    if v2c and v2l and v2l != 'max':
+        try:
+            used, limit = int(v2c), int(v2l)
+            if 0 < limit < (1 << 60) and 0 <= used <= limit:
+                return used, limit
+        except ValueError:
+            pass
+    v1u, v1l = _cg_read('/sys/fs/cgroup/memory/memory.usage_in_bytes'), _cg_read('/sys/fs/cgroup/memory/memory.limit_in_bytes')
+    if v1u and v1l:
+        try:
+            used, limit = int(v1u), int(v1l)
+            if 0 < limit < (1 << 60) and 0 <= used <= limit:
+                return used, limit
+        except ValueError:
+            pass
+    return None
+
+
+_cg_cpu_last = [0.0, 0.0]
+
+
+def get_container_cpu():
+    """Container CPU% (cgroup usage delta). Pehli call pe None — wali fallback."""
+    usage = None
+    stat = _cg_read('/sys/fs/cgroup/cpu.stat')
+    if stat:
+        for line in stat.splitlines():
+            if line.startswith('usage_usec '):
+                usage = float(line.split()[1]) / 1e6
+                break
+    if usage is None:
+        v1 = _cg_read('/sys/fs/cgroup/cpuacct/cpuacct.usage')
+        if v1 is not None:
+            usage = float(v1) / 1e9
+    if usage is None:
+        return None
+    now = time()
+    last_t, last_u = _cg_cpu_last
+    _cg_cpu_last[0], _cg_cpu_last[1] = now, usage
+    if not last_t or now <= last_t or usage < last_u:
+        return None
+    cores = cpu_count() or 1
+    return round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
+
+
 def update_user_ldata(id_, key=None, value=None):
     exception_keys = ['is_sudo', 'is_auth', 'dly_tasks', 'is_blacklist', 'token', 'time']
     if key is None and value is None:
@@ -612,15 +671,21 @@ async def get_stats(event, key="home"):
         total, used, free, disk = disk_usage('/')
         swap = swap_memory()
         memory = virtual_memory()
+        _cmem = get_container_memory()
+        if _cmem:
+            m_used, m_total = _cmem
+            m_avail, m_pct = max(m_total - m_used, 0), round(m_used / m_total * 100, 1)
+        else:
+            m_used, m_avail, m_total, m_pct = memory.used, memory.available, memory.total, memory.percent
         disk_io = disk_io_counters()
         msg = BotTheme(
             'BOT_STATS',
             bot_uptime=get_readable_time(time() - botStartTime),
-            ram_bar=get_progress_bar_string(memory.percent),
-            ram=memory.percent,
-            ram_u=get_readable_file_size(memory.used),
-            ram_f=get_readable_file_size(memory.available),
-            ram_t=get_readable_file_size(memory.total),
+            ram_bar=get_progress_bar_string(m_pct),
+            ram=m_pct,
+            ram_u=get_readable_file_size(m_used),
+            ram_f=get_readable_file_size(m_avail),
+            ram_t=get_readable_file_size(m_total),
             swap_bar=get_progress_bar_string(swap.percent),
             swap=swap.percent,
             swap_u=get_readable_file_size(swap.used),

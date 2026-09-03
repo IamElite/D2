@@ -109,6 +109,8 @@ elif UPSTREAM_REPO:
         
     if update.returncode == 0:
         log_info("Successfully updated with Latest Updates !")
+        head = srun("git log -1 --format='%h %s'", shell=True, capture_output=True, text=True)
+        log_info(f"Running commit: {head.stdout.strip() or '?'}")
     else:
         log_error("Something went Wrong ! Recheck your details or Ask Support !")
     

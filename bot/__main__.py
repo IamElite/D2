@@ -1,7 +1,7 @@
 from time import time, monotonic
 from datetime import datetime
 from sys import executable
-from os import execl as osexecl
+from os import environ, execl as osexecl
 from asyncio import create_subprocess_exec, gather, run as asyrun
 from uuid import uuid4
 from base64 import b64decode
@@ -113,8 +113,14 @@ async def restart(client, message):
             interval[0].cancel()
     await sync_to_async(clean_all)
     proc1 = await create_subprocess_exec('pkill', '-9', '-f', f'gunicorn|{bot_cache["pkgs"][-1]}')
-    proc2 = await create_subprocess_exec('python3', 'update.py')
+    # update.py ko bot ke current (proven) repo/branch ke saath chalao — config.env drift na ho
+    proc2 = await create_subprocess_exec(
+        'python3', 'update.py',
+        env={**environ, 'UPSTREAM_REPO': str(config_dict.get('UPSTREAM_REPO', '')),
+             'UPSTREAM_BRANCH': str(config_dict.get('UPSTREAM_BRANCH', 'arnv1'))})
     await gather(proc1.wait(), proc2.wait())
+    if proc2.returncode:
+        await sendMessage(message, f"⚠️ Code pull failed (rc={proc2.returncode}) — current code hi restart hoga. Logs check karo!")
     async with aiopen(".restartmsg", "w") as f:
         await f.write(f"{restart_message.chat.id}\n{restart_message.id}\n")
     osexecl(executable, executable, "-m", "bot")
