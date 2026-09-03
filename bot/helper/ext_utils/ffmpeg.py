@@ -102,6 +102,19 @@ async def probe_tag_args(path, overlay=None):
     return args
 
 
+_MUX_PRIORITY = ('mp4', 'matroska', 'webm', 'mov', 'mpegts', 'avi', 'flv', 'asf', 'ogg', 'wav', 'mp3', 'aac', 'flac')
+
+async def media_muxer(path):
+    """Probe-based container detect — ext-less files ke liye. Non-media → None."""
+    out, _, _ = await cmd_exec(['ffprobe', '-v', 'error', '-show_entries', 'format=format_name',
+                                '-of', 'default=nw=1:nk=1', path])
+    tokens = {t.strip().lower() for t in (out or '').split(',') if t.strip()}
+    for name in _MUX_PRIORITY:
+        if name in tokens:
+            return name
+    return None
+
+
 async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, metadata: str = '', stream_titles: str = ''):
     file_name = os_path.basename(media_file)
     basename = os_path.splitext(file_name)[0]
@@ -125,6 +138,14 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
     cmd.extend(tag_args)
+    if not os_path.splitext(outfile)[1]:
+        # ext-less outfile — probe-se muxer force, warna ffmpeg infer nahi kar pata
+        # (probe fail = container unknown/broken — ext-less me guess nahi, skip)
+        mux = await media_muxer(media_file)
+        if not mux:
+            LOGGER.info(f'Metadata skipped (unknown ext-less container): {media_file}')
+            return
+        cmd.extend(['-f', mux])
     cmd.append(outfile)
 
     listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)

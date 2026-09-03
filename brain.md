@@ -1287,3 +1287,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Container-limit (proven):** mp4 muxer unknown keys silently drop karta hai (exit-0, whitelist-only: title/comment/artist...) — custom tags sirf mkv/webm pe likhe jate hain (MY_CHANNEL uppercase-normalized). No crash, graceful.
 **Follow-up (user):** naye buttons/prompts se emojis removed — plain text (Set Value, Remove Value, Remove Button, Back, New Button; ✅/❌ status functional rakha).  
 **Tests:** T1a mkv custom+known+purge ✓; T1b mp4 comment ✓ + unknown-drop ✓; T2 parse/rejoin/labels/sanitize ✓; T3 7 new callbacks wired + META_KEYS single-source ✓; T4 layouts (2x2 + submenu) ✓; py3.10 102/102.
+
+### 260903-BS — Ext-less filename fix (metadata + heal) + .mka mediainfo
+**Git:** pending  
+
+**Source:** live log (batbin saintless) — `test metadata` (ext-less TG video) pe `edit_metadata`/`repair_moov` dono "Unable to find a suitable output format" fail (graceful, fail-open — upload hua, metadata miss).
+**Root:** ffmpeg output format filename-ext se infer karta hai; ext-less → fail. ffprobe input ko content-se pehchanta hai (moov-missing file ko NAHI — moov hi index hai).
+**Fix (probe sirf ext-less pe — ext-present old-path byte-identical):** `ffmpeg.py` `_MUX_PRIORITY` + `media_muxer()` (ffprobe format_name → mp4/matroska/webm/mov/mpegts/avi/... ya None); `edit_metadata` outfile ext-less → `-f <mux>` (probe-None → skip, junk-safe); `leech_utils.repair_moov` ext-less → same `-f` + mp4_mode by mux (same-container heal preserve); `.mka` `get_media_info` whitelist me added (mediainfo ab audio pe bhi).
+**Trap caught (own test):** pehle probe-gate dono pe laga tha → broken-moov (heal ka MAIN case) ffprobe-se unknown hota hai → heal skip ho jata — gate sirf ext-less pe shift kiya.
+**Tests:** T1 ext-less mp4 metadata ✓; T2 ext-less mkv purge ✓; T3 junk skip ✓; T4 .mkv regression ✓; T5 heal ext-less mp4 ✓; T6a broken .mp4 = old-code identical graceful ✓ (T6b healthy heal ✓); T7 heal ext-less mkv ✓; T8 broken ext-less skip ✓; T9 .mka whitelist ✓; py3.10 102/102.

@@ -18,7 +18,7 @@ from ...modules.mediainfo import parseinfo
 from .bot_utils import cmd_exec, sync_to_async, get_readable_file_size, get_readable_time
 from .fs_utils import ARCH_EXT, get_mime_type
 from .telegraph_helper import telegraph
-from .ffmpeg import probe_tag_args
+from .ffmpeg import probe_tag_args, media_muxer
 
 
 async def remux_container(inp_path, out_path):
@@ -99,7 +99,7 @@ async def is_multi_streams(path):
 
 async def get_media_info(path, metadata=False):
     if not str(path).lower().endswith(('.mp4', '.mkv', '.webm', '.avi', '.mov', '.m4v', '.flv', '.wmv', '.ts', '.m2ts',
-                                       '.mp3', '.m4a', '.aac', '.flac', '.opus', '.ogg', '.wav',
+                                       '.mp3', '.m4a', '.aac', '.flac', '.opus', '.ogg', '.wav', '.mka',
                                        '.jpg', '.jpeg', '.png', '.webp', '.bmp')):
         LOGGER.info(f'Media Info skipped (not media): {path}')
         return (0, "", "", "") if metadata else (0, None, None)
@@ -196,18 +196,30 @@ async def repair_moov(path):
     koi doubling nahi (BM wale mp4-conversion ke artifacts ka fix).
     Atomic os.replace -> ORIGINAL filename (koi .heal suffix leak nahi). Return: path ya None."""
     ext = ospath.splitext(path)[1].lower()
+    mp4_mode = ext in ('.mp4', '.m4v')
+    force = ''
+    if ext == '':
+        # ext-less: probe-se container (broken-moov ext-less = unknown → skip hi sahi)
+        force = await media_muxer(path)
+        if not force:
+            LOGGER.warning(f'Media heal skipped (unknown ext-less container): {path}')
+            return None
+        mp4_mode = force == 'mp4'
     tmp = path + '.healing' + ext
     try:
         if await aiopath.exists(tmp):
             await aioremove(tmp)
-        if ext in ('.mp4', '.m4v'):
+        if mp4_mode:
             cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
                    '-map_chapters', '0', '-c', 'copy',
                    '-map_metadata:s:v:0', '-1', '-map_metadata:s:a:0', '-1',
-                   '-movflags', '+faststart', tmp]
+                   '-movflags', '+faststart']
         else:
             cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
-                   '-map_chapters', '0', '-c', 'copy', tmp]
+                   '-map_chapters', '0', '-c', 'copy']
+        if force:
+            cmd.extend(['-f', force])
+        cmd.append(tmp)
         _, err, rc = await cmd_exec(cmd)
         if rc != 0 or not await aiopath.exists(tmp):
             LOGGER.warning(f'Media heal failed (rc={rc}): {err[-150:]}')
