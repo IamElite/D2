@@ -1148,3 +1148,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Files:** `bot_utils.py` (clock_fmt: `seconds > 31536000` → `00:00:00`; ek line, AT ke robust block me)
 
 **Note:** user ka explicit design — unknown/wait ETA = `00:00:00`. Real bade ETA (3din=72:00:00) safe. Aadha bypass: AX pre-fetch ke baad metadata jaldi aata hai.
+
+### 260902-AZ — prefetch generic relay escape (TORRENT_PREFETCH_PROXY)
+**Git:** (push ke baad hash)  
+**Experiment:** sandbox se public relays sab dead — codetabs/allorigins 522 (site unhe bhi block), corsproxy 403-keygate, cors.lol/workers.dev 429-rate, jina 422. Client-side (www/query/UA) sandbox pe 200 = Heroku-500 reproduce impossible yahan → block IP-reputation (Heroku/AWS ranges).  
+**Files:** `aria2_download.py` (`_prefetch_torrent` relay-aware + `from os import environ`, `quote`)
+
+**Design:** direct-first; fail (non-200/exception) pe env `TORRENT_PREFETCH_PROXY` engage — `{url}` placeholder = relay-template (quote-encoded), warna HTTP-proxy (aiohttp proxy=). Sab routes fail → None → direct-add fallback (AZ-prior chain intact). **Site-agnostic** — koi bhi blocked site. **Tests (mock-relay e2e):** direct+file-survives-return (finally-bug regression — cleanup sirf except me), 404→template-relay OK, 404→dead-proxy graceful-None, no-env-404 None, gates — 5/5 PASS. CF-worker snippet chat me diya.

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+from os import environ
 from re import search as re_search
 from uuid import uuid4
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from aiofiles import open as aiopen
 from aiofiles.os import remove as aioremove, path as aiopath
 from aiohttp import ClientSession as aioClientSession, ClientTimeout
@@ -38,14 +39,36 @@ async def _prefetch_torrent(link, user_headers=None):
                 k, v = h.split(':', 1)
                 req_headers[k.strip()] = v.strip()
     tmp_path = f'/tmp/{uuid4().hex}.torrent'
+    # Generic unblock: TORRENT_PREFETCH_PROXY env — relay-template ('...{url}...') ya HTTP proxy.
+    # Direct 4xx/5xx pe hi engage hota hai; koi bhi blocked site ke liye kaam karta hai.
+    attempts = [(link, None)]
+    relay = environ.get('TORRENT_PREFETCH_PROXY', '').strip()
+    if relay:
+        if '{url}' in relay:
+            attempts.append((relay.replace('{url}', quote(link, safe='')), None))
+        else:
+            attempts.append((link, relay))
     try:
-        async with aioClientSession(trust_env=True) as session:
-            async with session.get(link, headers=req_headers, timeout=ClientTimeout(total=30), verify_ssl=False) as resp:
-                if resp.status != 200:
-                    LOGGER.warning(f'Torrent pre-fetch: HTTP {resp.status}, fallback to direct add')
-                    return None
-                ctype = resp.headers.get('Content-Type', '').lower()
-                data = await resp.read()
+        status = 0
+        for fetch_url, proxy in attempts:
+            tag = 'direct' if proxy is None and fetch_url is link else 'relay'
+            try:
+                async with aioClientSession(trust_env=True) as session:
+                    async with session.get(fetch_url, headers=req_headers, proxy=proxy,
+                                           timeout=ClientTimeout(total=30), verify_ssl=False) as resp:
+                        status = resp.status
+                        ctype = resp.headers.get('Content-Type', '').lower()
+                        data = await resp.read()
+                if status != 200:
+                    LOGGER.warning(f'Torrent pre-fetch [{tag}]: HTTP {status}')
+                    continue
+            except Exception as e:
+                LOGGER.warning(f'Torrent pre-fetch [{tag}]: {e}')
+                continue
+            break
+        else:
+            LOGGER.warning('Torrent pre-fetch: all routes failed, fallback to direct add')
+            return None
         if not data or len(data) > TORRENT_MAX_SIZE:
             LOGGER.warning('Torrent pre-fetch: empty/oversized response, fallback to direct add')
             return None
@@ -54,7 +77,7 @@ async def _prefetch_torrent(link, user_headers=None):
             return None
         async with aiopen(tmp_path, 'wb') as f:
             await f.write(data)
-        LOGGER.info(f'Torrent pre-fetched via HTTP ({len(data)} bytes): {link[:100]}')
+        LOGGER.info(f'Torrent pre-fetched via HTTP [{tag}] ({len(data)} bytes): {link[:100]}')
         return tmp_path
     except Exception as e:
         LOGGER.warning(f'Torrent pre-fetch failed ({e}); fallback to direct add')
@@ -63,7 +86,7 @@ async def _prefetch_torrent(link, user_headers=None):
                 await aioremove(tmp_path)
         except Exception:
             pass
-        return None
+    return None
 
 
 def _bt_link(link):
