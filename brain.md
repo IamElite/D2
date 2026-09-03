@@ -1200,7 +1200,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** py3.10 full-repo 102/102; cpu helper delta-live (None→1.0); memory fallback; env-override sim PASS. Heroku pe RAM% ab container-limit ka hoga.
 
 ### 260902-BG — Helper hot-swap (bina restart; user demand)
-**Git:** (push ke baad hash)  
+**Git:** `f86f906`  
 **Gap:** `_persist_helpers` (buttons add/remove) already sync karta tha, par generic config-set paths (text editvar + callback editvar) HELPER_TOKENS pe sync nahi karte the + purane helper clients kabhi stop nahi hote (leak).  
 **Files:** `hyperul_utils.py` (`_stop_client` clean-stop, `_started_tokens`+`get_active_helper_tokens()`, `asyncio.Lock`-wrapped `start_helper_bots`→`_locked`), `bot_settings.py` (donon generic config-paths me `HELPER_TOKENS` → instant `start_helper_bots`), `__main__.py` (`_helper_watcher` 30s drift-check → auto-resync; create_task in main)
 
