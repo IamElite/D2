@@ -1289,7 +1289,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1a mkv custom+known+purge ✓; T1b mp4 comment ✓ + unknown-drop ✓; T2 parse/rejoin/labels/sanitize ✓; T3 7 new callbacks wired + META_KEYS single-source ✓; T4 layouts (2x2 + submenu) ✓; py3.10 102/102.
 
 ### 260903-BS — Ext-less filename fix (metadata + heal) + .mka mediainfo
-**Git:** pending  
+**Git:** `3450233`  
 
 **Source:** live log (batbin saintless) — `test metadata` (ext-less TG video) pe `edit_metadata`/`repair_moov` dono "Unable to find a suitable output format" fail (graceful, fail-open — upload hua, metadata miss).
 **Root:** ffmpeg output format filename-ext se infer karta hai; ext-less → fail. ffprobe input ko content-se pehchanta hai (moov-missing file ko NAHI — moov hi index hai).
