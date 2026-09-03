@@ -4,6 +4,7 @@ from secrets import token_hex
 from logging import getLogger
 from yt_dlp import YoutubeDL, DownloadError
 from re import search as re_search, sub as re_sub
+from json import loads as json_loads
 
 from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lock, bot_cache
 from ...telegram_helper.message_utils import sendStatusMessage
@@ -40,6 +41,38 @@ def normalize_ydl_link(link):
     if link and 'beeg.com/' in link:
         link = re_sub(r'(beeg\.com/-?)0+(\d)', r'\1\2', link)
     return link
+
+
+def is_generic_title(title):
+    """yt-dlp ka fallback: 'Beeg video #123' / 'generic video #..' — asli title na mile to yahi banta hai."""
+    return not title or bool(re_search(r'^\w+ video #\d+$', str(title)))
+
+
+def fix_generic_title(link, title, ydl=None):
+    """Scoped repair: sirf generic-fallback titles pe, sirf un hosts jinke paas verified
+    asli-title source hai (beeg facts-API: file.data[].cd_column=='sf_name').
+    Good titles / non-beeg links bilkul untouched — sab kuch force nahi hota."""
+    if not link or 'beeg.com/' not in link or not is_generic_title(title):
+        return title
+    vid = re_search(r'beeg\.com/-?0*(\d+)', link)
+    if not vid:
+        return title
+    try:
+        url = f'https://store.externulls.com/facts/file/{vid.group(1)}'
+        if ydl is not None:
+            resp = ydl.urlopen(url)
+            data = json_loads(resp.read().decode('utf-8', 'ignore'))
+        else:
+            from urllib.request import urlopen as _uo
+            data = json_loads(_uo(url, timeout=15).read().decode('utf-8', 'ignore'))
+        for col in (data.get('file') or {}).get('data') or []:
+            if col.get('cd_column') == 'sf_name' and col.get('cd_value'):
+                clean = str(col['cd_value']).strip()
+                if clean and not is_generic_title(clean):
+                    return clean
+    except Exception:
+        pass
+    return title
 
 
 def add_impersonate(opts):
@@ -179,6 +212,8 @@ class YoutubeDLHelper:
                 result = ydl.extract_info(link, download=False)
                 if result is None:
                     raise ValueError('Info result is None')
+                if 'entries' not in result:
+                    result['title'] = fix_generic_title(link, result.get('title'), ydl)
             except Exception as e:
                 return self.__onDownloadError(str(e))
             if self.is_playlist:

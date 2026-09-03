@@ -1226,3 +1226,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Incident:** BI patch me mera conditional-import logic galat tha — file me `re_search` tha, check `from re import` dhundh ke skip kar gaya, `re_sub` import nahi hua → beeg-link pe runtime `NameError: re_sub is not defined`. Compile-check nahi pakadta (runtime error).  
 **Fix:** line 6 = `from re import search as re_search, sub as re_sub`. Runtime-exec test + py3.10 102/102.  
 **Seekh:** patch me jab bhi "already imported?" conditional ho — to jo SYMBOL chahiye WOHI grep karo, family nahi.
+
+### 260902-BK — beeg generic-title fix (site-caption se asli naam; scoped)
+**Git:** (push ke baad hash)  
+**Root:** beeg API ne schema badla (`stuff.sf_name` → `file.data[] cd_column/cd_value`) — yt-dlp extractor purane path pe → title generic fallback `Beeg video #<id>` → filename garbage.  
+**Files:** `yt_dlp_download.py` (`is_generic_title()` + `fix_generic_title()`; extractMetaData me non-playlist `result['title']` patch — single choke-point: self.name/outtmpl/leech-name sab isi se)  
+**Scope (user-dandi):** sirf generic-pattern titles + sirf beeg (verified source). Good titles/non-beeg = untouched. API-dead = original title, no crash.  
+**Tests:** sandbox T1-T6 + real-module T1-T5 (impersonate-loaded urlopen, guards, dead-API, urllib fallback); filename E2E = `St. Patrick's Day Cosplay Compilation [id].mp4`; py3.10 102/102.
