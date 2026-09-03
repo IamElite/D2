@@ -1103,6 +1103,6 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** `Status: <a href="{Url}">{Status}</a>` → `Status: {Status}` — plain, builder Url pass karta rahega (unused, harmless).
 
 ### 260902-AS — STATUS wapas default hyperlink (AR galat samjha tha)
-**Git:** (push ke baad hash)  
+**Git:** `30cadad`  
 **User ka matlab:** "default jaisa rehne do" = **default me link hai, wahi raho**. AR me plain kar diya tha — ulta.  
 **Fix:** `STATUS` template wapas `'\n┠ <b>Status:</b> <a href="{Url}">{Status}</a>'` — bilkul default. Baaki AQ ke sab (SPD/TT/clock/i-free/slash) bane rahenge.
