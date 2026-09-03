@@ -242,14 +242,18 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         meta_keys = META_KEYS
         for index, mkey in enumerate(meta_keys):
             has_val = "✅ " if mkey in meta_dict else "❌ "
-            buttons.ibutton(f"{has_val}{mkey}", f"userset {user_id} md_key {index}")
+            cur_v = meta_dict.get(mkey)
+            label = f"{has_val}{mkey}: {trun(cur_v, 20)}" if cur_v else f"{has_val}{mkey}"
+            buttons.ibutton(label, f"userset {user_id} md_key {index}")
 
         custom_btns = get_custom_btns(user_dict)
         if custom_btns:
             text += "\n\n<i>Your Custom Tag Buttons:</i>"
-            for index, label in enumerate(custom_btns):
-                has_val = "✅ " if label in meta_dict else "❌ "
-                buttons.ibutton(f"{has_val}{label}", f"userset {user_id} md_cbtn {index}")
+            for index, clabel in enumerate(custom_btns):
+                has_val = "✅ " if clabel in meta_dict else "❌ "
+                cur_v = meta_dict.get(clabel)
+                btn_label = f"{has_val}{clabel}: {trun(cur_v, 20)}" if cur_v else f"{has_val}{clabel}"
+                buttons.ibutton(btn_label, f"userset {user_id} md_cbtn {index}")
 
         buttons.ibutton("New Button", f"userset {user_id} md_cadd", "header")
         buttons.ibutton("✨ Set All Metadata", f"userset {user_id} md_set_all", "header")
