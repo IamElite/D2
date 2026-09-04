@@ -1569,7 +1569,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **User:** CS ka startup banner nahi chahiye — purani normal startup line hi theek. CS ke baaki do fixes (regex upload patch + py3.10 deprecation suppress) BANE rehte hain; sirf 4-line banner + platform/pyrogram version block hata → wapas ek line `KPSML-X Bot [@...] Started!`.
 
 ### 260904-CU — upload patch numeric-threshold robust + stderr-wrapper revert (boot-safe)
-**Git:** (push ke baad)
+**Git:** `a4781ff`
 **Date:** 2026-09-04
 **Log:** running d9ccb29 par bhi `TG upload patch: NO target matched on wzgram 3.1.1` + deprecation line + boot "Started!" tak pahunchne me dikkat.
 **Root cause (CS patch abhi bhi no-op):** CS ka regex exact value/structure maangta tha (`rate_limit = 40` with comment + `pool_size = min(8, POOL_SIZE)` fixed spacing). Heroku ke installed 3.1.1 file me spacing/comment/format ka farq (ya source patch ka target hi alag) → zero match.
