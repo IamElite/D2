@@ -1359,4 +1359,5 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Ask (user):** Add More Back-ke-saath pair me nahi — AKELA; caption me jo custom tags ADD kiye wo DIKHEN; "+ Add More" label bekar → "Add Tag".
 **Changes (md_cman):** caption — har custom tag ki line `➲ <label>: <value|Not set>` + hint; buttons [name][Remove] pairs (2-col) + `Add Tag` l_body (akela) + Back footer. "+ Add More" GONE.
-**Tests:** caption-sim (values + Not set) ✓; layout-sim (pairs → Add Tag lone → Back) ✓; py3.10 102/102.
+**Tests:** caption-sim (values + Not set) ✓; layout-sim (pairs → Add Tag lone → Back) ✓; py3.10 102/102.  
+**Followup:** label `+ Add Tag` (user) — `81541c5`.
