@@ -54,6 +54,12 @@ def _items_in_msg(m):
 async def collect_i_items(client, start, cmd, n):
     if start is None or n <= 0:
         return []
+    # Reply-to TXT FILE: -b jaisa — file ke ANDAR ke links (first n), file khud item nahi
+    doc = getattr(start, 'document', None)
+    if doc is not None and getattr(doc, 'mime_type', '') == 'text/plain':
+        from ..ext_utils.bulk_links import get_links_from_file
+        links = await get_links_from_file(start, 0, n)
+        return links[:n]
     owner = _uid(start)
     chat = getattr(start, "chat", None)
     if chat is None or owner is None:

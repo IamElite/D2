@@ -1400,3 +1400,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Source:** live log (batbin curatives, commit 6689f49) — /restart → clean_all() → torrents_delete par qBit DOWN (CB idle-shutdown sahi kaam kar raha) → APIConnectionError → restart handler crash. start_cleanup (boot) me bhi wahi latent.
 **Fix (fs_utils):** `_qbit_up()` port-probe + `_qbit_purge_all()` (down → info-skip — down = torrents bhi nahi; up-but-race → try/except warn) — dono call-sites switched. **bot_settings:** qBit-prefs handlers (2) me `ensure_qbit` pehle (down ho to auto-start — admin op fail nahi).
 **Tests:** T1 port-probe real-refused ✓; T2 clean_all qBit-down (purge-skip + dirs-clean + no-crash) ✓; py3.10 102/102.
+
+### 260904-CG — `-i N` reply-to-txt-file: links INSIDE file (was: file khud item)
+**Git:** pending  
+
+**Report:** `/l7 -i 3` reply-to txt → "No files to upload. Check EXTENSION_FILTER."; `-b` pe same file sahi.
+**Root:** `collect_i_items._items_in_msg` media-msg ko khud ek item maanta (txt-file ka tg-link item bana → .txt leech → ext-filter → no-files). `-b` extract_bulk_links file-content padhta.
+**Fix (multi_tools.collect_i_items):** start.document mime text/plain → `get_links_from_file(start, 0, n)` (bulk-parser reuse — first n lines, tmp auto-clean) → links[:n]. Non-txt media old-path; empty-txt → [] → mirror_leech single-leech fallback.
+**Tests:** T1 3-links ✓; T2 tmp-clean ✓; T3 n>lines ✓; T4 non-txt old-path ✓; T5 empty→fallback ✓; py3.10 102/102.
