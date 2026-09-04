@@ -94,8 +94,37 @@ class setInterval:
         self.task.cancel()
 
 
+def as_bytes(value):
+    """Untrusted numeric (int/float/numeric-string) -> int bytes; junk/None -> 0.
+
+    yt-dlp info dicts are extractor-written: filesize/filesize_approx come back as
+    int, float, None OR a numeric string depending on the extractor/version. Any
+    caller that does arithmetic or size-formatting on them must not assume a type.
+    """
+    if value is None or isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
 def get_readable_file_size(size_in_bytes):
     if size_in_bytes is None:
+        return '0B'
+    # Untrusted sources (yt-dlp info dicts, DB/env limits) may hand us a numeric
+    # string ("12345") — comparing str with int raises TypeError and kills the
+    # whole callback task. Coerce, and treat junk as unknown (0B) instead.
+    if isinstance(size_in_bytes, str):
+        try:
+            size_in_bytes = float(size_in_bytes)
+        except (TypeError, ValueError):
+            return '0B'
+    if not isinstance(size_in_bytes, (int, float)) or isinstance(size_in_bytes, bool):
         return '0B'
     index = 0
     while size_in_bytes >= 1024 and index < len(SIZE_UNITS) - 1:

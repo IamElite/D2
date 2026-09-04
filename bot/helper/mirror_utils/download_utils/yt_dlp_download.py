@@ -9,7 +9,7 @@ from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lo
 from ...telegram_helper.message_utils import sendStatusMessage
 from ..status_utils.yt_dlp_download_status import YtDlpDownloadStatus
 from ..status_utils.queue_status import QueueStatus
-from ...ext_utils.bot_utils import sync_to_async, async_to_sync
+from ...ext_utils.bot_utils import sync_to_async, async_to_sync, as_bytes
 from ...ext_utils.task_manager import is_queued, stop_duplicate_check, limit_checker
 
 LOGGER = getLogger(__name__)
@@ -253,10 +253,14 @@ class YoutubeDLHelper:
                         continue
                     if entry.get('ext') == 'unknown_video':
                         entry['ext'] = 'mp4'
-                    if entry.get('filesize_approx'):
-                        self.__size += entry.get('filesize_approx') or 0
-                    elif entry.get('filesize'):
-                        self.__size += entry.get('filesize') or 0
+                    # as_bytes: extractor may give numeric strings -> '+=' would
+                    # raise TypeError (int + str) and kill the whole task
+                    _fa = as_bytes(entry.get('filesize_approx'))
+                    _fs = as_bytes(entry.get('filesize'))
+                    if _fa:
+                        self.__size += _fa
+                    elif _fs:
+                        self.__size += _fs
                     if not self.name:
                         outtmpl_ = '%(series,playlist_title,channel)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d.%(ext)s'
                         self.name, ext = ospath.splitext(
@@ -272,10 +276,7 @@ class YoutubeDLHelper:
                 self.name = f"{name}{ext}" if name else realName
                 if not self.__ext:
                     self.__ext = ext
-                if result.get('filesize'):
-                    self.__size = result['filesize']
-                elif result.get('filesize_approx'):
-                    self.__size = result['filesize_approx']
+                self.__size = as_bytes(result.get('filesize')) or as_bytes(result.get('filesize_approx')) or 0
 
     def __download(self, link, path):
         from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy

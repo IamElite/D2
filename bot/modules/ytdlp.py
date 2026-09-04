@@ -13,7 +13,7 @@ from .. import DOWNLOAD_DIR, bot, categories_dict, config_dict, user_data, LOGGE
 from ..helper.ext_utils.task_manager import task_utils
 from ..helper.telegram_helper.message_utils import sendMessage, editMessage, deleteMessage, auto_delete_message, delete_links, open_category_btns, open_dump_btns
 from ..helper.telegram_helper.button_build import ButtonMaker
-from ..helper.ext_utils.bot_utils import get_readable_file_size, fetch_user_tds, fetch_user_dumps, is_url, is_gdrive_link, new_task, sync_to_async, new_task, is_rclone_path, new_thread, get_readable_time, arg_parser, is_ytdlp_supported
+from ..helper.ext_utils.bot_utils import get_readable_file_size, as_bytes, fetch_user_tds, fetch_user_dumps, is_url, is_gdrive_link, new_task, sync_to_async, new_task, is_rclone_path, new_thread, get_readable_time, arg_parser, is_ytdlp_supported
 from ..helper.mirror_utils.download_utils.yt_dlp_download import YoutubeDLHelper
 from ..helper.mirror_utils.rclone_utils.list import RcloneList
 from ..helper.telegram_helper.bot_commands import BotCommands
@@ -153,7 +153,11 @@ class YtSelection:
                     format_id = item.get('format_id')
                     if not format_id:
                         continue
-                    size = item.get('filesize') or item.get('filesize_approx') or 0
+                    # yt-dlp can hand us filesize/filesize_approx as a numeric
+                    # STRING (extractor-dependent); downstream does int math and
+                    # get_readable_file_size() comparison -> coerce here (single
+                    # entry point for self.formats[name][idx][0]).
+                    size = as_bytes(item.get('filesize')) or as_bytes(item.get('filesize_approx')) or 0
                     kind = _variant_kind(item)
                     if kind is None:
                         continue
@@ -226,7 +230,12 @@ class YtSelection:
         buttons = ButtonMaker()
         var_dict = self.formats[b_name]
         n = len(var_dict)
-        for idx, (_k, d_data) in var_dict.items():
+        for idx, d_data in var_dict.items():
+            # d_data is the [size, format_id] LIST stored by get_quality.
+            # (Was `for idx, (_k, d_data) in ...`, which unpacked the LIST
+            # itself: _k=size, d_data=format_id str, so d_data[0] was the first
+            # CHARACTER of the format id -> get_readable_file_size('h') ->
+            # TypeError: '>=' not supported between 'str' and 'int'.)
             # variants share the resolution/type name; distinguish by size (and n if unknown)
             size_tag = f' ({get_readable_file_size(d_data[0])})' if d_data[0] else (f' variant {idx}' if n > 1 else '')
             button_name = f'{b_name}{size_tag}'
