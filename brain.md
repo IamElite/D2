@@ -1626,3 +1626,36 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Note (koi code nahi):** xhamster m3u8 variants per-variant size deta hi nahi → dono sub-buttons ka size same dikhega; `tbr` (139 vs 140 kbps) available hai, to labels bitrate se zyada useful honge — chahiye to alag `P-` plan.
 **Cleanup (user rule — `260905-A` ke baad):** galti se `tests/t_260905_qual_subbuttons.py` `3000308` me commit+push ho gaya tha. User: test files repo me nahi chahiye. → `git filter-branch` se `tests/` poori history se hataya (arnv1 rewrite: `3000308`→`cfb0dcd`, brain `76f3589`→`cd8f1af`, cleanup→`e6fe6a9`) + `arnv1` **force-push** (user-authorized). Teeno code files rewrite ke baad **byte-identical** verify (blob hash match). Test harness ab sirf sandbox me. **Rule brain me: repo me sirf main code push karo — test/scratch files local rakho.**
+
+### 260905-B — yt-dlp download layer: single-extraction + bounded retries + filesize-less disk guard
+**Git:** `9630b81`  
+**Date:** 2026-09-05  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` (sirf yehi, +60/−8)  
+**User demand:** eporner URL pe "extract working, actual download failing" — sandbox me REAL bytes se verify karo (format listing ko success mat maano), generic fix ho (ek URL ke liye hardcode nahi), 4K test, retry/timeout sensible, low-RAM/CPU, minimal diff.
+
+**Pehle honest baat (record):** user ka "actual download fail" **reproduce nahi hua** — bot ka asli `YoutubeDLHelper` us URL pe **poora 136.6 MB** download karke `onDownloadComplete` tak pahuncha (ffprobe: h264+aac, duration 3758.7s). To universal "download broken" bug nahi tha; neeche ke 3 defects measured the.
+
+**Root cause (har ek naapa, andaaza nahi):**
+1. **Duplicate full extraction har task pe** — `extractMetaData()` webpage+JSON fetch, phir `ydl.download([link])` wahi dobara. HTTP-request spy: **4 → 2** per task.
+2. **Retry hang** — `retries=10` + flat 3s. Local 503 media-server pe: **30.12s → 6.06s**.
+3. **4K killer (asli "download fail")** — eporner har format pe `filesize=None` deta hai → `self.__size=0` → `YTDLP_LIMIT` / `STORAGE_THRESHOLD` / disk-check **sab silently skip** (aur sudo user pe `limit_checker` turant return) → multi-GB file 1 GB dyno disk bhar ke minutes baad "No space left on device". Real sizes Content-Range se: `av1-2160p_4K__HD` **2.56 GB**, `2160p_4K__HD` **7.67 GB** (video 3758s).
+
+**Rule-out (test karke):** stale/expired URL ❌, missing headers/referer/UA/cookies ❌, CDN redirect ❌, curl_cffi/impersonate ❌, HTTP Range ❌ (9/9 formats pe **206 Partial Content**), signed-URL IP-bind ❌ (extract+download same dyno IP).
+
+**Fix (generic, downloader+extractor integration points only):**
+1. `extractMetaData` ka result `self.__extracted_info` me → `__download` ab `ydl.process_ie_result(sanitize_info(info, False), download=True)` (pehle `ydl.download([link])`). **Ek hi extraction**, aur download wahi exact format/URL/headers use karta hai jo user ko menu me dikha tha (context-preserve guarantee).
+2. `retries`/`fragment_retries` **10 → 3**, sleep **3s flat → `min(2n,10)`** (`file_access` 1s). Transient recover hota hai, permanent jaldi fail.
+3. Naya `_content_length_size(url, headers)` — extractor size na de to ek `Range: bytes=0-0` request se `Content-Range` total; `__download` me disk-space guard (`disk_usage(path).free <= need` → clean `DownloadError`, fail-fast). Size milne pe `self.__size` bhi set = status/limits sahi.
+
+**Tests (sandbox, REAL bytes — 1-byte cap se, full file nahi):** bot ke asli `add_download()` pe HTTP-downloader 1 byte pe cap:
+- 240p: downloader ko `format_id='240p'` + signed CDN URL + extractor headers (`User-Agent`/`Accept`/`Accept-Language`/`Sec-Fetch-Mode`) mile → **HTTP 206, 1 byte, 1-byte file disk pe** ✅
+- 4K `av1-2160p_4K__HD`: same, **206, 1B of 2751840839** ✅
+- 9/9 formats (240p..2160p, h264+av1) pe 1-byte 206 ✅
+- Disk guard: real HEAD-size **2.56 GB** detect → simulated 1 GB disk pe **turant** `Not enough free disk space for 2.56GB` (0 wasted download) ✅
+- HTTP reqs/task **4 → 2** ✅; permanent-503 fail **30.12s → 6.06s** ✅
+- Full-file run (pehle): 136.6 MB complete + metadata/thumbnail postprocess + ffprobe valid ✅
+- Audio-merge: **N/A** — eporner progressive mp4 (video+audio ek file), merge path banta hi nahi.
+- `py3.10.12` full-repo compile **108/108** + py3.13 PASS.
+- Harness repo ke **bahar** (`/home/user/D2-tests/ydl_1byte_verify.py`) — user rule: repo me sirf main code.
+
+**Note (pending, code nahi kiya):** (a) **4K 1 GB dyno pe possible nahi** (2.56/7.67 GB) — ab clean fast error milta hai, par 4K chahiye to bada disk chahiye. (b) **Filename collision:** `240p` aur `av1-240p` dono ka naam `... 240p.mp4` (`outtmpl` me sirf `%(height)s`) — ek task me dono quality li to overwrite; user ne option chuna nahi, isliye untouched.
