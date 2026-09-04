@@ -1523,3 +1523,18 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** `bot_utils.py` `_YTDL_HINT` me eporner + baaki real yt-dlp adult extractors add: eporner, beeg, txxx, upornia, thisvid, porntrex, hqporner, motherless, rule34video, hellporno, drtuber, sunporno, sexu, alphaporno, pornflip, pornerbros, murrtube, 4tube, chaturbate, stripchat, nubiles. Magnet guard (is_torrent_link) pehle — `&tr=eporner.com/announce` wali magnet false-positive nahi deti.
 **Note:** eporner ke category/model PAGES (e.g. /popular-videos/) ka yt-dlp me playlist extractor nahi (generic → Unsupported) — single video links bulk list me do.
 **Test:** is_ytdlp_link sim — eporner/no-www True, magnet False (torrent-guard), random False ✓; full-repo compile ✓.
+
+### 260904-CQ — yt-dlp multi-quality menu: tbr-gate + progressive '+ba' fix (eporner)
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**User:** eporner link (video-e3DEfNO2Aip) pe sirf "Best Video" aata tha; multiple quality (240–1080) chahiye, generic fix (site-hardcode nahi).
+**Root cause (real eporner JSON):** `ytdlp.py get_quality` ka single-video loop `for item: if item.get('tbr'):` — poora loop **tbr (total bitrate) hone par hi** chalta tha. Eporner extractor har format me **`tbr=None, fps=None, filesize=None`** deta hai (10/10 formats) → saare formats skip → zero quality buttons → sirf Best Video/Best Audio. Saath hi eporner formats **progressive direct mp4** (URL `...-1080p.mp4`, audio included; extractor me **koi audio-only track nahi**) hain — purana code video format ke liye hamesha `format_id+ba/b[...]` banata tha, jiska eporner pe koi `ba` hai hi nahi → galat/unrelated variant resolve (proven: `1080p_HD+ba` → `av1-1080p_HD`).
+**Generic fix (`bot/modules/ytdlp.py`):**
+- tbr-gate hata; variant grouping key = unique index (tbr/fps/filesize null ho tab bhi). `formats{b_name:{key:[size,fmt]}}` + `sub/dict` callback contract same.
+- `_variant_kind()` classifier: **audio-only** (no video + acodec) → plain id; **video+audio (progressive)** → plain `format_id`; **video-only (DASH)** → `format_id+ba...` native yt-dlp merge.
+- **Progressive-source detection:** agar extractor me ek bhi audio-only format NAHI hai (eporner-type) → saare video formats ko progressive treat = **plain format_id, no +ba** (galat merge/`b[height]` fallback khatam). YouTube/DASH (audio-only track present) → merge form unchanged.
+- Codec tag (h264/av1/vp9) button label me taaki same-resolution dono codec variants sub-button me dikhein; low→high sort; size unknown ho to label clean.
+- `qual_subbuttons` index-key aware (purana `{tbr}K` label ab generic variant).
+**Sandbox tests (real URL):** raw dump = 10 formats sab tbr-null (240–1080 × h264/av1) → builder ab **10 buttons**, plain ids (`1080p_HD`,`av1-480p`,...); yt-dlp `-f` simulate par **har quality sahi resolve** (240p→240p ... 1080p_HD→1080p); `+ba` form YouTube par preserved (audio-only=True → dashvideo merge), eporner par plain id (audio-only=False). Full-repo compile ✓.
+**Perf:** single metadata extraction (pehle se), no extra subprocess; merge sirf DASH split-source pe (progressive direct file = no remux = CPU/RAM bachat).
+**Edge:** playlist path (entries) untouched; audio-only sites → id; video-only DASH → +ba; null fps/tbr/filesize handled; duplicates same-resolution codec-tag se grouped.

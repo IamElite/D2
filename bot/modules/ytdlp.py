@@ -117,40 +117,89 @@ class YtSelection:
         else:
             format_dict = result.get('formats')
             if format_dict is not None:
+                # Generic multi-quality builder. Works for extractors (e.g. eporner)
+                # that expose NO tbr/fps/filesize — the old code gated the whole loop
+                # on item['tbr'], so every such source collapsed to "Best Video".
+                # Key per variant = unique index (NOT tbr, which is often null); keeps
+                # the existing formats{name:{key:[size,fmt]}} / 'sub'|'dict' contract.
+                def _variant_kind(item):
+                    """'audio' | 'progressive' (has video, usable standalone) |
+                    'dashvideo' (video-only, needs +ba merge) | None (skip)."""
+                    has_vid = bool(item.get('height')) or item.get('vcodec') not in (None, 'none')
+                    has_aud = item.get('acodec') not in (None, 'none') or item.get('audio_ext') not in (None, 'none')
+                    if not has_vid and has_aud:
+                        return 'audio'
+                    if has_vid and has_aud:
+                        return 'progressive'
+                    if has_vid:
+                        return 'dashvideo'
+                    return None
+
+                # Generic progressive-source detection: extractors that serve plain
+                # progressive files (eporner etc.) expose NO separate audio-only
+                # format — each video URL already carries audio even if yt-dlp
+                # didn't probe the codecs (vcodec/acodec None). For such sources a
+                # '+ba' merge string is WRONG (there is no 'ba' track — it either
+                # errors or silently resolves to an unrelated variant). Mark all
+                # video formats standalone. YouTube/DASH-style sources keep native merge.
+                _has_audio_only = any(
+                    (it.get('acodec') not in (None, 'none') or it.get('audio_ext') not in (None, 'none'))
+                    and not it.get('height')
+                    and it.get('vcodec') in (None, 'none')
+                    for it in format_dict)
+
+                vidx = 0
                 for item in format_dict:
-                    if item.get('tbr'):
-                        format_id = item['format_id']
+                    format_id = item.get('format_id')
+                    if not format_id:
+                        continue
+                    size = item.get('filesize') or item.get('filesize_approx') or 0
+                    kind = _variant_kind(item)
+                    if kind is None:
+                        continue
+                    if kind == 'dashvideo' and not _has_audio_only:
+                        kind = 'progressive'
 
-                        if item.get('filesize'):
-                            size = item['filesize']
-                        elif item.get('filesize_approx'):
-                            size = item['filesize_approx']
-                        else:
-                            size = 0
-
-                        if item.get('video_ext') == 'none' and item.get('acodec') != 'none':
-                            if item.get('audio_ext') == 'm4a':
-                                self.__is_m4a = True
-                            b_name = f"{item['acodec']}-{item['ext']}"
-                            v_format = format_id
-                        elif item.get('height'):
-                            height = item['height']
-                            ext = item['ext']
-                            fps = item['fps'] if item.get('fps') else ''
-                            b_name = f'{height}p{fps}-{ext}'
-                            ba_ext = '[ext=m4a]' if self.__is_m4a and ext == 'mp4' else ''
-                            v_format = f'{format_id}+ba{ba_ext}/b[height=?{height}]'
-                        else:
+                    if kind == 'audio':
+                        b_name = f"{item.get('acodec') or 'audio'}-{item.get('ext') or ''}".strip('-')
+                        v_format = format_id
+                    else:
+                        height = item.get('height')
+                        if not height:
                             continue
+                        ext = item.get('ext') or 'mp4'
+                        # tag codec family (h264 vs av1/vp9) so both surface as sub-variants
+                        vc = str(item.get('vcodec') or '').lower()
+                        ctag = ''
+                        if 'av1' in vc:
+                            ctag = '-av1'
+                        elif 'vp9' in vc or 'vp09' in vc:
+                            ctag = '-vp9'
+                        elif 'avc' in vc or 'h264' in vc:
+                            ctag = '-h264'
+                        b_name = f"{height}p{ctag}-{ext}"
+                        if kind == 'progressive':
+                            # standalone/combined file — do NOT append +ba (no separate audio track)
+                            v_format = format_id
+                        else:
+                            # DASH video-only: merge with best audio (native yt-dlp merge)
+                            ba_ext = '[ext=m4a]' if self.__is_m4a and ext == 'mp4' else ''
+                            v_format = f"{format_id}+ba{ba_ext}/b[height=?{height}]"
 
-                        self.formats.setdefault(b_name, {})[f"{item['tbr']}"] = [
-                            size, v_format]
+                    self.formats.setdefault(b_name, {})[f"{vidx}"] = [size, v_format]
+                    vidx += 1
 
-                for b_name, tbr_dict in self.formats.items():
+                def _res_key(b_name):
+                    import re as _re
+                    m = _re.match(r'(\d+)p', b_name)
+                    return int(m.group(1)) if m else 0
+                # Low → high quality; audio variants after video; single variant -> direct button
+                for b_name in sorted(self.formats.keys(), key=lambda n: (_res_key(n) == 0, _res_key(n), n)):
+                    tbr_dict = self.formats[b_name]
                     if len(tbr_dict) == 1:
-                        tbr, v_list = next(iter(tbr_dict.items()))
-                        buttonName = f'{b_name} ({get_readable_file_size(v_list[0])})'
-                        buttons.ibutton(buttonName, f'ytq sub {b_name} {tbr}')
+                        k, v_list = next(iter(tbr_dict.items()))
+                        size_tag = f' ({get_readable_file_size(v_list[0])})' if v_list[0] else ''
+                        buttons.ibutton(f'{b_name}{size_tag}', f'ytq sub {b_name} {k}')
                     else:
                         buttons.ibutton(b_name, f'ytq dict {b_name}')
             buttons.ibutton('MP3', 'ytq mp3')
@@ -175,14 +224,17 @@ class YtSelection:
 
     async def qual_subbuttons(self, b_name):
         buttons = ButtonMaker()
-        tbr_dict = self.formats[b_name]
-        for tbr, d_data in tbr_dict.items():
-            button_name = f'{tbr}K ({get_readable_file_size(d_data[0])})'
-            buttons.ibutton(button_name, f'ytq sub {b_name} {tbr}')
+        var_dict = self.formats[b_name]
+        n = len(var_dict)
+        for idx, (_k, d_data) in var_dict.items():
+            # variants share the resolution/type name; distinguish by size (and n if unknown)
+            size_tag = f' ({get_readable_file_size(d_data[0])})' if d_data[0] else (f' variant {idx}' if n > 1 else '')
+            button_name = f'{b_name}{size_tag}'
+            buttons.ibutton(button_name, f'ytq sub {b_name} {idx}')
         buttons.ibutton('Back', 'ytq back', 'footer')
         buttons.ibutton('Cancel', 'ytq cancel', 'footer')
         subbuttons = buttons.build_menu(2)
-        msg = f'Choose Bit rate for <b>{b_name}</b>:\nTimeout: {get_readable_time(self.__timeout-(time()-self.__time))}'
+        msg = f'Choose variant for <b>{b_name}</b>:\nTimeout: {get_readable_time(self.__timeout-(time()-self.__time))}'
         await editMessage(self.__reply_to, msg, subbuttons)
 
     async def mp3_subbuttons(self):
