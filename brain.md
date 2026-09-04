@@ -357,7 +357,7 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ---
 
 ### `260830-J` — requirements.txt extension
-**Git:** (push ke baad)
+**Git:** `8d7ced3`
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
 **Fix:** `git mv requirements requirements.txt`.
 
@@ -1468,7 +1468,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **NEVER:** pkill; DHT force-off; peer-speed-limit bina hard peer-cap ke (CH churn).
 
 ### 260904-CN — UPLOAD regression ROOT CAUSE: wzgram hardcoded bot rate_limit=40 (~20MiB/s cap) + dead queue patch
-**Git:** (push ke baad)
+**Git:** `8d7ced3`
 **Date:** 2026-09-04
 **Files:** `bot/__init__.py` (`_patch_tg_upload_queue`, workers, executor)
 
