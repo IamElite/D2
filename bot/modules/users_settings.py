@@ -240,7 +240,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
-        text += "\n➲ <b>Stream Tags</b> — tap to set all tags & custom:"
+        text += "\n➲ <b>Stream Tags</b> — set tags shown inside the Video / Audio / Subtitle info:"
         for sidx, sname in enumerate(STREAM_SECTIONS):
             has_any = any(k.lower().startswith(f"{sname.lower()} ") for k in meta_dict)
             buttons.ibutton(f"{'✅ ' if has_any else '❌ '}{sname}", f"userset {user_id} md_str {sidx}", "header2")
