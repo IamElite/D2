@@ -1598,10 +1598,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Note:** boot 1-2 me `uv: No virtual environment found` ke baad `|| pip` fallback chala, boot 3-4 me wzgram/curl-cffi/motor fresh install hue (line 36-56) → packages sahi install hote hain, woh error noisy-only hai. Container image 3.11 deploy se py3.10 deprecation jad se gayab.
 
 ### 260905-A — quality sub-menu crash: `qual_subbuttons` list-unpack galti (d_data[0] = format-id ka pehla char)
-**Git:** `3000308` (brain: `76f3589`)  
+**Git:** `cfb0dcd` (tests-file cleanup: yeh brain commit `cfb0dcd` ke upar)  
 **Date:** 2026-09-05  
 **OLD:** `260904-CQ` / `497eb5c` — us commit me `qual_subbuttons` aaya, tab se yeh unpack galti live thi.  
-**Files:** `bot/modules/ytdlp.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`, `tests/t_260905_qual_subbuttons.py` (naya)
+**Files:** `bot/modules/ytdlp.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` (sirf yeh 3)
 
 **User log:** xhamster `xhMis5F` → quality menu → variant tap → `TypeError: '>=' not supported between instances of 'str' and 'int'` (`ytdlp.py:38` → `ytdlp.py:231` → `bot_utils.py:101`), Task exception never retrieved, task dead.
 
@@ -1619,9 +1619,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Live-version proof:** traceback ke line numbers (`ytdlp.py:38/231`, `bot_utils.py:101`) repo HEAD `9e05269` se exact match = dyno arnv1 latest chala raha hai (code purana nahi).
 
-**Tests:** `tests/t_260905_qual_subbuttons.py` — sandbox me pyrofork/aiohttp/motor/aria2p/qbittorrent-api install + aria2(6800)/qBit(8090) stand-in RPC servers + TG login stub; **asli `bot/modules/ytdlp.py` + asli `bot_utils.py`** us video ke real format list pe chale (Telegram I/O capture).
+**Tests (harness SANDBOX-LOCAL, repo me test file NAHI — user rule: repo me sirf main code; file `/home/user/D2-tests/` me):** sandbox me pyrofork/aiohttp/motor/aria2p/qbittorrent-api install + aria2(6800)/qBit(8090) stand-in RPC servers + TG login stub; **asli `bot/modules/ytdlp.py` + asli `bot_utils.py`** us video ke real format list pe chale (Telegram I/O capture).
 - **Purana code (git stash):** log wala **same TypeError** + 10 checks FAIL.
 - **Naya code:** **19/19 PASS**; sub-buttons `144p-mp4 (961.30MB)` (pehle crash), numeric/None/junk-filesize regression bhi pass.
 - **py3.10.12** (uv; dyno ka exact version) full-repo compile **109/109** + py3.13 PASS.
 
 **Note (koi code nahi):** xhamster m3u8 variants per-variant size deta hi nahi → dono sub-buttons ka size same dikhega; `tbr` (139 vs 140 kbps) available hai, to labels bitrate se zyada useful honge — chahiye to alag `P-` plan.
+**Cleanup (user rule — `260905-A` ke baad):** galti se `tests/t_260905_qual_subbuttons.py` `3000308` me commit+push ho gaya tha. User: test files repo me nahi chahiye. → `git filter-branch` se `tests/` poori history se hataya (arnv1 rewrite: `3000308`→`cfb0dcd`, brain `76f3589`→`cd8f1af`, cleanup→`e6fe6a9`) + `arnv1` **force-push** (user-authorized). Teeno code files rewrite ke baad **byte-identical** verify (blob hash match). Test harness ab sirf sandbox me. **Rule brain me: repo me sirf main code push karo — test/scratch files local rakho.**
