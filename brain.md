@@ -1332,7 +1332,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 ext-less+attachment+user-meta → .mkv, purge ✓, attachment filename+mimetype intact ✓; T3 metadata-empty full-preserve ✓; T4 override+purge ✓; py3.10 102/102.
 
 ### 260903-BX — Per-stream tags UI+engine + Add Custom Tag manager (user-ask, graph 47349)
-**Git:** pending  
+**Git:** `3f6102c`  
 
 **Ask:** Video/Audio/Subtitle me Title ke alawa bhi tags (Copyright/Encoded By/Artist/Comment); New Button → "Add Custom Tag" (end me) + list/Remove/Add-More manager.
 **Engine (ffmpeg.py):** overlay compound keys (`Video Comment:x` / `Audio Artist:y` / `Subtitle Encoded By:z`) → `stream_meta[ctype][tag]` → stream-loop me `-metadata:s:{pref}:{idx} {tag}={v}`; `title` sub-key global-title ko override; passthrough se compound EXCLUDE (global-tag leak zero — T2 proven).
