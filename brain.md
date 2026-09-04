@@ -1525,7 +1525,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Test:** is_ytdlp_link sim — eporner/no-www True, magnet False (torrent-guard), random False ✓; full-repo compile ✓.
 
 ### 260904-CQ — yt-dlp multi-quality menu: tbr-gate + progressive '+ba' fix (eporner)
-**Git:** (push ke baad)
+**Git:** `497eb5c`
 **Date:** 2026-09-04
 **User:** eporner link (video-e3DEfNO2Aip) pe sirf "Best Video" aata tha; multiple quality (240–1080) chahiye, generic fix (site-hardcode nahi).
 **Root cause (real eporner JSON):** `ytdlp.py get_quality` ka single-video loop `for item: if item.get('tbr'):` — poora loop **tbr (total bitrate) hone par hi** chalta tha. Eporner extractor har format me **`tbr=None, fps=None, filesize=None`** deta hai (10/10 formats) → saare formats skip → zero quality buttons → sirf Best Video/Best Audio. Saath hi eporner formats **progressive direct mp4** (URL `...-1080p.mp4`, audio included; extractor me **koi audio-only track nahi**) hain — purana code video format ke liye hamesha `format_id+ba/b[...]` banata tha, jiska eporner pe koi `ba` hai hi nahi → galat/unrelated variant resolve (proven: `1080p_HD+ba` → `av1-1080p_HD`).
