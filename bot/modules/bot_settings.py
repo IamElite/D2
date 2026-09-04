@@ -15,6 +15,7 @@ from io import BytesIO
 from aioshutil import rmtree as aiormtree
 
 from .. import config_dict, user_data, DATABASE_URL, MAX_SPLIT_SIZE, list_drives_dict, categories_dict, aria2, GLOBAL_EXTENSION_FILTER, status_reply_dict_lock, Interval, aria2_options, aria2c_global, IS_PREMIUM_USER, download_dict, qbit_options, get_client, LOGGER, bot, extra_buttons, shorteners_list
+from ..helper.ext_utils.engine_lifecycle import ensure_qbit
 from ..helper.telegram_helper.message_utils import sendMessage, sendFile, editMessage, deleteMessage, update_all_messages
 from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.bot_commands import BotCommands
@@ -1017,6 +1018,7 @@ async def edit_qbit(_, message, pre_message, key):
         value = float(value)
     elif value.isdigit():
         value = int(value)
+    await sync_to_async(ensure_qbit)
     await sync_to_async(get_client().app_set_preferences, {key: value})
     qbit_options[key] = value
     await update_buttons(pre_message, 'qbit')
@@ -1298,6 +1300,7 @@ async def edit_bot_settings(client, query):
     elif data[1] == 'emptyqbit':
         handler_dict[message.chat.id] = False
         await query.answer()
+        await sync_to_async(ensure_qbit)
         await sync_to_async(get_client().app_set_preferences, {data[2]: value})
         qbit_options[data[2]] = ''
         await update_buttons(message, 'qbit')

@@ -69,8 +69,29 @@ async def clean_download(path):
             pass
 
 
+def _qbit_up():
+    from socket import create_connection
+    try:
+        s = create_connection(('127.0.0.1', 8090), timeout=0.4)
+        s.close()
+        return True
+    except Exception:
+        return False
+
+
+def _qbit_purge_all():
+    # qBit idle-shutdown (CB) ke baad down ho sakta hai — down = torrents bhi nahi, skip fast
+    if not _qbit_up():
+        LOGGER.info('qBit down — torrent purge skipped (nothing to clean)')
+        return
+    try:
+        get_client().torrents_delete(torrent_hashes="all")
+    except Exception as e:
+        LOGGER.warning(f'qBit purge skipped: {e}')
+
+
 async def start_cleanup():
-    get_client().torrents_delete(torrent_hashes="all")
+    _qbit_purge_all()
     try:
         await aiormtree(DOWNLOAD_DIR)
     except Exception:
@@ -80,7 +101,7 @@ async def start_cleanup():
 
 def clean_all():
     aria2.remove_all(True)
-    get_client().torrents_delete(torrent_hashes="all")
+    _qbit_purge_all()
     try:
         rmtree(DOWNLOAD_DIR)
     except Exception:
