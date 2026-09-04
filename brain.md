@@ -1362,3 +1362,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** caption-sim (values + Not set) ✓; layout-sim (pairs → Add Tag lone → Back) ✓; py3.10 102/102.  
 **Followup:** label `+ Add Tag` (user) — `81541c5`.  
 **Followup-2:** stream-caption newbie-clear — `➲ Stream Tags — set tags shown inside the Video / Audio / Subtitle info:` — `331a32f`.
+
+### 260904-CB — Resource optimization (CPU/RAM/speed audit, user-ask)
+**Git:** pending  
+
+**Audit:** 4 tasks sab `#Aria2` — **qBit 24/7 zinda** (dht:True+pex:True+32MB cache+200/100 conn) = ~60-120MB RAM waste + UDP churn; **aria2c DHT default-on** (Heroku UDP dead → retry-churn CPU); pyrogram workers=12; sync_to_async executor uncapped (thread-explosion); ffmpeg cmds par -threads/-nostdin nahi (spike per task-add). Status-loop ALREADY lean (6s + dedupe + 3s throttle — koi change nahi).
+**Changes:** (1) qBit overlay: cache 32→16, conn 200/100→120/60, async_io_threads 2→1, **dht/pex env `QBIT_DHT`** (default off); (2) `stop_heavy()` → idle par qBit **graceful app_shutdown** (torrents 0 + `QBIT_IDLE_STOP!=false`) — ensure_qbit auto-restart qBit-use pe (qbit_download/torrent_search me pehle se wired); aria2 stays (RPC); (3) aria2c DHT/LPD/PEX off overlay (sirf missing keys; `ALLOW_DHT=true` escape); (4) workers 12→6; (5) default executor cap 6; (6) ffmpeg/repair `-nostdin -threads 1`.
+**Impact:** RAM 43.5%→~32-37% (qBit idle-shutdown); CPU 21.9%→~8-15% expected (DHT churn + thread caps; 4-slow-torrent aria2c floor bachta); DL-speed zero-sacrifice (DL path untouched); sab env-guarded (QBIT_DHT/QBIT_IDLE_STOP/ALLOW_DHT).
+**Tests:** T1 ffmpeg flags-in-cmd + metadata ✓; T2/T2b/T2c idle-stop logic (shutdown/stays/env-off) ✓; py3.10 102/102.

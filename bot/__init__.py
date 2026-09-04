@@ -899,6 +899,18 @@ else:
                for op in aria2c_global if op in aria2_options}
     aria2.set_global_options(a2c_glo)
 
+# Heroku: outbound UDP dead — DHT/LPD/PEX = constant retry-churn (CPU) with zero peer gain.
+# Env ALLOW_DHT=true restores; user-set DB aria2 options untouched (only fill missing keys).
+if environ.get('ALLOW_DHT', '').lower() not in ('1', 'true', 'yes'):
+    try:
+        _a2_dht = {k: 'false' for k in ('enable-dht', 'bt-enable-lpd', 'enable-peer-exchange')
+                   if k not in aria2_options}
+        if _a2_dht:
+            aria2.change_global_option(_a2_dht)
+            log_info(f"Aria2 DHT/LPD/PEX off (UDP-dead host): {','.join(_a2_dht)}")
+    except Exception as e:
+        log_error(f"Aria2 DHT overlay skipped: {e}")
+
 qb_client = get_client()
 if not qbit_options:
     qbit_options = dict(qb_client.app_preferences())
@@ -915,18 +927,20 @@ else:
 
 # Overlay after Mongo so DB cannot restore mmap/1-hash-thread (CPU spike, slow DL)
 try:
+    # Heroku (1GB): DHT/PEX UDP-dead = pure CPU churn; qBit idle-stop frees RAM (engine_lifecycle)
+    _qbit_dht = environ.get('QBIT_DHT', '').lower() in ('1', 'true', 'yes')
     qb_client.app_set_preferences({
-        'async_io_threads': 2,
+        'async_io_threads': 1,
         'hashing_threads': 1,
-        'disk_cache': 32,
+        'disk_cache': 16,
         'disk_io_type': 0,
-        'max_connec': 200,
-        'max_connec_per_torrent': 100,
+        'max_connec': 120,
+        'max_connec_per_torrent': 60,
         'max_uploads': 4,
         'max_uploads_per_torrent': 2,
         'lsd': False,
-        'dht': True,
-        'pex': True,
+        'dht': _qbit_dht,
+        'pex': _qbit_dht,
         'queueing_enabled': True,
         'max_active_downloads': 2,
         'max_active_torrents': 3,
@@ -939,13 +953,15 @@ try:
         'up_limit': 256,
         'dl_limit': 0,
     })
-    log_info("qBit runtime: 2 active DL, 32MiB cache, 120 conn")
+    log_info(f"qBit runtime: cache 16MiB, 120 conn, DHT {'on' if _qbit_dht else 'off'} (UDP-dead host)")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=12,
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=6,
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
+from concurrent.futures import ThreadPoolExecutor as _TPE
+bot_loop.set_default_executor(_TPE(max_workers=6, thread_name_prefix='sync'))  # sync_to_async thread-explosion guard
 bot_name = bot.me.username
 scheduler = AsyncIOScheduler(timezone=str(get_localzone()), event_loop=bot_loop)

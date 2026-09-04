@@ -170,7 +170,7 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
         # same-file pe ffmpeg reject karta — original-ext tmp me likh ke atomic swap
         outfile += '.meta' + os_path.splitext(media_file)[1].lower()
     tag_args = await probe_tag_args(media_file, overlay)
-    cmd = [bot_cache['pkgs'][2], '-y', '-hide_banner', '-loglevel', 'error',
+    cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
     cmd.extend(tag_args)
     cmd.append(outfile)

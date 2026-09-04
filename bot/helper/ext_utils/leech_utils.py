@@ -212,12 +212,12 @@ async def repair_moov(path):
         if await aiopath.exists(tmp):
             await aioremove(tmp)
         if mp4_mode:
-            cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
+            cmd = ['ffmpeg', '-nostdin', '-threads', '1', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
                    '-map_chapters', '0', '-c', 'copy',
                    '-map_metadata:s:v:0', '-1', '-map_metadata:s:a:0', '-1',
                    '-movflags', '+faststart']
         else:
-            cmd = ['ffmpeg', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
+            cmd = ['ffmpeg', '-nostdin', '-threads', '1', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
                    '-map_chapters', '0', '-c', 'copy']
         cmd.append(tmp)
         _, err, rc = await cmd_exec(cmd)
