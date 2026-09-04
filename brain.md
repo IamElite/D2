@@ -1550,3 +1550,15 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - Code 3.10 pe compile chalta hai to 3.11/3.12 pe bhi syntax chalta hai (3.12 only naya = f-string me same-quote nesting — BE incident wala; woh poore repo me ab nahi).
 - **User action (deploy-side, code nahi):** Dockerfile 3.11.9 ka naya image build+release karo (Heroku container stack) → deprecation khud gayab + Dockerfile ke MEGA/TGCrypto 3.11 bindings use honge. Tab tak py3.10 pe logger filter spam rokh deta hai.
 **Standing rule (brain):** har push se pehle **uv py3.10 full-repo compile** (baseline=3.10 = sabse conservative; pass = 3.10/3.11/3.12 sab safe). Nested same-quote f-strings mat likho (3.12-only).
+
+### 260904-CS — startup noise suppress + upload-patch REGEX-robust + ONLINE banner
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**User (.ask→build):** boot log red-warning noise me "bot start hua ya nahi" pata nahi chalta; `TG upload patch: no target pattern matched` (CN patch Heroku pe laga hi nahi); py3.10 deprecation lines (yt-dlp bare-stderr + google FutureWarning) baar-baar.
+**Root cause CN patch no-op:** `_patch_tg_upload_queue` exact-string replace karta tha (`'rate_limit = 40  # ~20 MiB/s'`) — Heroku ke wzgram micro-build me whitespace/comment/version farq → koi match nahi → silent no-op → upload cap 20MiB/s bana raha.
+**Fix:**
+1. **Patch regex-robust (`__init__.py`):** ab comment/whitespace/version-independent REGEX se exact NUMERIC value pakdta hai (`rate_limit = 40` bot cap, `= 50` non-premium user cap; premium 300 untouched) + `pool_size min(8|12,POOL_SIZE)` → 14. Applied-count + **wzgram version + path boot-log**; zero match pe bड़ी warning (future layout change visible, silent nahi). Real wzgram 3.1.1 source test: bot 40→300, user 50→300, premium 300 safe, pools 8/12→14, patched-file compiles ✓.
+2. **py3.10 deprecation noise suppress (`__init__.py`):** (a) `warnings.filterwarnings` — yt-dlp + google.api_core FutureWarning; (b) **stderr-write wrapper** (`_DeprFilterStderr`) jo SIRF `deprecated feature: support for python version` line ko line-buffer+drop karta hai (split-writes + flush edge tested; real errors/tracebacks/progress untouched). CR ka MyLogger filter already logger-side karta tha; yeh `to_stderr` wali bare line cover.
+3. **ONLINE banner (`__main__.py`):** boot complete hone pe bड़ा alag block — `BOT ONLINE ✅ KPSML-X [@...] is UP and ready | Python x.y | wzgram x.x.x` — red-noise ke beech ek nazar me up pata chale.
+**Note:** deprecation jad se tab gayab hogi jab container image 3.11 (Dockerfile already 3.11.9) deploy hoga; tab tak filters spam rokte hain.
+**Test:** regex patch hits r40/r50/p8/p12 = 1/1/1/1 ✓; stderr filter split-write + flush suppress/keep ✓; py3.10 full-repo compile ✓ + py3.13 ✓.

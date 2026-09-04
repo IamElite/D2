@@ -24,50 +24,134 @@ faulthandler_enable()
 install()
 setdefaulttimeout(600)
 
+# --- Benign Python-3.10 deprecation noise (yt-dlp + google.api_core warn on 3.10
+# until the container image moves to 3.11; harmless and they drown the real
+# startup logs). Suppress via warnings + logging BEFORE heavy imports. ---
+try:
+    import warnings as _warnings
+    _warnings.filterwarnings('ignore', message=r'.*Support for Python version.*deprecated.*')
+    _warnings.filterwarnings('ignore', message=r'.*You are using a Python version.*Google will stop supporting.*')
+    _warnings.filterwarnings('ignore', message=r'.*Python version .* .* end of (life|support).*')
+    # route nothing to stderr for these specific FutureWarnings at import time
+    _warnings.filterwarnings('ignore', category=FutureWarning, module=r'.*(google|yt_dlp|yt-dlp).*')
+except Exception:
+    pass
+
+# yt-dlp prints its py3.10 "Deprecated Feature: Support for Python version 3.10"
+# directly to stderr (YoutubeDL.to_stderr), bypassing the logger. Wrap stderr so
+# ONLY that single benign notice is swallowed — every other line (tracebacks,
+# real errors, progress) passes through unchanged.
+try:
+    import sys as _sys
+    class _DeprFilterStderr:
+        __slots__ = ('_raw', '_buf')
+        _DROP = ('deprecated feature: support for python version',)
+
+        def __init__(self, raw):
+            object.__setattr__(self, '_raw', raw)
+            object.__setattr__(self, '_buf', '')
+
+        def write(self, s):
+            if not isinstance(s, str):
+                return self._raw.write(s)
+            data = self._buf + s
+            lines = data.splitlines(keepends=True)
+            if data.endswith(('\n', '\r')):
+                complete, partial = lines, ''
+            else:
+                complete, partial = lines[:-1], (lines[-1] if lines else '')
+            out = ''
+            for line in complete:                     # full lines only are judged
+                if any(d in line.lower() for d in self._DROP):
+                    continue
+                out += line
+            object.__setattr__(self, '_buf', partial)  # join partial with next write
+            return self._raw.write(out)
+
+        def flush(self):
+            if self._buf:
+                if not any(d in self._buf.lower() for d in self._DROP):
+                    self._raw.write(self._buf)
+                object.__setattr__(self, '_buf', '')
+            return self._raw.flush()
+
+        def isatty(self):
+            return self._raw.isatty()
+
+        def fileno(self):
+            return self._raw.fileno()
+
+        def __getattr__(self, name):
+            return getattr(self._raw, name)
+
+    if not isinstance(_sys.stderr, _DeprFilterStderr):
+        _sys.stderr = _DeprFilterStderr(_sys.stderr)
+except Exception:
+    pass
 def _patch_tg_upload_queue(depth=16):
     """Remove the wzgram upload per-file rate cap (root cause of "upload KB/s").
 
-    wzgram save_file.py hardcodes dispatch pacing:
-        is_bot      -> rate_limit=40  (~20 MiB/s/file)  pool=8
-        is_premium  -> rate_limit=300                   pool=14
-        normal user -> rate_limit=50  (~25 MiB/s/file)  pool=12
-    rate_limit = MTProto chunks dispatched per second (PART 512KiB). The old
-    Queue(1)/workers_count pattern this used to target no longer exists, so the
-    patch was a no-op on wzgram 3.1.x -> bulk uploads crawled. We now patch the
-    actual rate_limit/pool_size constants (env-overridable), keep the legacy
-    patterns as harmless fallback, and only rewrite if a target string matched.
+    wzgram save_file.py hardcodes dispatch pacing (chunks/s, PART 512KiB):
+        is_bot -> rate_limit=40 (~20 MiB/s/file) ; normal user -> 50 (~25 MiB/s)
+    Old patch used exact-string replaces which silently no-op'd across wzgram
+    micro-builds (whitespace/comment differences) -> Heroku never got the cap
+    removed. We now use COMMENT/WHITESPACE-INDEPENDENT REGEX by exact numeric
+    value, verify the applied count, log the wzgram version + matched lines, and
+    loudly warn if nothing matched (future layout change is visible, not silent).
     """
-    bot_rate = environ.get('TG_UP_RATE_LIMIT', '300')       # chunks/s (~150 MiB/s)
-    user_rate = environ.get('TG_USER_UP_RATE_LIMIT', '300')
-    bot_pool = environ.get('TG_UP_POOL', '14')              # media sessions/file
-    user_pool = environ.get('TG_USER_UP_POOL', '14')
+    import re as _re
     try:
+        import pyrogram as _pyg
         from pyrogram.methods.advanced import save_file as sf
+        wz_ver = getattr(_pyg, '__version__', '?')
         path = getattr(sf, '__file__', None)
         if not path:
             return
         with open(path, 'r', encoding='utf-8') as fh:
             src = fh.read()
         orig = src
-        # --- wzgram 3.1.x: rate-limit + pool constants ---
-        src = src.replace('rate_limit = 40  # ~20 MiB/s', f'rate_limit = {bot_rate}  # patched (was 40 ~20MiB/s)')
-        src = src.replace('rate_limit = 40 # ~20 MiB/s',  f'rate_limit = {bot_rate}  # patched')
-        src = src.replace('rate_limit = 50  # ~25 MiB/s', f'rate_limit = {user_rate}  # patched (was 50 ~25MiB/s)')
-        src = src.replace('rate_limit = 50 # ~25 MiB/s',  f'rate_limit = {user_rate}  # patched')
-        src = src.replace('pool_size = min(8, POOL_SIZE) if is_big else 1',
-                          f'pool_size = min({bot_pool}, POOL_SIZE) if is_big else 1')
-        src = src.replace('pool_size = min(12, POOL_SIZE) if is_big else 1',
-                          f'pool_size = min({user_pool}, POOL_SIZE) if is_big else 1')
-        # --- legacy pyrogram/wzgram patterns (no-op if absent) ---
+        bot_rate = environ.get('TG_UP_RATE_LIMIT', '300')       # chunks/s (~150 MiB/s)
+        user_rate = environ.get('TG_USER_UP_RATE_LIMIT', '300')
+        bot_pool = environ.get('TG_UP_POOL', '14')              # media sessions/file
+        user_pool = environ.get('TG_USER_UP_POOL', '14')
+
+        # Match "rate_limit = <n>" with arbitrary spacing and any trailing comment,
+        # by the EXACT numeric value (40=bot cap, 50=non-premium user cap; 300 = premium, untouched).
+        hits = {'rate40': 0, 'rate50': 0, 'pool8': 0, 'pool12': 0, 'legacy': 0}
+
+        def _sub_rate(val, new, key):
+            nonlocal src
+            pat = _re.compile(r'^(\s*rate_limit\s*=\s*)' + str(val) + r'(\s*(?:#.*)?)$', _re.M)
+            src, n = pat.subn(lambda m: f'{m.group(1)}{new}{m.group(2)}', src)
+            hits[key] = n
+
+        _sub_rate(40, bot_rate, 'rate40')
+        _sub_rate(50, user_rate, 'rate50')
+
+        # pool_size = min(<8|12>, POOL_SIZE) ... (premium 14 unchanged)
+        src, n = _re.subn(r'pool_size\s*=\s*min\(\s*8\s*,\s*POOL_SIZE\s*\)',
+                          f'pool_size = min({bot_pool}, POOL_SIZE)', src)
+        hits['pool8'] = n
+        src, n = _re.subn(r'pool_size\s*=\s*min\(\s*12\s*,\s*POOL_SIZE\s*\)',
+                          f'pool_size = min({user_pool}, POOL_SIZE)', src)
+        hits['pool12'] = n
+
+        # legacy pyrogram patterns (no-op if absent)
+        before = src
         src = src.replace('Queue(1)', f'Queue({depth})')
         src = src.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 2')
-        if src == orig:
-            log_warning('TG upload patch: no target pattern matched (wzgram layout changed)')
+        hits['legacy'] = 1 if src != before else 0
+
+        rate_hits = hits['rate40'] + hits['rate50']
+        if rate_hits == 0 and hits['pool8'] == 0 and hits['pool12'] == 0 and hits['legacy'] == 0:
+            log_warning(f'TG upload patch: NO target matched on wzgram {wz_ver} ({path}) '
+                        f'— rate cap NOT removed; layout changed, needs update.')
             return
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write(src)
         importlib_reload(sf)
-        log_info(f'TG upload pacing patched: rate={bot_rate}/{user_rate} chunks/s, pool={bot_pool}/{user_pool} (legacy Queue depth {depth})')
+        log_info(f'TG upload patch APPLIED (wzgram {wz_ver}): rate bot {bot_rate}/user {user_rate} '
+                 f'chunks/s, pool {bot_pool}/{user_pool} [rate hits={rate_hits}, pool hits={hits["pool8"]+hits["pool12"]}]')
     except Exception as e:
         log_warning(f'TG upload queue patch skipped: {e}')
 

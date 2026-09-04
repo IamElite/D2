@@ -287,6 +287,18 @@ async def main():
         BotCommands.HelpCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
     bot.add_handler(MessageHandler(stats, filters=command(
         BotCommands.StatsCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
+    from platform import python_version as _pyv
+    _py = _pyv()
+    try:
+        import pyrogram as _pyg
+        _wz = getattr(_pyg, '__version__', '?')
+    except Exception:
+        _wz = '?'
+    LOGGER.info("=====================================================")
+    LOGGER.info(f"  BOT ONLINE  ✅  KPSML-X [@{bot_name}] is UP and ready")
+    LOGGER.info(f"  Python {_py} | wzgram {_wz} | branch arnv1")
+    LOGGER.info("  (this banner = boot finished; earlier red lines are benign notices)")
+    LOGGER.info("=====================================================")
     LOGGER.info(f"KPSML-X Bot [@{bot_name}] Started!")
     if user:
         LOGGER.info(f"KPSML-X User [@{user.me.username}] Ready!")
