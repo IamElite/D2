@@ -46,6 +46,15 @@ async def probe_tag_args(path, overlay=None):
     args = []
     purge_streams = bool(overlay.get('__purge_stream_titles__'))
     custom_st = (overlay.get('__stream_title_v__'), overlay.get('__stream_title_a__'))
+    # compound per-stream keys: "Video Comment:x" / "Audio Artist:y" / "Subtitle Encoded By:z"
+    stream_meta = {}
+    for uk, uv in overlay.items():
+        if uk.startswith('__') or not uv:
+            continue
+        for sname in ('video', 'audio', 'subtitle'):
+            if uk.startswith(sname + ' '):
+                stream_meta.setdefault(sname, {})[uk[len(sname) + 1:]] = uv
+                break
     # user-metadata set = auto-purge (uploader ke custom tags GONE, sirf user ke)
     has_user_meta = any(not k.startswith('__') and v for k, v in overlay.items())
     orig_fmt = dict((data.get('format') or {}).get('tags') or {})
@@ -62,7 +71,8 @@ async def probe_tag_args(path, overlay=None):
             fmt[fk] = overlay[uk]
     # unknown/custom keys pass-through raw (custom-tag buttons) — _TAG_SKIP emit-loop me filter hota
     for uk, uv in overlay.items():
-        if uk.startswith('__') or uk in key_map:
+        # compound stream-keys global tag NAHI — wo stream-level jate (stream_meta)
+        if uk.startswith('__') or uk in key_map or uk.split(' ', 1)[0] in ('video', 'audio', 'subtitle'):
             continue
         if uv:
             fmt[uk] = uv
@@ -93,6 +103,8 @@ async def probe_tag_args(path, overlay=None):
                 tags['title'] = custom_st[1]
         elif extra:
             tags['title'] = extra
+        for stk, stv in stream_meta.get(ctype, {}).items():
+            tags[stk] = stv
         if ctype == 'video':
             pref, idx = 'v', vi
             vi += 1

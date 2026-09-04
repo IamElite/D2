@@ -44,6 +44,9 @@ def parse_metadata_str(string):
 
 handler_dict = {}
 META_KEYS = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
+STREAM_SECTIONS = ('Video', 'Audio', 'Subtitle')
+GENERAL_META_KEYS = [k for k in META_KEYS if k not in STREAM_SECTIONS]
+STREAM_SUB_KEYS = (('title', 'Title'), ('comment', 'Comment'), ('artist', 'Artist'), ('copyright', 'Copyright'), ('encby', 'Encoded By'))
 
 def get_custom_btns(user_dict):
     return [l for l in (user_dict.get('md_custom') or '').split('|') if l]
@@ -237,12 +240,16 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
-        text += "\n<i>Tap any field below to configure it (Set / Remove):</i>"
+        text += "\n<i>Tap any field to configure (Set / Remove):</i>"
 
-        meta_keys = META_KEYS
-        for index, mkey in enumerate(meta_keys):
+        for index, mkey in enumerate(GENERAL_META_KEYS):
             has_val = "✅ " if mkey in meta_dict else "❌ "
             buttons.ibutton(f"{has_val}{mkey}", f"userset {user_id} md_key {index}")
+
+        text += "\n\n<i>Stream Tags (Video / Audio / Subtitle):</i>"
+        for sidx, sname in enumerate(STREAM_SECTIONS):
+            has_any = any(k.lower().startswith(f"{sname.lower()} ") for k in meta_dict)
+            buttons.ibutton(f"{'✅ ' if has_any else '❌ '}{sname}", f"userset {user_id} md_str {sidx}")
 
         custom_btns = get_custom_btns(user_dict)
         if custom_btns:
@@ -251,7 +258,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 has_val = "✅ " if clabel in meta_dict else "❌ "
                 buttons.ibutton(f"{has_val}{clabel}", f"userset {user_id} md_cbtn {index}")
 
-        buttons.ibutton("New Button", f"userset {user_id} md_cadd", "header")
+        buttons.ibutton("Add Custom Tag", f"userset {user_id} md_cman")
         buttons.ibutton("✨ Set All Metadata", f"userset {user_id} md_set_all", "header")
         buttons.ibutton("↻ Clear All", f"userset {user_id} md_clear_all", "header")
         buttons.ibutton("Back", f"userset {user_id} back leech", "footer")
@@ -853,12 +860,16 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'metadata_menu')
     elif data[2] == 'md_edit':
         await query.answer()
-        idx = int(data[3])
-        meta_keys = META_KEYS
-        mkey = meta_keys[idx]
+        if data[3] == 's':
+            back_cb = f"userset {user_id} md_str {data[4]}"
+            mkey = ' '.join(data[5:])
+        else:
+            idx = int(data[4])
+            mkey = GENERAL_META_KEYS[idx]
+            back_cb = f"userset {user_id} md_key {idx}"
         text = f"⚙️ <b><u>Set Leech Metadata: {mkey}</u></b>\n\nSend the value you want to assign to <b>{mkey}</b>.\n\n<b>Timeout:</b> 60 sec"
         buttons = ButtonMaker()
-        buttons.ibutton("Cancel / Back", f"userset {user_id} md_key {idx}")
+        buttons.ibutton("Cancel / Back", back_cb)
         await editMessage(message, text, buttons.build_menu(1))
         pfunc = partial(set_metadata_key, pre_event=query, mkey=mkey)
         rfunc = partial(update_user_settings, query, 'metadata_menu')
@@ -881,20 +892,22 @@ async def edit_user_settings(client, query):
     elif data[2] == 'md_key':
         await query.answer()
         idx = int(data[3])
-        mkey = META_KEYS[idx]
+        mkey = GENERAL_META_KEYS[idx]
         meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
         cur = meta_dict.get(mkey)
         state = f"➲ Current Value: <code>{escape(trun(cur, 60))}</code>" if cur else "➲ Status: <i>Not Set</i>"
         text = f"<b><u>Leech Metadata: {mkey}</u></b>\n\n{state}\n\n<i>Tap 'Set' to enter value{' / Remove to delete it' if cur else ''}.</i>"
         mbuttons = ButtonMaker()
-        mbuttons.ibutton(f"{'Change' if cur else 'Set'}", f"userset {user_id} md_edit {idx}")
+        mbuttons.ibutton(f"{'Change' if cur else 'Set'}", f"userset {user_id} md_edit g {idx}")
         if cur:
-            mbuttons.ibutton("Remove", f"userset {user_id} md_rm {idx}")
+            mbuttons.ibutton("Remove", f"userset {user_id} md_rm g {idx}")
         mbuttons.ibutton("Back", f"userset {user_id} metadata")
         await editMessage(message, text, mbuttons.build_menu(2))
     elif data[2] == 'md_rm':
-        idx = int(data[3])
-        mkey = META_KEYS[idx]
+        if data[3] == 's':
+            mkey = ' '.join(data[5:])
+        else:
+            mkey = GENERAL_META_KEYS[int(data[4])]
         meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
         meta_dict.pop(mkey, None)
         update_user_ldata(user_id, 'metadata', '|'.join([f"{k}:{v}" for k, v in meta_dict.items() if v]))
@@ -902,6 +915,47 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'metadata_menu')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
+    elif data[2] == 'md_str':
+        await query.answer()
+        sidx = int(data[3])
+        sname = STREAM_SECTIONS[sidx]
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+        text = f"<b><u>Stream Tags: {sname}</u></b>\n\n<i>Ye tags is stream pe lagenge (Title ke alawa bhi):</i>"
+        mbuttons = ButtonMaker()
+        for sk, slabel in STREAM_SUB_KEYS:
+            ckey = f"{sname} {slabel}"
+            cur = meta_dict.get(ckey)
+            mbuttons.ibutton(f"{'✅ ' if cur else '❌ '}{slabel}", f"userset {user_id} md_skey {sidx} {sk}")
+        mbuttons.ibutton("Back", f"userset {user_id} metadata")
+        await editMessage(message, text, mbuttons.build_menu(2))
+    elif data[2] == 'md_skey':
+        await query.answer()
+        sidx, sk = int(data[3]), data[4]
+        sname = STREAM_SECTIONS[sidx]
+        slabel = dict(STREAM_SUB_KEYS)[sk]
+        mkey = f"{sname} {slabel}"
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+        cur = meta_dict.get(mkey)
+        state = f"➲ Current Value: <code>{escape(trun(cur, 60))}</code>" if cur else "➲ Status: <i>Not Set</i>"
+        text = f"<b><u>Stream Tag: {mkey}</u></b>\n\n{state}\n\n<i>Tap 'Set' to enter value{' / Remove to delete it' if cur else ''}.</i>"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton(f"{'Change' if cur else 'Set'}", f"userset {user_id} md_edit s {sidx} {sname} {slabel}")
+        if cur:
+            mbuttons.ibutton("Remove", f"userset {user_id} md_rm s {sidx} {sname} {slabel}")
+        mbuttons.ibutton("Back", f"userset {user_id} md_str {sidx}")
+        await editMessage(message, text, mbuttons.build_menu(2))
+    elif data[2] == 'md_cman':
+        await query.answer()
+        labels = get_custom_btns(user_dict)
+        text = "<b><u>Custom Tag Buttons</u></b>\n\n"
+        text += "➲ Tap a name to configure it, or Remove to delete." if labels else "➲ No custom buttons yet. Add your first one!"
+        mbuttons = ButtonMaker()
+        for index, clabel in enumerate(labels):
+            mbuttons.ibutton(clabel, f"userset {user_id} md_cbtn {index}")
+            mbuttons.ibutton("Remove", f"userset {user_id} md_crmbtn {index}")
+        mbuttons.ibutton("+ Add More", f"userset {user_id} md_cadd")
+        mbuttons.ibutton("Back", f"userset {user_id} metadata")
+        await editMessage(message, text, mbuttons.build_menu(2))
     elif data[2] == 'md_cbtn':
         await query.answer()
         idx = int(data[3])
@@ -961,11 +1015,11 @@ async def edit_user_settings(client, query):
             await DbManger().update_user_data(user_id)
     elif data[2] == 'md_cadd':
         await query.answer()
-        text = ("<b><u>New Custom Tag Button</u></b>\n\n"
-                "Send a name for your favourite tag button (e.g. <code>My Channel</code>).\n"
+        text = ("<b><u>Add Custom Tag</u></b>\n\n"
+                "Send a name for your custom tag button (e.g. <code>My Channel</code>).\n"
                 "➲ Max 10 buttons, <code>:</code> and <code>|</code> not allowed.\n\n<b>Timeout:</b> 60 sec")
         mbuttons = ButtonMaker()
-        mbuttons.ibutton("Cancel / Back", f"userset {user_id} metadata")
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} md_cman")
         await editMessage(message, text, mbuttons.build_menu(1))
         pfunc = partial(add_custom_md_btn, pre_event=query)
         rfunc = partial(update_user_settings, query, 'metadata_menu')

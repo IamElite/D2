@@ -1330,3 +1330,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Source:** live — `[matroska] Attachment stream 2 has no filename tag` + `Could not write header` metadata-fail (fail-open OK; heal ne baad me .mkv heal kar diya). BV ka `-map_metadata -1` attachment streams ka mimetype/filename bhi clear karta — matroska inko mangta. Sandbox-PROVEN: A(no -1) attach ✓; B(-1) exact live-error; C(per-tag delete) purge ✓ attach ✓.
 **Fix:** probe_tag_args — orig_fmt snapshot; has_user_meta → jo original keys user ne set NAHI ki (ukeys = key_map.get(uk,uk)) unpe `-metadata k=` delete-args + fmt.pop (emit-loop double na likhe); user keys set/override baad me. edit_metadata se `-map_metadata -1` REMOVED. _TAG_SKIP keys skip (muxer fresh likhta).
 **Tests:** T1 ext-less+attachment+user-meta → .mkv, purge ✓, attachment filename+mimetype intact ✓; T3 metadata-empty full-preserve ✓; T4 override+purge ✓; py3.10 102/102.
+
+### 260903-BX — Per-stream tags UI+engine + Add Custom Tag manager (user-ask, graph 47349)
+**Git:** pending  
+
+**Ask:** Video/Audio/Subtitle me Title ke alawa bhi tags (Copyright/Encoded By/Artist/Comment); New Button → "Add Custom Tag" (end me) + list/Remove/Add-More manager.
+**Engine (ffmpeg.py):** overlay compound keys (`Video Comment:x` / `Audio Artist:y` / `Subtitle Encoded By:z`) → `stream_meta[ctype][tag]` → stream-loop me `-metadata:s:{pref}:{idx} {tag}={v}`; `title` sub-key global-title ko override; passthrough se compound EXCLUDE (global-tag leak zero — T2 proven).
+**UI (users_settings.py):** builder — 15 general keys + Stream Tags section (✅Video/Audio/Subtitle → md_str) + custom buttons + **"Add Custom Tag"** (body/end); `md_str` (5 sub-keys 2-col + Back) → `md_skey` (Set/Change+Remove+Back) → `md_edit s {sidx} {name...}` / `md_rm s ...` (dual-mode: g=general-idx, s=stream-name); **md_cman** manager: [name→md_cbtn][Remove→md_crmbtn] rows + "+ Add More" (md_cadd) + Back; md_cadd back→md_cman, heading "Add Custom Tag".
+**Tests:** engine T1 per-stream video(title+comment)/audio(artist+comment) ✓; T2 compound-global-leak ZERO ✓; T4 stream-purge+compound co-exist ✓; UI-sim builder-status/callback-parse/md_cman rows/wiring ✓; py3.10 102/102.
