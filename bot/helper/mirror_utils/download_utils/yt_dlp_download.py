@@ -15,6 +15,17 @@ from ...ext_utils.task_manager import is_queued, stop_duplicate_check, limit_che
 LOGGER = getLogger(__name__)
 
 
+class _NullYdlLog:
+    """Silent logger for import-time YoutubeDL (suppresses the py3.10
+    deprecation stderr notice before bot logging is wired up)."""
+    @staticmethod
+    def debug(*a, **k): pass
+    @staticmethod
+    def warning(*a, **k): pass
+    @staticmethod
+    def error(*a, **k): pass
+
+
 def _detect_impersonate():
     """curl_cffi + yt-dlp impersonation available ho tabhi target — warna None.
     Validation wahi jo YoutubeDL init karta hai (missing dep pe hard-error hota hai,
@@ -24,7 +35,8 @@ def _detect_impersonate():
         from yt_dlp import YoutubeDL as _YDL
         from yt_dlp.networking.impersonate import ImpersonateTarget
         target = ImpersonateTarget('chrome')
-        with _YDL({'quiet': True, 'impersonate': target}):
+        with _YDL({'quiet': True, 'no_warnings': True, 'impersonate': target,
+                   'logger': _NullYdlLog()}):
             return target
     except Exception:
         return None

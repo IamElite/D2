@@ -1,4 +1,82 @@
 #!/usr/bin/env python3
+
+# ── Early wzgram upload-rate patch (MUST run before any `import pyrogram`) ─────
+# wzgram save_file.py hardcodes per-file upload pacing: bot rate_limit=40
+# (~20 MiB/s cap), non-premium user=50, media pool 8/12. We raise the LOW caps
+# (premium 300 / pool 14 untouched) by rewriting the source ON DISK before the
+# package is ever imported — no importlib.reload (that raced with the already
+# built Client and made the patch silently no-op / risked boot hangs). Stdlib
+# only, idempotent, exception-safe (never blocks startup).
+def _early_patch_wzgram():
+    import os as _os
+    import re as _re
+    import sys as _sys
+
+    def _find_save_file():
+        # locate pyrogram/methods/advanced/save_file.py without importing pyrogram
+        try:
+            import importlib.util as _iu
+            spec = _iu.find_spec('pyrogram')
+            roots = []
+            if spec and spec.submodule_search_locations:
+                roots = list(spec.submodule_search_locations)
+            for sp in list(_sys.path):
+                if sp and ('site-packages' in sp or 'dist-packages' in sp):
+                    roots.append(sp)
+            for r in roots:
+                cand = _os.path.join(r, 'pyrogram', 'methods', 'advanced', 'save_file.py')
+                if _os.path.isfile(cand):
+                    return cand
+        except Exception:
+            pass
+        return None
+
+    try:
+        bot_rate = _os.environ.get('TG_UP_RATE_LIMIT', '300')
+        bot_pool = _os.environ.get('TG_UP_POOL', '14')
+        path = _find_save_file()
+        if not path:
+            print('[TG patch] pyrogram save_file.py not found (wzgram missing?) — skipped')
+            return
+        with open(path, 'r', encoding='utf-8') as fh:
+            src = fh.read()
+        matched = []
+
+        def _rl(m):
+            old = int(m.group(2))
+            if old < 100:                      # raise low caps (bot 40 / user 50), keep 300
+                matched.append(f'rate {old}->{bot_rate}')
+                return f'{m.group(1)}{bot_rate}{m.group(3)}'
+            return m.group(0)
+        src, _ = _re.subn(r'(\brate_limit\s*=\s*)(\d+)(\s*(?:#.*)?)$', _rl, src, flags=_re.M)
+
+        def _pl(m):
+            old = int(m.group(1))
+            if old < int(bot_pool):
+                matched.append(f'pool {old}->{bot_pool}')
+                return f'pool_size = min({bot_pool}, POOL_SIZE)'
+            return m.group(0)
+        src, _ = _re.subn(r'pool_size\s*=\s*min\(\s*(\d+)\s*,\s*POOL_SIZE\s*\)', _pl, src)
+
+        src2 = src.replace('Queue(1)', 'Queue(16)')
+        src2 = src2.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 2')
+        legacy = src2 != src
+        src = src2
+
+        if matched:
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write(src)
+            print(f'[TG patch] APPLIED wzgram upload cap removed: {", ".join(matched)} '
+                  f'(save_file.py now loads unthrottled on import)')
+        else:
+            # no low caps left -> already patched/already high (idempotent; normal)
+            print('[TG patch] wzgram upload pacing already high (rate 300 / pool 14) — nothing to do')
+    except Exception as e:
+        print(f'[TG patch] skipped (non-fatal): {e}')
+
+_early_patch_wzgram()
+# ──────────────────────────────────────────────────────────────────────────────
+
 from tzlocal import get_localzone
 from pytz import timezone
 from datetime import datetime
@@ -36,75 +114,10 @@ try:
 except Exception:
     pass
 
-def _patch_tg_upload_queue(depth=16):
-    """Remove the wzgram upload per-file rate cap (root cause of "upload KB/s").
-
-    wzgram save_file.py hardcodes dispatch pacing (chunks/s, PART 512KiB):
-        is_bot -> rate_limit=40 (~20 MiB/s/file) ; normal user -> 50 (~25 MiB/s)
-    Old patch used exact-string replaces which silently no-op'd across wzgram
-    micro-builds (whitespace/comment differences) -> Heroku never got the cap
-    removed. We now use COMMENT/WHITESPACE-INDEPENDENT REGEX by exact numeric
-    value, verify the applied count, log the wzgram version + matched lines, and
-    loudly warn if nothing matched (future layout change is visible, not silent).
-    """
-    import re as _re
-    try:
-        import pyrogram as _pyg
-        from pyrogram.methods.advanced import save_file as sf
-        wz_ver = getattr(_pyg, '__version__', '?')
-        path = getattr(sf, '__file__', None)
-        if not path:
-            return
-        with open(path, 'r', encoding='utf-8') as fh:
-            src = fh.read()
-        bot_rate = environ.get('TG_UP_RATE_LIMIT', '300')       # chunks/s (~150 MiB/s)
-        user_rate = environ.get('TG_USER_UP_RATE_LIMIT', '300')
-        bot_pool = environ.get('TG_UP_POOL', '14')              # media sessions/file
-        user_pool = environ.get('TG_USER_UP_POOL', '14')
-
-        matched = []
-
-        # rate_limit = <n>  -> raise any low pacing cap (<100, i.e. bot=40 / user=50)
-        # to the requested rate; leave premium/high values (300) alone. Comment/spacing
-        # independent, so layout micro-differences between builds no longer no-op.
-        def _rl(m):
-            old = int(m.group(2))
-            if old < 100:
-                matched.append(f'rate_limit {old}')
-                return f'{m.group(1)}{bot_rate}{m.group(3)}'
-            return m.group(0)
-        src, _n_rate = _re.subn(r'(\brate_limit\s*=\s*)(\d+)(\s*(?:#.*)?)$', _rl, src, flags=_re.M)
-
-        # pool_size = min(<n>, POOL_SIZE)  -> raise small media-session pools (8/12)
-        def _pl(m):
-            old = int(m.group(1))
-            if old < int(bot_pool):
-                matched.append(f'pool_size {old}')
-                return f'pool_size = min({bot_pool}, POOL_SIZE)'
-            return m.group(0)
-        src, _n_pool = _re.subn(r'pool_size\s*=\s*min\(\s*(\d+)\s*,\s*POOL_SIZE\s*\)', _pl, src)
-
-        # legacy pyrogram/wzgram patterns (no-op if absent)
-        before = src
-        src = src.replace('Queue(1)', f'Queue(16)')
-        src = src.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 2')
-        legacy = 1 if src != before else 0
-
-        if not matched and not legacy:
-            # dump the actual rate/pool lines so a mismatch is debuggable in one look
-            ctx = [ln.strip() for ln in src.splitlines() if ('rate_limit' in ln or 'pool_size' in ln)][:12]
-            log_warning(f'TG upload patch: NO target matched on wzgram {wz_ver} ({path}). '
-                        f'Relevant lines -> {" | ".join(ctx) if ctx else "none found"}')
-            return
-        with open(path, 'w', encoding='utf-8') as fh:
-            fh.write(src)
-        importlib_reload(sf)
-        log_info(f'TG upload patch APPLIED (wzgram {wz_ver}): raised {", ".join(matched) or "legacy"} '
-                 f'-> rate {bot_rate}/{user_rate} chunks/s, pool {bot_pool}')
-    except Exception as e:
-        log_warning(f'TG upload queue patch skipped: {e}')
-
-_patch_tg_upload_queue(16)
+# Upload rate-cap patch is applied at the VERY TOP of this file (before the
+# pyrogram import) by _early_patch_wzgram() — it edits save_file.py on disk so
+# the first fresh import loads the unthrottled constants; no importlib.reload
+# (which raced with the already-built Client and made the patch unreliable).
 
 try:
     pyroutils.MIN_CHAT_ID = -999999999999

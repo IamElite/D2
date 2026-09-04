@@ -1582,3 +1582,17 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Banner:** CT me hi hat gaya (user ko nahi chahiye) — wapas single `Started!` line.
 **Note:** deprecation jad se tab gayab hogi jab container image 3.11 (Dockerfile already 3.11.9) deploy ho.
 **Test:** py3.10 full-repo compile ✓ + py3.13 ✓; patch real+alt layout ✓.
+
+### 260904-CV — upload patch IMPORT-BEFORE-pyrogram (reload race fix) + idempotent + boot deprecation silent
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**Logs:** batbin.me/parasemidin (running 361dcbd=CU; fresh container deploy ed9c6ca7, Python 3.10.12, wzgram 3.1.1 fresh install).
+**Asli findings (line 72 decisive):**
+1. Patch file me `rate_limit = 300 / pool min(14)` already likha tha (pichhli boot ka rewrite disk-tika) → cap REMOVED tha. CU ka `NO target matched` jhootha alarm tha — patch idempotent nahi tha (already-300 ko dobara n<100 na milne par ERROR bola).
+2. **Structural bug:** patch `bot/__init__.py` ke line ~140 par chalta tha — `from pyrogram import Client` (line 7) ke BAAD — aur `importlib_reload(save_file)` karta tha jabki pyrogram Client already load ho chuka. Local-constant `rate_limit` reload se reliably live nahi hota tha → flaky apply + reload startup ko bigaad sakta tha (Started! tak dikat).
+**Fix (`__init__.py`):**
+- Naya **`_early_patch_wzgram()`** file ke bilkul top (shebang ke turant baad, **kisi bhi pyrogram import se PEHLE**). Stdlib-only (os/re/sys/importlib.util) — pyrogram import kiye bina `find_spec`+sys.path se `save_file.py` dhoondhta hai, disk pe n<100 rate caps (40/50) → 300 aur pool 8/12 → 14 likhta hai (numeric-threshold regex, comment/spacing-agnostic; premium 300 safe), phir **import hi nahi karta/reload nahi** — fresh process first-import pe patched source padhta hai. Idempotent: already-high pe sirf info-print (koi false warning). Exception-safe (kabhi boot nahi rokta). Purana late reload-patch block hata.
+- Print logs (`[TG patch] APPLIED ...` / `already high`) — early stage pe logging configured nahi hoti, Heroku stdout capture kar leta hai.
+**Boot deprecation (yt-dlp) silent:** line "Deprecated Feature: Support for Python 3.10" import-time `_detect_impersonate()` ke YoutubeDL se aati thi (`{'quiet':True}` me na logger na no_warnings). Add **`_NullYdlLog()`** + `'no_warnings': True` us call me (real task logger MyLogger pehle se filtered). google FutureWarning `warnings.filterwarnings` se dabi.
+**Tests (sandbox):** early-patch fresh file pe hits [40,50/pool 8,12] → 300/14, re-run idempotent (zero hits = "already high"), patched source compiles; E2E: fresh-interpreter patch → fresh import sees rate 300/min(14) (no reload); py3.10 + py3.13 full-repo compile OK.
+**Note:** boot 1-2 me `uv: No virtual environment found` ke baad `|| pip` fallback chala, boot 3-4 me wzgram/curl-cffi/motor fresh install hue (line 36-56) → packages sahi install hote hain, woh error noisy-only hai. Container image 3.11 deploy se py3.10 deprecation jad se gayab.
