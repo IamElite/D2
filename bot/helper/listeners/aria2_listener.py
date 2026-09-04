@@ -9,6 +9,7 @@ from ..mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..mirror_utils.status_utils.aria2_status import Aria2Status
 from ..ext_utils.fs_utils import get_base_name, clean_unwanted
 from ..ext_utils.bot_utils import getDownloadByGid, new_thread, bt_selection_buttons, sync_to_async, get_telegraph_list
+from ..ext_utils.engine_lifecycle import stop_heavy
 from ..telegram_helper.message_utils import sendMessage, deleteMessage, update_all_messages
 from ..themes import BotTheme
 
@@ -126,6 +127,7 @@ async def __onDownloadComplete(api, gid):
                 await sync_to_async(api.remove, [download], force=True, files=True)
     else:
         LOGGER.info(f"onDownloadComplete: {download.name} - Gid: {gid}")
+        stop_heavy()
         if dl := await getDownloadByGid(gid):
             listener = dl.listener()
             await listener.onDownloadComplete()
@@ -140,6 +142,7 @@ async def __onBtDownloadComplete(api, gid):
     if download.options.follow_torrent == 'false':
         return
     LOGGER.info(f"onBtDownloadComplete: {download.name} - Gid: {gid}")
+    stop_heavy()
     if dl := await getDownloadByGid(gid):
         listener = dl.listener()
         if listener.select:

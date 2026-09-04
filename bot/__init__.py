@@ -899,17 +899,27 @@ else:
                for op in aria2c_global if op in aria2_options}
     aria2.set_global_options(a2c_glo)
 
-# Heroku: outbound UDP dead — DHT/LPD/PEX = constant retry-churn (CPU) with zero peer gain.
-# Env ALLOW_DHT=true restores; user-set DB aria2 options untouched (only fill missing keys).
-if environ.get('ALLOW_DHT', '').lower() not in ('1', 'true', 'yes'):
-    try:
-        _a2_dht = {k: 'false' for k in ('enable-dht', 'bt-enable-lpd', 'enable-peer-exchange')
-                   if k not in aria2_options}
-        if _a2_dht:
-            aria2.change_global_option(_a2_dht)
-            log_info(f"Aria2 DHT/LPD/PEX off (UDP-dead host): {','.join(_a2_dht)}")
-    except Exception as e:
-        log_error(f"Aria2 DHT overlay skipped: {e}")
+# Heroku: UDP dead + conf me perf-killers the (peer-speed-limit 1K = aria2 lazy peers).
+# FORCE overlay (DB/conf kuch bhi ho) — ARIA2_PERF=0 opt-out; ALLOW_DHT=true se DHT wapas.
+try:
+    _a2_perf = {}
+    if environ.get('ARIA2_PERF', '').lower() not in ('0', 'false', 'no'):
+        _a2_perf.update({
+            'bt-request-peer-speed-limit': '15M',   # 1K conf = THE download-speed killer
+            'bt-max-peers': '120',
+            'max-connection-per-server': '16',
+            'split': '16',
+            'min-split-size': '1M',
+            'max-concurrent-downloads': '5',
+            'file-allocation': 'falloc',
+        })
+    if environ.get('ALLOW_DHT', '').lower() not in ('1', 'true', 'yes'):
+        _a2_perf.update({'enable-dht': 'false', 'bt-enable-lpd': 'false', 'enable-peer-exchange': 'false'})
+    if _a2_perf:
+        aria2.change_global_option(_a2_perf)
+        log_info(f"Aria2 perf overlay: {','.join(_a2_perf)}")
+except Exception as e:
+    log_error(f"Aria2 perf overlay skipped: {e}")
 
 qb_client = get_client()
 if not qbit_options:
@@ -956,6 +966,14 @@ try:
     log_info(f"qBit runtime: cache 16MiB, 120 conn, DHT {'on' if _qbit_dht else 'off'} (UDP-dead host)")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
+
+# qBit LAZY: boot pe overlay laga ke turant stop (0 torrents) — RAM boot-baseline se out.
+# Pehla qBit task ensure_qbit() se wapas aayega. Aria2-tasks isse rok nahi sakte.
+try:
+    from .helper.ext_utils.engine_lifecycle import stop_heavy
+    stop_heavy()
+except Exception as e:
+    log_error(f"qBit boot-stop skipped: {e}")
 
 log_info("Creating client from BOT_TOKEN")
 bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=6,
