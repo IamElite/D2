@@ -1562,3 +1562,8 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 3. **ONLINE banner (`__main__.py`):** boot complete hone pe bड़ा alag block — `BOT ONLINE ✅ KPSML-X [@...] is UP and ready | Python x.y | wzgram x.x.x` — red-noise ke beech ek nazar me up pata chale.
 **Note:** deprecation jad se tab gayab hogi jab container image 3.11 (Dockerfile already 3.11.9) deploy hoga; tab tak filters spam rokte hain.
 **Test:** regex patch hits r40/r50/p8/p12 = 1/1/1/1 ✓; stderr filter split-write + flush suppress/keep ✓; py3.10 full-repo compile ✓ + py3.13 ✓.
+
+### 260904-CT — banner revert (user: CS ka BOT ONLINE block nahi chahiye)
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**User:** CS ka startup banner nahi chahiye — purani normal startup line hi theek. CS ke baaki do fixes (regex upload patch + py3.10 deprecation suppress) BANE rehte hain; sirf 4-line banner + platform/pyrogram version block hata → wapas ek line `KPSML-X Bot [@...] Started!`.
