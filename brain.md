@@ -1355,7 +1355,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** ButtonMaker verbatim-sim — header2 row ek-line ✓, position header-ke-niche ✓, header2-less + old menus unchanged ✓; Hinglish-grep metadata-flow ZERO ✓; py3.10 102/102.
 
 ### 260903-CA — md_cman redesign: caption me tags-list + Add Tag lone
-**Git:** pending  
+**Git:** `a75591c`  
 
 **Ask (user):** Add More Back-ke-saath pair me nahi — AKELA; caption me jo custom tags ADD kiye wo DIKHEN; "+ Add More" label bekar → "Add Tag".
 **Changes (md_cman):** caption — har custom tag ki line `➲ <label>: <value|Not set>` + hint; buttons [name][Remove] pairs (2-col) + `Add Tag` l_body (akela) + Back footer. "+ Add More" GONE.
