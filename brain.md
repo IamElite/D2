@@ -1540,7 +1540,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Edge:** playlist path (entries) untouched; audio-only sites → id; video-only DASH → +ba; null fps/tbr/filesize handled; duplicates same-resolution codec-tag se grouped.
 
 ### 260904-CR — py3.10 deprecation-spam suppress + 3.10/3.11/3.12 compatibility audit
-**Git:** (push ke baad)
+**Git:** `65d3a2f`
 **Date:** 2026-09-04
 **User:** yt-dlp `Deprecated Feature: Support for Python version 3.10` WARNING+ERROR har task pe; brain me note karo ki dyno abhi 3.10 pe hai; code aisa ho jo 3.10 AUR 3.12 dono pe smooth chale.
 **Asli wajah:** repo ka **Dockerfile already Python 3.11.9** target karta hai (`python:3.11.9-slim-bookworm`) — par **live dyno abhi purana base-image/stack pe hai jo system Python 3.10 deta hai** (naya container image deploy nahi hua). yt-dlp (2026.08+) 3.10 ko deprecated bolta hai; woh message `MyLogger` har baar WARNING+ERROR dono me log kar raha tha (spam, kaam pe asar nahi — downloads chalte the).
