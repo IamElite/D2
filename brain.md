@@ -1410,7 +1410,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 3-links ✓; T2 tmp-clean ✓; T3 n>lines ✓; T4 non-txt old-path ✓; T5 empty→fallback ✓; py3.10 102/102.
 
 ### 260904-CH — REAL speed/CPU fix: aria2 perf-killers (conf) + force-overlay + qBit lazy-boot
-**Git:** pending  
+**Git:** `4b4cf6c`  
 
 **Audit (curatives log + a2c.conf):** (1) `bt-request-peer-speed-limit=1K` — aria2 ko "expected 1KB/s" bolta = LAZY peer-pulling = 34MB/s cap (friend 150+). (2) conf me `enable-dht=true` + DB-restore me bhi → CB ka missing-keys-only overlay SKIP (log missing tha!) — **DHT churn CPU abhi bhi ON**. (3) `max-concurrent-downloads=2`, http 8-conn/20M-split — concurrency caps. (4) qBit boot pe start + aria2-tasks-chalne-tak zinda (idle_now download_dict-gated) = boot-RAM 44.7%.
 **Fix:** a2c.conf — peer-speed-limit **15M**, bt-max-peers 120, http 16/16/1M, concurrent 5, file-allocation falloc, dht/pex false. `__init__` — **FORCE perf-overlay** (7 keys, DB/conf override; `ARIA2_PERF=0` opt-out) + **DHT FORCE** (missing-only → force; `ALLOW_DHT` escape). qBit **lazy**: boot-overlay ke turant baad `stop_heavy()` (0-torrent → shutdown; aria2 tasks se independent) + `aria2_listener` complete/bt-complete pe event-driven `stop_heavy()`.
