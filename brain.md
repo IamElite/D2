@@ -1497,7 +1497,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **NEVER:** pkill; patch ko silent-no-op chhodna (na-pattern-match ab warning deta hai).
 
 ### 260904-CO — live-log fixes: HyperDL circuit-breaker (1MiB stall) + yt-dlp EmbedThumbnail task-kill removed
-**Git:** (push ke baad)
+**Git:** `13b6ab5`
 **Date:** 2026-09-04
 **Logs:** batbin.me/frieseite (running 8d412bb = CM; CN upload patch abhi restart se aana tha)
 **Files:** `bot/helper/ext_utils/hyperdl_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`
