@@ -83,10 +83,21 @@ def add_impersonate(opts):
 
 
 class MyLogger:
+    # yt-dlp logs a benign "Deprecated Feature: Support for Python version 3.10"
+    # notice on old stacks; harmless (works on 3.10) and irrelevant on 3.11+. Drop it.
+    _IGNORE_SUBSTR = ('deprecated feature: support for python version',)
+
+    @classmethod
+    def _ignored(cls, msg):
+        low = str(msg).lower()
+        return any(s in low for s in cls._IGNORE_SUBSTR)
+
     def __init__(self, obj):
         self.obj = obj
 
     def debug(self, msg):
+        if self._ignored(msg):
+            return
         # Hack to fix changing extension
         if not self.obj.is_playlist:
             if match := re_search(r'.Merger..Merging formats into..(.*?).$', msg) or \
@@ -96,12 +107,16 @@ class MyLogger:
                 newname = newname.rsplit("/", 1)[-1]
                 self.obj.name = newname
 
-    @staticmethod
-    def warning(msg):
+    @classmethod
+    def warning(cls, msg):
+        if cls._ignored(msg):
+            return
         LOGGER.warning(msg)
 
-    @staticmethod
-    def error(msg):
+    @classmethod
+    def error(cls, msg):
+        if cls._ignored(msg):
+            return
         if msg != "ERROR: Cancelling...":
             LOGGER.error(msg)
 

@@ -1538,3 +1538,15 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Sandbox tests (real URL):** raw dump = 10 formats sab tbr-null (240–1080 × h264/av1) → builder ab **10 buttons**, plain ids (`1080p_HD`,`av1-480p`,...); yt-dlp `-f` simulate par **har quality sahi resolve** (240p→240p ... 1080p_HD→1080p); `+ba` form YouTube par preserved (audio-only=True → dashvideo merge), eporner par plain id (audio-only=False). Full-repo compile ✓.
 **Perf:** single metadata extraction (pehle se), no extra subprocess; merge sirf DASH split-source pe (progressive direct file = no remux = CPU/RAM bachat).
 **Edge:** playlist path (entries) untouched; audio-only sites → id; video-only DASH → +ba; null fps/tbr/filesize handled; duplicates same-resolution codec-tag se grouped.
+
+### 260904-CR — py3.10 deprecation-spam suppress + 3.10/3.11/3.12 compatibility audit
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**User:** yt-dlp `Deprecated Feature: Support for Python version 3.10` WARNING+ERROR har task pe; brain me note karo ki dyno abhi 3.10 pe hai; code aisa ho jo 3.10 AUR 3.12 dono pe smooth chale.
+**Asli wajah:** repo ka **Dockerfile already Python 3.11.9** target karta hai (`python:3.11.9-slim-bookworm`) — par **live dyno abhi purana base-image/stack pe hai jo system Python 3.10 deta hai** (naya container image deploy nahi hua). yt-dlp (2026.08+) 3.10 ko deprecated bolta hai; woh message `MyLogger` har baar WARNING+ERROR dono me log kar raha tha (spam, kaam pe asar nahi — downloads chalte the).
+**Code fix (`yt_dlp_download.py` MyLogger):** `_IGNORE_SUBSTR = ('deprecated feature: support for python version',)` — debug/warning/error teeno me yeh benign notice drop; asli errors/warnings (404, format fail, "Cancelling" chhod ke) log hote rehte hain. Test: deprecation suppressed, real error retained ✓.
+**Compatibility (3.10 ↔ 3.12) audit:**
+- NEECHE ka baseline = 3.10: poora repo **uv py3.10 full-repo py_compile PASS** → koi 3.11+ syntax nahi (tomllib/TaskGroup/ExceptionGroup/typing.Self/@override/asyncio.timeout/itertools.batched — grep: zero).
+- Code 3.10 pe compile chalta hai to 3.11/3.12 pe bhi syntax chalta hai (3.12 only naya = f-string me same-quote nesting — BE incident wala; woh poore repo me ab nahi).
+- **User action (deploy-side, code nahi):** Dockerfile 3.11.9 ka naya image build+release karo (Heroku container stack) → deprecation khud gayab + Dockerfile ke MEGA/TGCrypto 3.11 bindings use honge. Tab tak py3.10 pe logger filter spam rokh deta hai.
+**Standing rule (brain):** har push se pehle **uv py3.10 full-repo compile** (baseline=3.10 = sabse conservative; pass = 3.10/3.11/3.12 sab safe). Nested same-quote f-strings mat likho (3.12-only).
