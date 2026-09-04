@@ -1495,3 +1495,22 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Expected:** per-file UL ceiling 20→network/DC-bound (150 MiB/s theoretical); bulk 50 tasks genuinely parallel (max_concurrent_transmissions=16/client × bot+user+helpers). Patched-file compile ✓; rate/pool match real wzgram source ✓; py3.10 full-repo 107/107 ✓.
 **Verify on Heroku:** boot log me `TG upload pacing patched` line. Agar flood aaye to `TG_UP_RATE_LIMIT` env se ghटao (per-file), tokens add karo (helpers = more parallel).
 **NEVER:** pkill; patch ko silent-no-op chhodna (na-pattern-match ab warning deta hai).
+
+### 260904-CO — live-log fixes: HyperDL circuit-breaker (1MiB stall) + yt-dlp EmbedThumbnail task-kill removed
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**Logs:** batbin.me/frieseite (running 8d412bb = CM; CN upload patch abhi restart se aana tha)
+**Files:** `bot/helper/ext_utils/hyperdl_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`
+
+**Log me 3 cheezein:**
+1. **HyperDL har ≥50MB TG download pe FAIL** (3/3: 151MB DC1, 149MB DC5, 1.8GB DC4): hamesha `HyperDL incomplete 1048576/<size> err=None — fallback` = pehla window (~1MiB) ke baad cross-DC bot GetFile stalls. Phir native download_media pe gira (jo yahan fast hai — 150MB 10s = 15MB/s). Har file pe 4-5s dead-pipeline waste, bulk me bहुत.
+2. **yt-dlp task DEAD** (eporner 1080p): video download + extract ho gaya, par `EmbedThumbnail` postprocessor = `mutagen: could not determine image type` + `AtomicParsley` + `ffprobe: .jpg Invalid data` → PostProcessing ERROR → task bina upload ke clean (line 97-100). Thumbnail source corrupt/bad.
+3. **UL 1.8GB = 91s ≈ 19.8 MiB/s** — exactly wzgram bot rate_limit=40 cap (CN patch ka target; restart pe unlock).
+
+**FIX:**
+- `hyperdl_utils.py`: module-level **circuit-breaker** — pehli incomplete/err pipeline (`_hyperdl_fails` ≥ `HYPERDL_MAX_FAILS`, default 1) ke baad baaki saari files seedha native `download_media` (dead 4-5s try + cross-DC session churn khatam). Pehli file abhi bhi pipeline try karti hai (CDN mile to fast). Env: `HYPERDL=1`=always-on (breaker ignore), `HYPERDL=0`=pipeline off. Increment pipeline-incomplete/exception dono pe.
+- `yt_dlp_download.py`: **`EmbedThumbnail` postprocessor HATA** (mp3/mkv/mp4/mov branch). Corrupt thumbnail pe yahi FATAL tha aur poora leech maar deta tha. Sidecar thumbnail (`yt-dlp-thumb/`, leech FFmpegThumbnailsConvertor) already TG preview/thumb ke liye banta+upload hota hai — embed ka zero value. Mirror path me `writethumbnail=False` same.
+
+**Note (non-blocking):** boot log line 6 "Updating packages...Success" ~1s = slug ka frozen update.py (260902-AA self-re-exec ek redeploy ke baad pakka hota); bot code to fresh hi aata hai (overlay log line 10 is CM = proof). `python3=123MB` child = alive/web subprocess (harmless).
+
+**Tests:** py3.13 full-repo compile ✓; breaker state sim (1st try → open → HYPERDL=1/0 overrides) ✓.

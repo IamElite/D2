@@ -324,10 +324,13 @@ class YoutubeDLHelper:
         if self.__listener.isLeech:
             self.opts['postprocessors'].append(
                 {'format': 'jpg', 'key': 'FFmpegThumbnailsConvertor', 'when': 'before_dl'})
-        if self.__ext in ['.mp3', '.mkv', '.mka', '.ogg', '.opus', '.flac', '.m4a', '.mp4', '.mov', '.m4v']:
-            self.opts['postprocessors'].append(
-                {'already_have_thumbnail': self.__listener.isLeech, 'key': 'EmbedThumbnail'})
-        elif not self.__listener.isLeech:
+        # 260904-CO: EmbedThumbnail HATA DIYA — yt-dlp ka thumbnail-embed postprocessor
+        # corrupt/bad thumbnail pe (e.g. source ne invalid image di) FATAL error deta hai
+        # ("Unable to embed... Invalid data found") aur poora task mar jata hai — jabki
+        # video download ho chuka hota hai. Sidecar thumbnail (yt-dlp-thumb/, FFmpeg
+        # converter upar) TG preview ke liye already banta+upload hota hai, to embed
+        # zero-value pure risk tha.
+        if not self.__listener.isLeech:
             self.opts['writethumbnail'] = False
 
         msg, button = await stop_duplicate_check(self.name, self.__listener)

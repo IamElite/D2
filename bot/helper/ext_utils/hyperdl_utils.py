@@ -1,7 +1,7 @@
 """HyperDL: pipelined GetFile. Never pin FileId.dc_id — start on bot DC, FileMigrate follows."""
 from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, sleep, wait, wait_for
 from logging import getLogger
-from os import O_RDWR, O_CREAT, close as os_close, makedirs, open as os_open, path as ospath, pwrite
+from os import O_RDWR, O_CREAT, close as os_close, environ, makedirs, open as os_open, path as ospath, pwrite
 
 from pyrogram import StopTransmission, raw
 from pyrogram.errors import FloodWait, FileMigrate
@@ -26,6 +26,17 @@ CHUNK = 512 * KB
 NSLOT = 4
 WINDOW = 4
 PIPELINE_MIN_SIZE = 50 * 1024 * 1024
+
+# Circuit breaker: on this host cross-DC bot GetFile is slow — HyperDL's first
+# window stalls at ~1 MiB on every task and falls back to native (which is fast).
+# Retrying the 4-5s dead pipeline for every large file is pure waste. After
+# _HYPERDL_MAX_FAILS incomplete pipelines, go native for the rest of the boot.
+# Env HYPERDL=1 forces always-on (ignore breaker); HYPERDL=0 disables the pipeline.
+try:
+    _HYPERDL_MAX_FAILS = int(environ.get('HYPERDL_MAX_FAILS', '1'))
+except Exception:
+    _HYPERDL_MAX_FAILS = 1
+_hyperdl_fails = 0
 
 try:
     from pyrogram.errors import FileTokenInvalid, RequestTokenInvalid
@@ -58,18 +69,28 @@ class HypertgDownload(HypertgTransfer):
         except Exception:
             media = getattr(message, getattr(message, "media", None) and message.media.value, None)
         size = getattr(media, "file_size", 0) or 0
+        global _hyperdl_fails
+        _force_on = environ.get('HYPERDL', '').lower() == '1'
+        _force_off = environ.get('HYPERDL', '').lower() == '0'
+        use_pipeline = (size >= PIPELINE_MIN_SIZE and ctr256_decrypt is not None
+                        and not _force_off
+                        and (_force_on or _hyperdl_fails < _HYPERDL_MAX_FAILS))
+        if size >= PIPELINE_MIN_SIZE and not use_pipeline and not _force_off:
+            LOGGER.info("HyperDL breaker open (fails=%s) — native download_media for this file", _hyperdl_fails)
         # Bade files pe CDN-pipeline pehle (wzv3-style redirect->GetCdnFile+ctr256);
         # CDN engage nahi hua -> native download_media (~20MB/s @ ~15% CPU, light).
-        if size >= PIPELINE_MIN_SIZE and ctr256_decrypt is not None:
+        if use_pipeline:
             try:
                 out = await self._pipeline(client, media, path, size, progress, cancelled)
                 if out:
                     return out
                 LOGGER.info("HyperDL pipeline fallback -> download_media size=%s", size)
+                _hyperdl_fails += 1
             except StopTransmission:
                 raise
             except Exception as e:
                 LOGGER.warning("HyperDL pipeline err %s -> native", e)
+                _hyperdl_fails += 1
         return await client.download_media(message=message, file_name=path, progress=progress)
 
     async def _getfile(self, sess, loc, off, csz):
