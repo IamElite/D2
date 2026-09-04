@@ -1514,3 +1514,12 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Note (non-blocking):** boot log line 6 "Updating packages...Success" ~1s = slug ka frozen update.py (260902-AA self-re-exec ek redeploy ke baad pakka hota); bot code to fresh hi aata hai (overlay log line 10 is CM = proof). `python3=123MB` child = alive/web subprocess (harmless).
 
 **Tests:** py3.13 full-repo compile ✓; breaker state sim (1st try → open → HYPERDL=1/0 overrides) ✓.
+
+### 260904-CP — eporner (adult hosts) ytdlp multi/bulk: add to _YTDL_HINT
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**User:** eporner link (video-e3DEfNO2Aip) "ytdlp iska multi support nahi kar raha".
+**Root cause:** `/l` + bulk `-b/-i` ka auto-engine `is_ytdlp_link()` use karta hai jo SIRF `_YTDL_HINT` host-list match karta hai. `eporner.com` list me nahi tha → engine eporner ko **aria/HTML** pe bhej deta (fail), ytdl pe nahi. (`/yl` chalता tha kyunki woh `is_ytdlp_supported()` ka generic content-type check use karta hai.) Single video yt-dlp me chalta hai (tested: Eporner extractor formats deta hai, age_limit 99 set) — routing hi galat thi. Bulk multi isliye toota kyunki har link wahi auto-engine se route hota hai.
+**Fix:** `bot_utils.py` `_YTDL_HINT` me eporner + baaki real yt-dlp adult extractors add: eporner, beeg, txxx, upornia, thisvid, porntrex, hqporner, motherless, rule34video, hellporno, drtuber, sunporno, sexu, alphaporno, pornflip, pornerbros, murrtube, 4tube, chaturbate, stripchat, nubiles. Magnet guard (is_torrent_link) pehle — `&tr=eporner.com/announce` wali magnet false-positive nahi deti.
+**Note:** eporner ke category/model PAGES (e.g. /popular-videos/) ka yt-dlp me playlist extractor nahi (generic → Unsupported) — single video links bulk list me do.
+**Test:** is_ytdlp_link sim — eporner/no-www True, magnet False (torrent-guard), random False ✓; full-repo compile ✓.

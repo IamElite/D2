@@ -49,6 +49,13 @@ _YTDL_HINT = (
     "pornhub.com/", "xvideos.com/", "xnxx.com/", "xhamster.com/",
     "redtube.com/", "youporn.com/", "spankbang.com/", "missav.com/",
     "jable.tv/", "hanime.tv/", "nhentai.net/", "nsfw.net/",
+    # adult hosts with real yt-dlp extractors (missing before -> /l + bulk
+    # routed them to aria/HTML and failed; eporner is the reported case)
+    "eporner.com/", "beeg.com/", "txxx.com/", "upornia.com/", "thisvid.com/",
+    "porntrex.com/", "hqporner.com/", "motherless.com/", "rule34video.com/",
+    "hellporno.com/", "drtuber.com/", "sunporno.com/", "sexu.com/",
+    "alphaporno.com/", "pornflip.com/", "pornerbros.com/", "murrtube.com/",
+    "4tube.com/", "chaturbate.com/", "stripchat.com/", "nubiles.net/",
 )
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
 STATUS_START = 0
