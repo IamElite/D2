@@ -1564,6 +1564,6 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Test:** regex patch hits r40/r50/p8/p12 = 1/1/1/1 ✓; stderr filter split-write + flush suppress/keep ✓; py3.10 full-repo compile ✓ + py3.13 ✓.
 
 ### 260904-CT — banner revert (user: CS ka BOT ONLINE block nahi chahiye)
-**Git:** (push ke baad)
+**Git:** `d499b50`
 **Date:** 2026-09-04
 **User:** CS ka startup banner nahi chahiye — purani normal startup line hi theek. CS ke baaki do fixes (regex upload patch + py3.10 deprecation suppress) BANE rehte hain; sirf 4-line banner + platform/pyrogram version block hata → wapas ek line `KPSML-X Bot [@...] Started!`.
