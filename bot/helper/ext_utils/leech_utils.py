@@ -23,24 +23,41 @@ from .ffmpeg import probe_tag_args, media_muxer
 
 async def remux_container(inp_path, out_path):
     """
-    Auto Rename এর Format এ ইউজার শেষে নিজের Extension (যেমন .mkv) বসিয়ে দিলে
-    আগে শুধু ফাইলটার নাম পাল্টে ফেলা হতো (os.rename) - আসল Container/Bytes
-    অপরিবর্তিতই থাকতো। অর্থাৎ একটা প্রকৃত .mp4 ফাইলকে শুধু নাম বদলে .mkv
-    বানিয়ে দেওয়া হতো (বা উল্টোটা)। VLC/MX Player এর মতো Player গুলো আসল
-    Content দেখে চালায় তাই সমস্যা হয় না, কিন্তু Telegram নিজে ফাইলের
-    Structure (moov/EBML ইত্যাদি) পার্স করে Streaming/Preview বানায় - Extension
-    আর আসল Container না মিললে সেখানেই Audio বাদ পড়া, Download আটকে থাকা, বা
-    Telegram এ Play না হওয়ার মতো সমস্যা হয়।
+    Extension change = REAL remux (stream-copy, no re-encode, fast + lossless).
 
-    তাই Extension সত্যিই পাল্টাতে হলে এখানে আসল Remux (Stream Copy, কোনো
-    Re-encode ছাড়াই - তাই Fast এবং Quality Loss হয় না) করে দেওয়া হয়, যাতে
-    Bytes ও Extension দুটোই মিলে যায়।
+    MKV->MP4 maximum-feature strategy (spec-honest, no fake support):
+      - Global metadata: -movflags use_metadata_tags (mdta) -> ANY key written raw (mkv-parity).
+      - Chapters/Languages/Multi-streams: native, carried via -map 0.
+      - Text subs (srt/ass->tx3g): -c:s mov_text (tiny stream transcode only).
+      - Bitmap subs (PGS/DVD/DVB): MP4-impossible (spec) -> probe-index exclude + log.
+      - Attachments (fonts/cover): MP4-impossible -> -map -0:t? exclude + log.
+      - Per-stream titles: MP4-impossible -> folded file-level ("Video Title=x") so info survives.
+    Single pass, probe once, no temp files. Fallback: v+a copy only (fixed NameError).
     """
     out_ext = ospath.splitext(out_path)[1].lower()
-    cmd = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
+    cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-hide_banner', '-loglevel', 'error',
            '-i', inp_path, '-map', '0', '-map_metadata', '0', '-map_chapters', '0', '-c', 'copy']
     if out_ext == '.mp4':
+        cmd += ['-movflags', 'use_metadata_tags', '-map', '-0:t?']
+        try:
+            out, _, _ = await cmd_exec(['ffprobe', '-v', 'error', '-print_format', 'json',
+                                        '-show_streams', inp_path])
+            bitmap = {'hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle', 'arib_caption'}
+            for st in (json.loads(out or '{}').get('streams') or []):
+                ct, cn = st.get('codec_type'), st.get('codec_name')
+                if ct == 'subtitle' and cn in bitmap:
+                    cmd += ['-map', f"-0:{st.get('index')}"]
+                    LOGGER.info(f'Remux mp4: bitmap sub stream {st.get("index")} skipped (MP4-impossible)')
+                elif ct in ('video', 'audio'):
+                    ttl = (st.get('tags') or {}).get('title')
+                    if ttl:
+                        cmd += ['-metadata', f'{ct.title()} Title={ttl}']
+        except Exception as e:
+            LOGGER.warning(f'Remux mp4 probe skipped ({e}) — default mapping')
         cmd += ['-c:s', 'mov_text']
+    elif out_ext in ('.mkv', '.webm'):
+        # reverse-remux: mov_text (mp4-subs) mkv me nahi jaate — text me convert (cheap)
+        cmd += ['-c:s', 'srt']
     cmd.append(out_path)
 
     proc = await create_subprocess_exec(*cmd, stderr=PIPE)
@@ -54,13 +71,10 @@ async def remux_container(inp_path, out_path):
         await aioremove(out_path)
 
     if out_ext == '.mp4':
-        # Bitmap/PGS এর মতো Subtitle বা অন্য Incompatible Stream থাকলে সেগুলো
-        # বাদ দিয়ে শুধু Video + Audio নিয়ে আবার চেষ্টা করা হচ্ছে, যাতে অন্তত
-        # Video-Audio ঠিক থাকা একটা File পাওয়া যায়।
-        cmd2 = [bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
-                '-i', inp_path, '-map', '0:v', '-map', '0:a?',
-                '-c', 'copy']
-        cmd2.extend(tag_args)
+        # Last resort: video+audio only (no subs/attachments) — metadata still mdta-full
+        cmd2 = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-hide_banner', '-loglevel', 'error',
+                '-i', inp_path, '-map', '0:v', '-map', '0:a?', '-c', 'copy',
+                '-map_metadata', '0', '-movflags', 'use_metadata_tags']
         cmd2.append(out_path)
         proc2 = await create_subprocess_exec(*cmd2, stderr=PIPE)
         code2 = await proc2.wait()

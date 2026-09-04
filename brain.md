@@ -1385,3 +1385,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Changes:** `edit_metadata` — mp4-family outfile → cmd me `-movflags use_metadata_tags` (purge delete-args + map_metadata 0 ke saath compatible — T3/T3b). **CC ka comment-fold REVERTED** (raw keys ab possible — cleaner, per-key visible).
 **Tests:** T1 mp4 5/5 user tags RAW (title/copyright/encoded by/telly hub/Studio) + purge ✓; T1b mediainfo-CLI cross-check ✓; T2 mkv unchanged ✓; T3 mdta-asset preserve (OFFICIAL_SITE/encoded_by) ✓; T3b mdta-purge ✓; T4 ext-less→.mkv ✓; py3.10 102/102.
 **Note:** MP4 stream-level tags ab bhi container-limited (mdta file-level hota) — global tags FULL parity.
+
+### 260904-CE — MKV↔MP4 maximum-feature remux (senior audit, user-ask)
+**Git:** pending  
+
+**Truth-table (spec + proven):** Global-metadata FULL (mdta, CD) | Chapters/Lang/Multi-stream native | Text-subs→mov_text native | **Impossible:** bitmap-subs (PGS/DVD/DVB), attachments/fonts, per-stream-titles (mdta file-level) — inki honest handling, fake-support zero.
+**remux_container v2:** mp4-out → `-movflags use_metadata_tags` + `-map -0:t?` (attachments clean-skip) + probe-once classification: bitmap-subs `-map -0:idx` skip (log), V/A titles file-level fold (`Video Title=`/`Audio Title=`), `-c:s mov_text`; **reverse (mp4→mkv) `-c:s srt`** (mov_text mkv-impossible — T2-edge); fallback v+a me `-map_metadata 0` restore + **`tag_args` NameError FIXED** (BU-class bug — fallback kabhi crash-less chalta).
+**Perf:** single ffmpeg pass, A/V stream-copy (zero re-encode; sirf text-sub transcode ~KBs), probe once, no temp files, -threads 1 -nostdin.
+**Tests:** T1 rich-mkv→mp4 (mov_text ✓ fonts-excluded ✓ mdta-title ✓ V/A-title-fold ✓ lang=hin ✓) ✓; T2 mp4→mkv reverse (title ✓ mov_text→srt ✓); T3 unit bitmap-exclusion cmd (PGS-idx dropped, srt kept, fold, mdta) ✓; py3.10 102/102.
