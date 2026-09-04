@@ -1370,3 +1370,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Changes:** (1) qBit overlay: cache 32→16, conn 200/100→120/60, async_io_threads 2→1, **dht/pex env `QBIT_DHT`** (default off); (2) `stop_heavy()` → idle par qBit **graceful app_shutdown** (torrents 0 + `QBIT_IDLE_STOP!=false`) — ensure_qbit auto-restart qBit-use pe (qbit_download/torrent_search me pehle se wired); aria2 stays (RPC); (3) aria2c DHT/LPD/PEX off overlay (sirf missing keys; `ALLOW_DHT=true` escape); (4) workers 12→6; (5) default executor cap 6; (6) ffmpeg/repair `-nostdin -threads 1`.
 **Impact:** RAM 43.5%→~32-37% (qBit idle-shutdown); CPU 21.9%→~8-15% expected (DHT churn + thread caps; 4-slow-torrent aria2c floor bachta); DL-speed zero-sacrifice (DL path untouched); sab env-guarded (QBIT_DHT/QBIT_IDLE_STOP/ALLOW_DHT).
 **Tests:** T1 ffmpeg flags-in-cmd + metadata ✓; T2/T2b/T2c idle-stop logic (shutdown/stays/env-off) ✓; py3.10 102/102.
+
+### 260904-CC — MP4 whitelist-fold: unsupported user-keys → Comment (user-ask, batbin washbowls)
+**Git:** pending  
+
+**Report:** mp4 leech ke baad "saara matter uda" — reproduce: user 4 tags me Title+Copyright lage, **Encoded By + custom `telly hub` mp4-muxer silently DROP** (whitelist-only container); originals purge (BV design) — total lagta sab gaya. MP4 hard-limitation, bot-bug nahi.
+**Fix (user chose fold):** `edit_metadata` — mp4-family outfile (`.mp4/.m4v/.mov/.m4a`) + user keys not in `_MP4_FMT_KEYS` (title/artist/album/composer/genre/copyright/comment/date/description/lyrics/encoder/grouping) → `key: value` lines **Comment me fold** (existing comment merge `base | k: v | ...`); folded keys overlay se remove (purge ukeys-flow consistent). Ext-less→.mkv path fold-skip (raw keys as-is). Stream-compound keys untouched.
+**Tests:** T1 mp4 4-tags → title/copyright raw + `encoded by: ... | telly hub: ...` in comment, DROP-zero ✓; T2 mkv same-tags raw-as-is ✓; T3 mp4 purge+fold (uploader GONE, user sab visible) ✓; T4 comment-merge ✓; py3.10 102/102.

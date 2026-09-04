@@ -127,6 +127,9 @@ async def probe_tag_args(path, overlay=None):
 
 
 _MUX_PRIORITY = ('mp4', 'matroska', 'webm', 'mov', 'mpegts', 'avi', 'flv', 'asf', 'ogg', 'wav', 'mp3', 'aac', 'flac')
+_MP4_FMT_KEYS = {'title', 'artist', 'album', 'composer', 'genre', 'copyright', 'comment',
+                 'date', 'description', 'lyrics', 'encoder', 'grouping'}
+_MP4_EXTS = ('.mp4', '.m4v', '.mov', '.m4a')
 
 async def media_muxer(path):
     """Probe-based container detect — ext-less files ke liye. Non-media → None."""
@@ -169,6 +172,19 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     if inplace:
         # same-file pe ffmpeg reject karta — original-ext tmp me likh ke atomic swap
         outfile += '.meta' + os_path.splitext(media_file)[1].lower()
+    # MP4-family whitelist: unsupported keys (custom/encoded by/...) Comment me fold — DROP nahi honge
+    if os_path.splitext(outfile)[1].lower() in _MP4_EXTS:
+        _stream_compound = lambda k: k.split(' ', 1)[0].lower() in ('video', 'audio', 'subtitle')
+        folded = [f"{k}: {v}" for k, v in overlay.items()
+                  if not k.startswith('__') and v and k.lower() not in _MP4_FMT_KEYS
+                  and not _stream_compound(k)]
+        if folded:
+            base = overlay.get('comment', '')
+            overlay['comment'] = ' | '.join([b for b in (base, *folded) if b])
+            for _fk in [k for k in list(overlay)
+                        if not k.startswith('__') and overlay.get(k)
+                        and k.lower() not in _MP4_FMT_KEYS and not _stream_compound(k)]:
+                overlay.pop(_fk)
     tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
