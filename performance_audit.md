@@ -92,3 +92,23 @@
 
 ## 5. Benchmark Protocol (same-workload before/after)
 Idle / 1-task / 2-task / 3-task / large-task — RAM, CPU, speed (user PERF_LOG + /s7 logs). Deploy CI ke baad same 3-torrent workload jo user ne diya tha as reference (34.36MB/s, CPU 35.1%, RAM 44.7%).
+
+---
+
+## 6. Phase-2 Plan — TG Download 100+MB/s (approved: plan banao)
+
+**Problem:** bot-single-client pyrogram stream = ~20-25MB/s DC-cap, unstable (DC throttling + single-session chunk pipeline).
+
+**Design: Multi-Session Range-Split Downloader**
+1. N sessions (bot + user + optional helper-bot tokens) ek hi message/media pe parallel chunk-ranges download karte (pyrogram low-level `session.invoke` + `upload.getFile` with offset/limit, DC-2/4 direct socket).
+2. Assembler: chunks temp-parts me → sequential concat (zero RAM-buffering, disk-only).
+3. Backpressure: per-session 4MB chunks × 2-in-flight; aggregate window = N×8MB.
+4. Progress: single EMA speed counter, per-session contributions.
+5. Fallback: koi session flood-wait → us range ko dusra session le leta.
+
+**Decision points (user):**
+- Helper-bot tokens add karne ka mane ya nahi (2 sessions = ~40-50MB/s realistic; 4 = 80-100+).
+- USER_SESSION_STRING pehle se hai ✓ (user + bot = 2 sessions base).
+- File-auth: media DC pe sessions ko export-auth-transfer karna hota (pyrogram `export_session_invite`? standard: `client.export_auth` DC transfer — wzgram fork me hooks check karne honge).
+
+**Effort:** ~2-3 sessions ka work (downloader class + assembler + listener integration + tests). Pehle CI/CJ/CK deploy ka result dekho, phir iska `/plan` concrete karenge.

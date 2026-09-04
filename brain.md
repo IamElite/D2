@@ -1418,7 +1418,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** conf-values ✓; force-overlay sim (DB-true override + opt-out) ✓; py3.10 102/102.
 
 ### 260904-CI — Full perf audit (sandbox-measured) + gunicorn-kill + ytdlp-lazy + bootstop-verify + PERF harness
-**Git:** pending  
+**Git:** `a24b69a`  
 
 **Audit (real measurements):** idle 44.3% (~440MB) = python-imports **132.5MB** (naapa) + gunicorn master+worker **~85MB** (naapa; hello-flask 67) + aria2 idle 16MB/0-CPU (naapa) + pyrogram-runtime ~50-70MB + frag. Import top: TG-core 35, motor 20, **yt-dlp 20 (boot pe load!)**. Idle-CPU 4-10% = pyrogram floor (status-loop idle pe cancel ✓, aria2 0-ticks ✓).
 **CI (web in-bot):** `web/pages.py` (HTML single-source, wserver 856→166 refactor) + `web/aio_wserver.py` — aiohttp in-bot server (3 routes legacy-parity; sync engine-calls `to_thread`; `reuse_address` + retry×3 cleanup-rebind-race-guard; `stop/restart_web_server`). gunicorn Popen kills: `__init__` + `bot_settings` ×2 → in-bot start/restart. flask/gevent/gunicorn ab import hi nahi hote.
