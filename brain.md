@@ -1402,7 +1402,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 port-probe real-refused ✓; T2 clean_all qBit-down (purge-skip + dirs-clean + no-crash) ✓; py3.10 102/102.
 
 ### 260904-CG — `-i N` reply-to-txt-file: links INSIDE file (was: file khud item)
-**Git:** pending  
+**Git:** `2930c15`  
 
 **Report:** `/l7 -i 3` reply-to txt → "No files to upload. Check EXTENSION_FILTER."; `-b` pe same file sahi.
 **Root:** `collect_i_items._items_in_msg` media-msg ko khud ek item maanta (txt-file ka tg-link item bana → .txt leech → ext-filter → no-files). `-b` extract_bulk_links file-content padhta.
