@@ -357,7 +357,7 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ---
 
 ### `260830-J` — requirements.txt extension
-**Git:** (push ke baad)
+**Git:** `06275d2`
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
 **Fix:** `git mv requirements requirements.txt`.
 
@@ -1437,7 +1437,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Next protocol:** baseline benchmark same-workload (seeders/leechers note karke) → ek-ek env experiment + benchmark.
 
 ### 260904-CM — FINAL throughput pass: aria2 peer/connection caps + real(anon) RAM readout + live conn diagnostics
-**Git:** (push ke baad)
+**Git:** `06275d2`
 **Date:** 2026-09-04
 **Files:** `a2c.conf`, `bot/__init__.py`, `bot/helper/mirror_utils/download_utils/aria2_download.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/ext_utils/engine_lifecycle.py`
 
