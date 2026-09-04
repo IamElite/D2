@@ -1372,7 +1372,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 ffmpeg flags-in-cmd + metadata ✓; T2/T2b/T2c idle-stop logic (shutdown/stays/env-off) ✓; py3.10 102/102.
 
 ### 260904-CC — MP4 whitelist-fold: unsupported user-keys → Comment (user-ask, batbin washbowls)
-**Git:** pending  
+**Git:** `3fb4a35`  
 
 **Report:** mp4 leech ke baad "saara matter uda" — reproduce: user 4 tags me Title+Copyright lage, **Encoded By + custom `telly hub` mp4-muxer silently DROP** (whitelist-only container); originals purge (BV design) — total lagta sab gaya. MP4 hard-limitation, bot-bug nahi.
 **Fix (user chose fold):** `edit_metadata` — mp4-family outfile (`.mp4/.m4v/.mov/.m4a`) + user keys not in `_MP4_FMT_KEYS` (title/artist/album/composer/genre/copyright/comment/date/description/lyrics/encoder/grouping) → `key: value` lines **Comment me fold** (existing comment merge `base | k: v | ...`); folded keys overlay se remove (purge ukeys-flow consistent). Ext-less→.mkv path fold-skip (raw keys as-is). Stream-compound keys untouched.
