@@ -1598,7 +1598,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Note:** boot 1-2 me `uv: No virtual environment found` ke baad `|| pip` fallback chala, boot 3-4 me wzgram/curl-cffi/motor fresh install hue (line 36-56) → packages sahi install hote hain, woh error noisy-only hai. Container image 3.11 deploy se py3.10 deprecation jad se gayab.
 
 ### 260905-A — quality sub-menu crash: `qual_subbuttons` list-unpack galti (d_data[0] = format-id ka pehla char)
-**Git:** `3000308` (brain: `3689a40`)  
+**Git:** `3000308` (brain: `76f3589`)  
 **Date:** 2026-09-05  
 **OLD:** `260904-CQ` / `497eb5c` — us commit me `qual_subbuttons` aaya, tab se yeh unpack galti live thi.  
 **Files:** `bot/modules/ytdlp.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`, `tests/t_260905_qual_subbuttons.py` (naya)
