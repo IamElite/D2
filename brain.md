@@ -1395,7 +1395,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 rich-mkv→mp4 (mov_text ✓ fonts-excluded ✓ mdta-title ✓ V/A-title-fold ✓ lang=hin ✓) ✓; T2 mp4→mkv reverse (title ✓ mov_text→srt ✓); T3 unit bitmap-exclusion cmd (PGS-idx dropped, srt kept, fold, mdta) ✓; py3.10 102/102.
 
 ### 260904-CF — qBit-down guard: clean_all/start_cleanup crash (CB idle-shutdown side-effect)
-**Git:** pending  
+**Git:** `1e3acac`  
 
 **Source:** live log (batbin curatives, commit 6689f49) — /restart → clean_all() → torrents_delete par qBit DOWN (CB idle-shutdown sahi kaam kar raha) → APIConnectionError → restart handler crash. start_cleanup (boot) me bhi wahi latent.
 **Fix (fs_utils):** `_qbit_up()` port-probe + `_qbit_purge_all()` (down → info-skip — down = torrents bhi nahi; up-but-race → try/except warn) — dono call-sites switched. **bot_settings:** qBit-prefs handlers (2) me `ensure_qbit` pehle (down ho to auto-start — admin op fail nahi).
