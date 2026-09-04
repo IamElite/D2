@@ -1338,3 +1338,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Engine (ffmpeg.py):** overlay compound keys (`Video Comment:x` / `Audio Artist:y` / `Subtitle Encoded By:z`) → `stream_meta[ctype][tag]` → stream-loop me `-metadata:s:{pref}:{idx} {tag}={v}`; `title` sub-key global-title ko override; passthrough se compound EXCLUDE (global-tag leak zero — T2 proven).
 **UI (users_settings.py):** builder — 15 general keys + Stream Tags section (✅Video/Audio/Subtitle → md_str) + custom buttons + **"Add Custom Tag"** (body/end); `md_str` (5 sub-keys 2-col + Back) → `md_skey` (Set/Change+Remove+Back) → `md_edit s {sidx} {name...}` / `md_rm s ...` (dual-mode: g=general-idx, s=stream-name); **md_cman** manager: [name→md_cbtn][Remove→md_crmbtn] rows + "+ Add More" (md_cadd) + Back; md_cadd back→md_cman, heading "Add Custom Tag".
 **Tests:** engine T1 per-stream video(title+comment)/audio(artist+comment) ✓; T2 compound-global-leak ZERO ✓; T4 stream-purge+compound co-exist ✓; UI-sim builder-status/callback-parse/md_cman rows/wiring ✓; py3.10 102/102.
+
+### 260903-BY — Menu restructure: streams-first + legacy-remove + Add Custom Tag lone
+**Git:** pending  
+
+**Ask (user):** (1) pehle se set keys (Audio/Video global...) remove kaise — (2) Set All ke just niche 3 buttons (Video/Audio/Subtitle) + chhota caption ("sab tags + custom milenge") — (3) stream menu me sab tags + CUSTOM bhi (scoped `Video <Custom>`) — (4) Add Custom Tag = akela button, Back/Close ke upar (l_body).
+**Changes (users_settings.py):** builder — stream 3-buttons body-first (header ke turant niche, caption line ke saath); general keys baad me; extras section (`Purane set tags (Remove yahin se)`) — meta_dict ke aise keys jo kisi button me cover nahi (≤30char, non-stream-compound) → `md_xkey` (Set/Change+Remove+Back); `md_xset` (set_metadata_key generic) / `md_xrm`; `md_str` me custom buttons bhi (→ `md_csbtn` → md_edit/md_rm s-mode, key `Video <Label>`); Add Custom Tag → l_body (footer ke upar akela).
+**Engine:** ZERO change (compound `Video <Custom>` BX se covered).
+**Tests:** user-real-data sim — extras=[Audio,Video] ✓ remove→section gone ✓; csbtn/xkey/xset/xrm callback-parse ✓; layout rows (header/streams-first/l_body-lone/footer) ✓; py3.10 102/102.
