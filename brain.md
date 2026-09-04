@@ -1552,7 +1552,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Standing rule (brain):** har push se pehle **uv py3.10 full-repo compile** (baseline=3.10 = sabse conservative; pass = 3.10/3.11/3.12 sab safe). Nested same-quote f-strings mat likho (3.12-only).
 
 ### 260904-CS — startup noise suppress + upload-patch REGEX-robust + ONLINE banner
-**Git:** (push ke baad)
+**Git:** `d23a771`
 **Date:** 2026-09-04
 **User (.ask→build):** boot log red-warning noise me "bot start hua ya nahi" pata nahi chalta; `TG upload patch: no target pattern matched` (CN patch Heroku pe laga hi nahi); py3.10 deprecation lines (yt-dlp bare-stderr + google FutureWarning) baar-baar.
 **Root cause CN patch no-op:** `_patch_tg_upload_queue` exact-string replace karta tha (`'rate_limit = 40  # ~20 MiB/s'`) — Heroku ke wzgram micro-build me whitespace/comment/version farq → koi match nahi → silent no-op → upload cap 20MiB/s bana raha.
