@@ -1584,7 +1584,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Test:** py3.10 full-repo compile ✓ + py3.13 ✓; patch real+alt layout ✓.
 
 ### 260904-CV — upload patch IMPORT-BEFORE-pyrogram (reload race fix) + idempotent + boot deprecation silent
-**Git:** (push ke baad)
+**Git:** `de5c101`
 **Date:** 2026-09-04
 **Logs:** batbin.me/parasemidin (running 361dcbd=CU; fresh container deploy ed9c6ca7, Python 3.10.12, wzgram 3.1.1 fresh install).
 **Asli findings (line 72 decisive):**
