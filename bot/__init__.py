@@ -896,26 +896,28 @@ else:
     aria2.set_global_options(a2c_glo)
 
 # Heroku: UDP dead + conf me perf-killers the (peer-speed-limit 1K = aria2 lazy peers).
-# FORCE overlay (DB/conf kuch bhi ho) — ARIA2_PERF=0 opt-out; ALLOW_DHT=true se DHT wapas.
-try:
-    _a2_perf = {}
-    if environ.get('ARIA2_PERF', '').lower() not in ('0', 'false', 'no'):
-        _a2_perf.update({
-            'bt-request-peer-speed-limit': '15M',   # 1K conf = THE download-speed killer
-            'bt-max-peers': '120',
-            'max-connection-per-server': '16',
-            'split': '16',
-            'min-split-size': '1M',
-            'max-concurrent-downloads': '5',
-            'file-allocation': 'falloc',
-        })
-    if environ.get('ALLOW_DHT', '').lower() not in ('1', 'true', 'yes'):
-        _a2_perf.update({'enable-dht': 'false', 'bt-enable-lpd': 'false', 'enable-peer-exchange': 'false'})
-    if _a2_perf:
+# CH-REVERT: force-overlay ne 15M peer-speed-limit + DHT-off force kiya tha → thin-swarm pe
+# aria2 permanent peer-hunt churn (CPU 59.8%) + peer-discovery band. Known-good = NO overlay.
+# Experiments ab opt-in: ARIA2_PERF=1 (perf keys), ARIA2_NO_DHT=1 (dht/lpd/pex off).
+_a2_perf = {}
+if environ.get('ARIA2_PERF', '').lower() in ('1', 'true', 'yes'):
+    _a2_perf.update({
+        'bt-request-peer-speed-limit': '15M',
+        'bt-max-peers': '120',
+        'max-connection-per-server': '16',
+        'split': '16',
+        'min-split-size': '1M',
+        'max-concurrent-downloads': '5',
+        'file-allocation': 'falloc',
+    })
+if environ.get('ARIA2_NO_DHT', '').lower() in ('1', 'true', 'yes'):
+    _a2_perf.update({'enable-dht': 'false', 'bt-enable-lpd': 'false', 'enable-peer-exchange': 'false'})
+if _a2_perf:
+    try:
         aria2.change_global_option(_a2_perf)
-        log_info(f"Aria2 perf overlay: {','.join(_a2_perf)}")
-except Exception as e:
-    log_error(f"Aria2 perf overlay skipped: {e}")
+        log_info(f"Aria2 perf overlay (opt-in): {','.join(_a2_perf)}")
+    except Exception as e:
+        log_error(f"Aria2 perf overlay skipped: {e}")
 
 qb_client = get_client()
 if not qbit_options:

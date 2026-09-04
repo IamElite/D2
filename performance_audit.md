@@ -112,3 +112,18 @@ Idle / 1-task / 2-task / 3-task / large-task — RAM, CPU, speed (user PERF_LOG 
 - File-auth: media DC pe sessions ko export-auth-transfer karna hota (pyrogram `export_session_invite`? standard: `client.export_auth` DC transfer — wzgram fork me hooks check karne honge).
 
 **Effort:** ~2-3 sessions ka work (downloader class + assembler + listener integration + tests). Pehle CI/CJ/CK deploy ka result dekho, phir iska `/plan` concrete karenge.
+
+---
+
+## 7. Regression Analysis (post-CH+CI live test: 88KB/s, CPU 59.8%)
+
+**Facts:** Pehla 3-task run: seeders 6/3/2, leechers 31/29/26 → 34.36MB/s, CPU 35.1%. Naya run: **seeders 1/0/0, leechers 2/1/1** → 88KB/s, CPU 59.8%. `stop_heavy` qBit-only hai (8090-gated) — aria2/tasks untouched; tasks 2/3 ACTIVE the (0B/s = no peers).
+
+**Findings:**
+1. **Swarm confound:** naya run near-dead swarm me tha — speed comparison 34MB/s vs 88KB/s apples-to-apples NAHI. Seeders 0/0 pe koi bhi config 40MB/s nahi de sakta.
+2. **REAL regression (CPU 59.8%):** `bt-request-peer-speed-limit=15M` (CH). Semantics: aggregate speed < limit → aria2 peers badhane ki koshish me rehta hai (tracker re-announce + connect churn). Thin swarm me speed hamesha < 15M → **permanent peer-hunt loop = CPU burn**. Purane 1K pe 88KB/s > 1K → aria2 shaant. "1K = speed-killer" conclusion galat tha (bina A/B ke) — 40MB/s usi 1K-conf pe mili thi.
+3. **DHT/PEX force-off** thin-swarm peer-discovery ka backup raasta bhi band kar raha tha (Heroku-UDP-dead assumption aria2 pe unverified tha).
+
+**Action (CJ-revert commit):** a2c.conf → exact pre-CH (`0de560a`) restore; overlay default-OFF; `ARIA2_PERF=1` / `ARIA2_NO_DHT=1` opt-in experiments. CI/CJ/CK/CL retain (log/passive-only, download-path untouched).
+
+**One-by-one protocol (ab aage):** baseline deploy → same-workload benchmark (swarm health note karke: seeders/leechers log me) → agar experiment karna hai to env var ek-ek karke + benchmark.

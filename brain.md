@@ -1427,3 +1427,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **CL (PERF harness):** `log_mem(tag)` — process-wise RSS (bot + children by-name) boot pe ek baar + `PERF_LOG=1` → setInterval 300s.
 **Tests:** server-suite (routes 200/pin/graceful-500, same-port live-rebind ×4, diff-port, stop, restart-parity) ✓; qbit_port_down ✓; log_mem render ✓; py3.10 **107/107** (web/ included).
 **Expected:** idle RAM 44.3→~25-30% (gunicorn−85, ytdlp−20, qBit-lazy). Deploy-log me dekho: `MEM[boot]: bot=… | aria2c=…` line + `qBit boot-stop: port 8090 down ✓`.
+
+### 260904-CJ — CH-revert: aria2 known-good restore (swarm-confound + 15M-churn regression fix)
+**Git:** pending  
+
+**Regression report (live):** 88KB/s + CPU 59.8% (pehle: 34MB/s + 35.1%). Analysis: (1) naya run near-dead swarm me tha (seeders 6/3/2→1/0/0, leechers 31/29/26→2/1/1) — speed-compare invalid; (2) REAL bug = CH ka `bt-request-peer-speed-limit=15M` force — speed<15M ⇒ aria2 permanent peer-hunt churn (tracker re-announce storm) = CPU 59.8%; 1K pe aria2 shaant tha ("1K killer" mera galat A/B-less conclusion); (3) DHT/PEX force-off = thin-swarm discovery band. `stop_heavy` qBit-only verify hua (aria2/tasks untouched).
+**Fix:** a2c.conf → exact pre-CH `0de560a` (git show restore, T1 exact-diff ✓). Overlay default-OFF → `ARIA2_PERF=1` (7 keys) / `ARIA2_NO_DHT=1` (dht keys) opt-in. CI/CJ/CK/CL retain (passive/log-only).
+**Tests:** conf-exact ✓; overlay opt-in sim (none/7/3) ✓; CI/CJ/CK/CL intact ✓; py3.10 107/107.
+**Next protocol:** baseline benchmark same-workload (seeders/leechers note karke) → ek-ek env experiment + benchmark.
