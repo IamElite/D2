@@ -4,7 +4,6 @@ from pyrogram.filters import command, regex, user
 from asyncio import sleep, wait_for, Event, wrap_future
 from aiohttp import ClientSession
 from aiofiles.os import path as aiopath
-from yt_dlp import YoutubeDL
 from functools import partial
 from time import time
 import os
@@ -228,6 +227,7 @@ def extract_info(link, options):
     from ..helper.mirror_utils.download_utils.yt_dlp_download import add_impersonate, normalize_ydl_link
     link = normalize_ydl_link(link)
     options = add_impersonate(options)
+    from yt_dlp import YoutubeDL  # CJ: lazy — boot pe 20MB nahi
     with YoutubeDL(options) as ydl:
         result = ydl.extract_info(link, download=False)
         if result is None:

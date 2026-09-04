@@ -820,12 +820,8 @@ if ospath.exists('shorteners.txt'):
             if len(temp) == 2:
                 shorteners_list.append({'domain': temp[0],'api_key': temp[1]})
 
+# CI: gunicorn process hataya — web UI ab in-bot aiohttp (bot_loop ke baad start hota)
 PORT = environ.get('PORT')
-Popen(
-    f"gunicorn web.wserver:app --bind 0.0.0.0:{PORT} --workers 1 "
-    f"--worker-class gevent --worker-connections 100 --timeout 120",
-    shell=True,
-)
 
 bot_cache['pkgs'] = ['zetra', 'xon-bit', 'ggrof', 'cross-suck', 'zetra|xon-bit|ggrof|cross-suck']
 
@@ -970,8 +966,12 @@ except Exception as e:
 # qBit LAZY: boot pe overlay laga ke turant stop (0 torrents) — RAM boot-baseline se out.
 # Pehla qBit task ensure_qbit() se wapas aayega. Aria2-tasks isse rok nahi sakte.
 try:
-    from .helper.ext_utils.engine_lifecycle import stop_heavy
+    from .helper.ext_utils.engine_lifecycle import stop_heavy, qbit_port_down
     stop_heavy()
+    if qbit_port_down():
+        log_info("qBit boot-stop: port 8090 down ✓ (RAM freed)")
+    else:
+        log_error("qBit boot-stop: STILL UP after 3 retries ✗")
 except Exception as e:
     log_error(f"qBit boot-stop skipped: {e}")
 
@@ -981,5 +981,28 @@ bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOK
 bot_loop = bot.loop
 from concurrent.futures import ThreadPoolExecutor as _TPE
 bot_loop.set_default_executor(_TPE(max_workers=6, thread_name_prefix='sync'))  # sync_to_async thread-explosion guard
+
+# CI: in-bot web server (aiohttp) — gunicorn replacement, PORT Heroku router
+if PORT:
+    try:
+        from web.aio_wserver import start_web_server
+        bot_loop.create_task(start_web_server(int(PORT)))
+    except Exception as e:
+        log_error(f"Web server start failed: {e}")
+
+# CL: process-wise RAM breakdown — boot pe ek baar (qBit lazy/gunicorn verify ka saboot)
+try:
+    from .helper.ext_utils.engine_lifecycle import log_mem
+    log_mem('boot')
+except Exception as e:
+    log_error(f"MEM boot log failed: {e}")
+if environ.get('PERF_LOG', '').lower() in ('1', 'true', 'yes'):
+    try:
+        from .helper.ext_utils.bot_utils import setInterval
+        from .helper.ext_utils.engine_lifecycle import log_mem_async
+        setInterval(300, log_mem_async)
+        log_info("PERF_LOG on: MEM breakdown har 300s")
+    except Exception as e:
+        log_error(f"PERF_LOG setup failed: {e}")
 bot_name = bot.me.username
 scheduler = AsyncIOScheduler(timezone=str(get_localzone()), event_loop=bot_loop)

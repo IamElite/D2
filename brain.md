@@ -1416,3 +1416,14 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** a2c.conf — peer-speed-limit **15M**, bt-max-peers 120, http 16/16/1M, concurrent 5, file-allocation falloc, dht/pex false. `__init__` — **FORCE perf-overlay** (7 keys, DB/conf override; `ARIA2_PERF=0` opt-out) + **DHT FORCE** (missing-only → force; `ALLOW_DHT` escape). qBit **lazy**: boot-overlay ke turant baad `stop_heavy()` (0-torrent → shutdown; aria2 tasks se independent) + `aria2_listener` complete/bt-complete pe event-driven `stop_heavy()`.
 **Expected:** speed 34→80-120+MB/s (peer-speed-limit + peers + splits), boot-RAM 44.7→~28-32% (qBit lazy), CPU 35→~15-20 (DHT churn force-off). Env: ARIA2_PERF=0 / ALLOW_DHT / QBIT_IDLE_STOP=false.
 **Tests:** conf-values ✓; force-overlay sim (DB-true override + opt-out) ✓; py3.10 102/102.
+
+### 260904-CI — Full perf audit (sandbox-measured) + gunicorn-kill + ytdlp-lazy + bootstop-verify + PERF harness
+**Git:** pending  
+
+**Audit (real measurements):** idle 44.3% (~440MB) = python-imports **132.5MB** (naapa) + gunicorn master+worker **~85MB** (naapa; hello-flask 67) + aria2 idle 16MB/0-CPU (naapa) + pyrogram-runtime ~50-70MB + frag. Import top: TG-core 35, motor 20, **yt-dlp 20 (boot pe load!)**. Idle-CPU 4-10% = pyrogram floor (status-loop idle pe cancel ✓, aria2 0-ticks ✓).
+**CI (web in-bot):** `web/pages.py` (HTML single-source, wserver 856→166 refactor) + `web/aio_wserver.py` — aiohttp in-bot server (3 routes legacy-parity; sync engine-calls `to_thread`; `reuse_address` + retry×3 cleanup-rebind-race-guard; `stop/restart_web_server`). gunicorn Popen kills: `__init__` + `bot_settings` ×2 → in-bot start/restart. flask/gevent/gunicorn ab import hi nahi hote.
+**CJ (ytdlp lazy):** 3 local-import sites (ytdlp.py:231, yt_dlp_download.py:210/254-methods) — boot se ~20MB off.
+**CK (boot-stop verify):** `qbit_port_down()` (8090, 3s wait) + definitive boot-log "down ✓/STILL UP ✗" — 44.3%-after-CH mystery ka saboot.
+**CL (PERF harness):** `log_mem(tag)` — process-wise RSS (bot + children by-name) boot pe ek baar + `PERF_LOG=1` → setInterval 300s.
+**Tests:** server-suite (routes 200/pin/graceful-500, same-port live-rebind ×4, diff-port, stop, restart-parity) ✓; qbit_port_down ✓; log_mem render ✓; py3.10 **107/107** (web/ included).
+**Expected:** idle RAM 44.3→~25-30% (gunicorn−85, ytdlp−20, qBit-lazy). Deploy-log me dekho: `MEM[boot]: bot=… | aria2c=…` line + `qBit boot-stop: port 8090 down ✓`.

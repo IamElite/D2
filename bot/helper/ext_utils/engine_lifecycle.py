@@ -88,3 +88,34 @@ async def idle_now():
             pass
         Interval.clear()
     stop_heavy()
+
+
+def qbit_port_down(timeout=3):
+    """Boot-stop verify: 8090 down hone ka wait (max timeout s) — True=down."""
+    from time import sleep as _sleep
+    for _ in range(timeout * 2):
+        if not _port_up(8090):
+            return True
+        _sleep(0.5)
+    return not _port_up(8090)
+
+
+def log_mem(tag='tick'):
+    """CL: process-wise RSS breakdown — qBit/gunicorn/aria2 presence ka live saboot."""
+    try:
+        from psutil import Process
+        cur = Process()
+        kids = {}
+        for c in cur.children(recursive=True):
+            try:
+                kids[c.name()] = kids.get(c.name(), 0) + c.memory_info().rss
+            except Exception:
+                pass
+        kid_s = ' '.join(f'{k}={v >> 20}MB' for k, v in sorted(kids.items()))
+        LOGGER.info(f"MEM[{tag}]: bot={cur.memory_info().rss >> 20}MB | {kid_s or 'no-children'}")
+    except Exception as e:
+        LOGGER.error(f"MEM log failed: {e}")
+
+
+async def log_mem_async(tag='perf'):
+    log_mem(tag)

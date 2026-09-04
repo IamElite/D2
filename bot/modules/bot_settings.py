@@ -350,12 +350,13 @@ async def load_config():
     if len(RCLONE_SERVE_PASS) == 0:
         RCLONE_SERVE_PASS = ''
 
-    await (await create_subprocess_exec("pkill", "-9", "-f", "gunicorn")).wait()
+    from web.aio_wserver import restart_web_server, stop_web_server
     BASE_URL = environ.get('BASE_URL', '').rstrip("/")
     if len(BASE_URL) == 0:
         BASE_URL = ''
+        await stop_web_server()
     else:
-        await create_subprocess_shell(f"gunicorn web.wserver:app --bind 0.0.0.0:{BASE_URL_PORT} --worker-class gevent")
+        await restart_web_server(BASE_URL_PORT)
 
     UPSTREAM_REPO = environ.get('UPSTREAM_REPO', '')
     if len(UPSTREAM_REPO) == 0:
@@ -947,8 +948,8 @@ async def edit_variable(_, message, pre_message, key):
     elif key == 'BASE_URL_PORT':
         value = int(value)
         if config_dict['BASE_URL']:
-            await (await create_subprocess_exec("pkill", "-9", "-f", "gunicorn")).wait()
-            await create_subprocess_shell(f"gunicorn web.wserver:app --bind 0.0.0.0:{value} --worker-class gevent")
+            from web.aio_wserver import restart_web_server
+            await restart_web_server(value)
     elif key == 'EXTENSION_FILTER':
         fx = value.split()
         GLOBAL_EXTENSION_FILTER.clear()

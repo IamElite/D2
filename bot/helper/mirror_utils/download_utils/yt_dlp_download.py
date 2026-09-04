@@ -2,7 +2,6 @@
 from os import path as ospath, listdir
 from secrets import token_hex
 from logging import getLogger
-from yt_dlp import YoutubeDL, DownloadError
 from re import search as re_search, sub as re_sub
 from json import loads as json_loads
 
@@ -207,6 +206,7 @@ class YoutubeDLHelper:
         link = normalize_ydl_link(link)
         if link.startswith(('rtmp', 'mms', 'rstp', 'rtmps')):
             self.opts['external_downloader'] = 'ffmpeg'
+        from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy
         with YoutubeDL(self.opts) as ydl:
             try:
                 result = ydl.extract_info(link, download=False)
@@ -250,6 +250,7 @@ class YoutubeDLHelper:
                     self.__size = result['filesize_approx']
 
     def __download(self, link, path):
+        from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy
         try:
             with YoutubeDL(self.opts) as ydl:
                 try:
