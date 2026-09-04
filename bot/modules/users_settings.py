@@ -1005,14 +1005,21 @@ async def edit_user_settings(client, query):
     elif data[2] == 'md_cman':
         await query.answer()
         labels = get_custom_btns(user_dict)
+        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
         text = "<b><u>Custom Tag Buttons</u></b>\n\n"
-        text += "➲ Tap a name to configure it, or Remove to delete." if labels else "➲ No custom buttons yet. Add your first one!"
+        if labels:
+            for clabel in labels:
+                cv = meta_dict.get(clabel)
+                text += f"➲ <b>{escape(clabel)}:</b> <code>{escape(trun(cv, 40))}</code>\n" if cv else f"➲ <b>{escape(clabel)}:</b> <i>Not set</i>\n"
+            text += "\n<i>Tap a name to configure it, or Remove to delete.</i>"
+        else:
+            text += "<i>No custom tags yet. Tap Add Tag to create one!</i>"
         mbuttons = ButtonMaker()
         for index, clabel in enumerate(labels):
             mbuttons.ibutton(clabel, f"userset {user_id} md_cbtn {index}")
             mbuttons.ibutton("Remove", f"userset {user_id} md_crmbtn {index}")
-        mbuttons.ibutton("+ Add More", f"userset {user_id} md_cadd")
-        mbuttons.ibutton("Back", f"userset {user_id} metadata")
+        mbuttons.ibutton("Add Tag", f"userset {user_id} md_cadd", "l_body")
+        mbuttons.ibutton("Back", f"userset {user_id} metadata", "footer")
         await editMessage(message, text, mbuttons.build_menu(2))
     elif data[2] == 'md_cbtn':
         await query.answer()

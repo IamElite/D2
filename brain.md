@@ -1353,3 +1353,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Ask (user):** caption tatti/Hinglish — English short chahiye (global users); Video/Audio/Subtitle TEENON EK LINE me (2x2 nahi), position same (Set All ke just niche).
 **Changes:** `button_build.py` — new optional `header2` position (full-row, header ke turant niche insert; ubutton/ibutton dono; backward-compatible — empty slot no-op, purane menus byte-same). `users_settings.py` builder — stream 3-buttons header2 pe (ek row [Video][Audio][Subtitle]); caption `➲ Stream Tags — tap to set all tags & custom:`; "Purane set tags (Remove yahin se)" → `Old tags — tap to remove:`; md_str `Ye {sname} stream pe lagenge` → `These tags apply to the {sname} stream:`.
 **Tests:** ButtonMaker verbatim-sim — header2 row ek-line ✓, position header-ke-niche ✓, header2-less + old menus unchanged ✓; Hinglish-grep metadata-flow ZERO ✓; py3.10 102/102.
+
+### 260903-CA — md_cman redesign: caption me tags-list + Add Tag lone
+**Git:** pending  
+
+**Ask (user):** Add More Back-ke-saath pair me nahi — AKELA; caption me jo custom tags ADD kiye wo DIKHEN; "+ Add More" label bekar → "Add Tag".
+**Changes (md_cman):** caption — har custom tag ki line `➲ <label>: <value|Not set>` + hint; buttons [name][Remove] pairs (2-col) + `Add Tag` l_body (akela) + Back footer. "+ Add More" GONE.
+**Tests:** caption-sim (values + Not set) ✓; layout-sim (pairs → Add Tag lone → Back) ✓; py3.10 102/102.
