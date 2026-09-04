@@ -1379,7 +1379,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** T1 mp4 4-tags → title/copyright raw + `encoded by: ... | telly hub: ...` in comment, DROP-zero ✓; T2 mkv same-tags raw-as-is ✓; T3 mp4 purge+fold (uploader GONE, user sab visible) ✓; T4 comment-merge ✓; py3.10 102/102.
 
 ### 260904-CD — MP4 FULL-PARITY: `-movflags use_metadata_tags` (user mood-off → senior fix)
-**Git:** pending  
+**Git:** `c97f7e7`  
 
 **Ask:** MKV me sab tags, MP4 me nahi — "ek format me sab, dusre me nahi" — smart fix chahiye. **Discovery:** ffmpeg mp4-muxer arbitrary keys sirf `-movflags use_metadata_tags` ke saath mdta-keys me likhta (warna whitelist + silent drop) — PROVEN: mediainfo-CLI me `telly hub`/`Studio`/`encoded_by` sab dikhte.
 **Changes:** `edit_metadata` — mp4-family outfile → cmd me `-movflags use_metadata_tags` (purge delete-args + map_metadata 0 ke saath compatible — T3/T3b). **CC ka comment-fold REVERTED** (raw keys ab possible — cleaner, per-key visible).
