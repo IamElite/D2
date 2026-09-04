@@ -139,7 +139,7 @@ class YoutubeDLHelper:
         self.playlist_count = 0
         self.opts = {'progress_hooks': [self.__onDownloadProgress],
                      'logger': MyLogger(self),
-                     'color': {'stderr': 'no_color'},   # keep log output clean/parseable
+                     'no_warnings': True,   # drop yt-dlp benign notices (py3.10 deprecation etc.); errors still logged
                      'usenetrc': True,
                      'age_limit': 99,
                      'cookiefile': 'cookies.txt',

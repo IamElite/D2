@@ -1567,3 +1567,18 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Git:** `d499b50`
 **Date:** 2026-09-04
 **User:** CS ka startup banner nahi chahiye — purani normal startup line hi theek. CS ke baaki do fixes (regex upload patch + py3.10 deprecation suppress) BANE rehte hain; sirf 4-line banner + platform/pyrogram version block hata → wapas ek line `KPSML-X Bot [@...] Started!`.
+
+### 260904-CU — upload patch numeric-threshold robust + stderr-wrapper revert (boot-safe)
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**Log:** running d9ccb29 par bhi `TG upload patch: NO target matched on wzgram 3.1.1` + deprecation line + boot "Started!" tak pahunchne me dikkat.
+**Root cause (CS patch abhi bhi no-op):** CS ka regex exact value/structure maangta tha (`rate_limit = 40` with comment + `pool_size = min(8, POOL_SIZE)` fixed spacing). Heroku ke installed 3.1.1 file me spacing/comment/format ka farq (ya source patch ka target hi alag) → zero match.
+**Fix (`__init__.py` `_patch_tg_upload_queue`):** layout/spacing/comment/CRLF-agnostic NUMERIC-THRESHOLD regex —
+- `rate_limit = <n>` jahan n<100 (bot 40 / non-premium user 50) → target rate; premium 300 chhua nahi.
+- `pool_size = min(<n>, POOL_SIZE)` jahan n<target (8/12) → target (14); premium 14 safe.
+- match na ho to ab actual `rate_limit/pool_size` lines boot-log me dump (ek nazar me debug), silent nahi.
+- Sim: real wzgram 3.1.1 (hits rate 40/50 + pool 8/12, compiles) AUR synthetic alt-layout (no-comment/`rate_limit=40`/`min( 8 , POOL_SIZE )`) dono pe pass.
+**stderr wrapper REVERT:** CS ka `_DeprFilterStderr` global stderr-wrap boot-event-loop/logging ke liye risky + yt-dlp apna early stderr ref pakad leta to line chhupi bhi nahi — block hata diya (boot restore). Deprecation ab: warnings.filterwarnings (google/yt_dlp FutureWarning) + yt-dlp opts **`no_warnings: True`** + MyLogger CR-filter (logger.error route) — teeno safe, stderr chhede bina.
+**Banner:** CT me hi hat gaya (user ko nahi chahiye) — wapas single `Started!` line.
+**Note:** deprecation jad se tab gayab hogi jab container image 3.11 (Dockerfile already 3.11.9) deploy ho.
+**Test:** py3.10 full-repo compile ✓ + py3.13 ✓; patch real+alt layout ✓.
