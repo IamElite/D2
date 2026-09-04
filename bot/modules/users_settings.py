@@ -1018,7 +1018,7 @@ async def edit_user_settings(client, query):
         for index, clabel in enumerate(labels):
             mbuttons.ibutton(clabel, f"userset {user_id} md_cbtn {index}")
             mbuttons.ibutton("Remove", f"userset {user_id} md_crmbtn {index}")
-        mbuttons.ibutton("Add Tag", f"userset {user_id} md_cadd", "l_body")
+        mbuttons.ibutton("+ Add Tag", f"userset {user_id} md_cadd", "l_body")
         mbuttons.ibutton("Back", f"userset {user_id} metadata", "footer")
         await editMessage(message, text, mbuttons.build_menu(2))
     elif data[2] == 'md_cbtn':
