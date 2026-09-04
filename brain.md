@@ -1596,3 +1596,32 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Boot deprecation (yt-dlp) silent:** line "Deprecated Feature: Support for Python 3.10" import-time `_detect_impersonate()` ke YoutubeDL se aati thi (`{'quiet':True}` me na logger na no_warnings). Add **`_NullYdlLog()`** + `'no_warnings': True` us call me (real task logger MyLogger pehle se filtered). google FutureWarning `warnings.filterwarnings` se dabi.
 **Tests (sandbox):** early-patch fresh file pe hits [40,50/pool 8,12] → 300/14, re-run idempotent (zero hits = "already high"), patched source compiles; E2E: fresh-interpreter patch → fresh import sees rate 300/min(14) (no reload); py3.10 + py3.13 full-repo compile OK.
 **Note:** boot 1-2 me `uv: No virtual environment found` ke baad `|| pip` fallback chala, boot 3-4 me wzgram/curl-cffi/motor fresh install hue (line 36-56) → packages sahi install hote hain, woh error noisy-only hai. Container image 3.11 deploy se py3.10 deprecation jad se gayab.
+
+### 260905-A — quality sub-menu crash: `qual_subbuttons` list-unpack galti (d_data[0] = format-id ka pehla char)
+**Git:** `3000308` (brain: `3689a40`)  
+**Date:** 2026-09-05  
+**OLD:** `260904-CQ` / `497eb5c` — us commit me `qual_subbuttons` aaya, tab se yeh unpack galti live thi.  
+**Files:** `bot/modules/ytdlp.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`, `tests/t_260905_qual_subbuttons.py` (naya)
+
+**User log:** xhamster `xhMis5F` → quality menu → variant tap → `TypeError: '>=' not supported between instances of 'str' and 'int'` (`ytdlp.py:38` → `ytdlp.py:231` → `bot_utils.py:101`), Task exception never retrieved, task dead.
+
+**Asli root cause (agent ka pehla andaaza GALAT tha — neeche "Galat diagnosis"):** `self.formats[b_name]` ka contract `{idx: [size, format_id]}` = **list**. `qual_subbuttons` us list ko 2-tuple samajh ke kholta tha:
+`for idx, (_k, d_data) in var_dict.items():` → `_k` = size, `d_data` = **format_id STRING** → `d_data[0]` = id ka **pehla character** (`'hls-139-0'[0]` = `'h'`) → `get_readable_file_size('h')` → `'h' >= 1024` → TypeError. Sandbox trace: `grfs called with 'h' (str)`.
+- Multi-variant resolution pe crash **pakka** (id ka pehla char hamesha letter) — log me 2 baar = 2 button taps.
+- Single-variant buttons safe: main menu `k, v_list = next(iter(...))` sahi unpack karta hai. Isliye "menu khulta hai, andar tap karte hi marta hai".
+
+**Fix:**
+1. `ytdlp.py` (asli fix): `for idx, d_data in var_dict.items():` — comment me contract likha.
+2. `bot_utils.py` (defense): naya `as_bytes()` (int/float/numeric-string → int; junk/None/bool → 0) + `get_readable_file_size` ab non-numeric pe crash ki jagah `'0B'`.
+3. `yt_dlp_download.py` (same class ka latent crash): playlist `self.__size += entry['filesize_approx']` string aane pe `TypeError` (task dead) → `as_bytes()`; single-file size bhi coerce.
+
+**Galat diagnosis (record — dobara mat karna):** pehle laga "yt-dlp `filesize` numeric **string** deta hai". Live check se **false**: us video ke 28 formats me `filesize`/`filesize_approx` **sab None** (tbr numeric) — yt-dlp **2026.08.19** (PyPI latest; `requirements.txt` me `yt-dlp` unpinned = dyno pe yahi) aur 2025.08.22 dono pe. xhamster extractor `float_or_none(format_dict.get('size'))` use karta hai. String extractor se aaya hi nahi tha — string **hamare apne unpack** se bana.
+
+**Live-version proof:** traceback ke line numbers (`ytdlp.py:38/231`, `bot_utils.py:101`) repo HEAD `9e05269` se exact match = dyno arnv1 latest chala raha hai (code purana nahi).
+
+**Tests:** `tests/t_260905_qual_subbuttons.py` — sandbox me pyrofork/aiohttp/motor/aria2p/qbittorrent-api install + aria2(6800)/qBit(8090) stand-in RPC servers + TG login stub; **asli `bot/modules/ytdlp.py` + asli `bot_utils.py`** us video ke real format list pe chale (Telegram I/O capture).
+- **Purana code (git stash):** log wala **same TypeError** + 10 checks FAIL.
+- **Naya code:** **19/19 PASS**; sub-buttons `144p-mp4 (961.30MB)` (pehle crash), numeric/None/junk-filesize regression bhi pass.
+- **py3.10.12** (uv; dyno ka exact version) full-repo compile **109/109** + py3.13 PASS.
+
+**Note (koi code nahi):** xhamster m3u8 variants per-variant size deta hi nahi → dono sub-buttons ka size same dikhega; `tbr` (139 vs 140 kbps) available hai, to labels bitrate se zyada useful honge — chahiye to alag `P-` plan.
