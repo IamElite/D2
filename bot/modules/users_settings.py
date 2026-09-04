@@ -240,10 +240,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
-        text += "\n➲ <b>Video / Audio / Subtitle</b> tap karo — sab tags + custom milenge:"
+        text += "\n➲ <b>Stream Tags</b> — tap to set all tags & custom:"
         for sidx, sname in enumerate(STREAM_SECTIONS):
             has_any = any(k.lower().startswith(f"{sname.lower()} ") for k in meta_dict)
-            buttons.ibutton(f"{'✅ ' if has_any else '❌ '}{sname}", f"userset {user_id} md_str {sidx}")
+            buttons.ibutton(f"{'✅ ' if has_any else '❌ '}{sname}", f"userset {user_id} md_str {sidx}", "header2")
 
         for index, mkey in enumerate(GENERAL_META_KEYS):
             has_val = "✅ " if mkey in meta_dict else "❌ "
@@ -260,7 +260,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         extras = [k for k in meta_dict if k not in known and len(k) <= 30
                   and not any(k.lower().startswith(s.lower() + ' ') for s in STREAM_SECTIONS)]
         if extras:
-            text += "\n\n<i>Purane set tags (Remove yahin se):</i>"
+            text += "\n\n<i>Old tags — tap to remove:</i>"
             for xk in extras:
                 buttons.ibutton(f"✅ {xk}", f"userset {user_id} md_xkey {xk}")
 
@@ -926,7 +926,7 @@ async def edit_user_settings(client, query):
         sidx = int(data[3])
         sname = STREAM_SECTIONS[sidx]
         meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
-        text = f"<b><u>{sname} Tags</u></b>\n\n<i>Ye {sname} stream pe lagenge:</i>"
+        text = f"<b><u>{sname} Tags</u></b>\n\n<i>These tags apply to the {sname} stream:</i>"
         mbuttons = ButtonMaker()
         for sk, slabel in STREAM_SUB_KEYS:
             cur = meta_dict.get(f"{sname} {slabel}")

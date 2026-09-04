@@ -5,11 +5,15 @@ class ButtonMaker:
     def __init__(self):
         self.__button = []
         self.__header_button = []
+        self.__header2_button = []
         self.__first_body_button = []
         self.__last_body_button = []
         self.__footer_button = []
 
     def ubutton(self, key, link, position=None):
+        if position == 'header2':
+            self.__header2_button.append(InlineKeyboardButton(text=key, url=link))
+            return
         if not position:
             self.__button.append(InlineKeyboardButton(text=key, url=link))
         elif position == 'header':
@@ -22,6 +26,9 @@ class ButtonMaker:
             self.__footer_button.append(InlineKeyboardButton(text=key, url=link))
 
     def ibutton(self, key, data, position=None):
+        if position == 'header2':
+            self.__header2_button.append(InlineKeyboardButton(text=key, callback_data=data))
+            return
         if not position:
             self.__button.append(InlineKeyboardButton(text=key, callback_data=data))
         elif position == 'header':
@@ -43,6 +50,8 @@ class ButtonMaker:
                 menu = header_buttons + menu
             else:
                 menu.insert(0, self.__header_button)
+        if self.__header2_button:
+            menu.insert(1 if self.__header_button else 0, self.__header2_button)
         if self.__first_body_button:
             if len(self.__first_body_button) > fb_cols:
                 [menu.append(self.__first_body_button[i:i+fb_cols])

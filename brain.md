@@ -1346,3 +1346,10 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Changes (users_settings.py):** builder — stream 3-buttons body-first (header ke turant niche, caption line ke saath); general keys baad me; extras section (`Purane set tags (Remove yahin se)`) — meta_dict ke aise keys jo kisi button me cover nahi (≤30char, non-stream-compound) → `md_xkey` (Set/Change+Remove+Back); `md_xset` (set_metadata_key generic) / `md_xrm`; `md_str` me custom buttons bhi (→ `md_csbtn` → md_edit/md_rm s-mode, key `Video <Label>`); Add Custom Tag → l_body (footer ke upar akela).
 **Engine:** ZERO change (compound `Video <Custom>` BX se covered).
 **Tests:** user-real-data sim — extras=[Audio,Video] ✓ remove→section gone ✓; csbtn/xkey/xset/xrm callback-parse ✓; layout rows (header/streams-first/l_body-lone/footer) ✓; py3.10 102/102.
+
+### 260903-BZ — Menu polish: streams one-row (header2) + English captions
+**Git:** pending  
+
+**Ask (user):** caption tatti/Hinglish — English short chahiye (global users); Video/Audio/Subtitle TEENON EK LINE me (2x2 nahi), position same (Set All ke just niche).
+**Changes:** `button_build.py` — new optional `header2` position (full-row, header ke turant niche insert; ubutton/ibutton dono; backward-compatible — empty slot no-op, purane menus byte-same). `users_settings.py` builder — stream 3-buttons header2 pe (ek row [Video][Audio][Subtitle]); caption `➲ Stream Tags — tap to set all tags & custom:`; "Purane set tags (Remove yahin se)" → `Old tags — tap to remove:`; md_str `Ye {sname} stream pe lagenge` → `These tags apply to the {sname} stream:`.
+**Tests:** ButtonMaker verbatim-sim — header2 row ek-line ✓, position header-ke-niche ✓, header2-less + old menus unchanged ✓; Hinglish-grep metadata-flow ZERO ✓; py3.10 102/102.
