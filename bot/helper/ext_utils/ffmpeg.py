@@ -172,22 +172,13 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     if inplace:
         # same-file pe ffmpeg reject karta — original-ext tmp me likh ke atomic swap
         outfile += '.meta' + os_path.splitext(media_file)[1].lower()
-    # MP4-family whitelist: unsupported keys (custom/encoded by/...) Comment me fold — DROP nahi honge
-    if os_path.splitext(outfile)[1].lower() in _MP4_EXTS:
-        _stream_compound = lambda k: k.split(' ', 1)[0].lower() in ('video', 'audio', 'subtitle')
-        folded = [f"{k}: {v}" for k, v in overlay.items()
-                  if not k.startswith('__') and v and k.lower() not in _MP4_FMT_KEYS
-                  and not _stream_compound(k)]
-        if folded:
-            base = overlay.get('comment', '')
-            overlay['comment'] = ' | '.join([b for b in (base, *folded) if b])
-            for _fk in [k for k in list(overlay)
-                        if not k.startswith('__') and overlay.get(k)
-                        and k.lower() not in _MP4_FMT_KEYS and not _stream_compound(k)]:
-                overlay.pop(_fk)
     tag_args = await probe_tag_args(media_file, overlay)
     cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
+    # MP4-family: mdta keys mode — custom/unknown keys bhi RAW likhe jate (mediainfo me dikhte),
+    # mkv-jaisa full parity (warna muxer sirf whitelist likhta, baaki silently drop)
+    if os_path.splitext(outfile)[1].lower() in _MP4_EXTS:
+        cmd.extend(['-movflags', 'use_metadata_tags'])
     cmd.extend(tag_args)
     cmd.append(outfile)
 

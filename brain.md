@@ -1377,3 +1377,11 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Report:** mp4 leech ke baad "saara matter uda" — reproduce: user 4 tags me Title+Copyright lage, **Encoded By + custom `telly hub` mp4-muxer silently DROP** (whitelist-only container); originals purge (BV design) — total lagta sab gaya. MP4 hard-limitation, bot-bug nahi.
 **Fix (user chose fold):** `edit_metadata` — mp4-family outfile (`.mp4/.m4v/.mov/.m4a`) + user keys not in `_MP4_FMT_KEYS` (title/artist/album/composer/genre/copyright/comment/date/description/lyrics/encoder/grouping) → `key: value` lines **Comment me fold** (existing comment merge `base | k: v | ...`); folded keys overlay se remove (purge ukeys-flow consistent). Ext-less→.mkv path fold-skip (raw keys as-is). Stream-compound keys untouched.
 **Tests:** T1 mp4 4-tags → title/copyright raw + `encoded by: ... | telly hub: ...` in comment, DROP-zero ✓; T2 mkv same-tags raw-as-is ✓; T3 mp4 purge+fold (uploader GONE, user sab visible) ✓; T4 comment-merge ✓; py3.10 102/102.
+
+### 260904-CD — MP4 FULL-PARITY: `-movflags use_metadata_tags` (user mood-off → senior fix)
+**Git:** pending  
+
+**Ask:** MKV me sab tags, MP4 me nahi — "ek format me sab, dusre me nahi" — smart fix chahiye. **Discovery:** ffmpeg mp4-muxer arbitrary keys sirf `-movflags use_metadata_tags` ke saath mdta-keys me likhta (warna whitelist + silent drop) — PROVEN: mediainfo-CLI me `telly hub`/`Studio`/`encoded_by` sab dikhte.
+**Changes:** `edit_metadata` — mp4-family outfile → cmd me `-movflags use_metadata_tags` (purge delete-args + map_metadata 0 ke saath compatible — T3/T3b). **CC ka comment-fold REVERTED** (raw keys ab possible — cleaner, per-key visible).
+**Tests:** T1 mp4 5/5 user tags RAW (title/copyright/encoded by/telly hub/Studio) + purge ✓; T1b mediainfo-CLI cross-check ✓; T2 mkv unchanged ✓; T3 mdta-asset preserve (OFFICIAL_SITE/encoded_by) ✓; T3b mdta-purge ✓; T4 ext-less→.mkv ✓; py3.10 102/102.
+**Note:** MP4 stream-level tags ab bhi container-limited (mdta file-level hota) — global tags FULL parity.
