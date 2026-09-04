@@ -357,7 +357,7 @@ WZML `_hyper_send` = **ek helper bot pick** (load balance), chunk-split nahi. Ex
 ---
 
 ### `260830-J` — requirements.txt extension
-**Git:** `06275d2`
+**Git:** (push ke baad)
 **OLD:** file name `requirements` (no .txt). `update.py` / Heroku `requirements.txt` dhundte hain → kurigram install skip.
 **Fix:** `git mv requirements requirements.txt`.
 
