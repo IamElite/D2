@@ -1516,7 +1516,7 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Tests:** py3.13 full-repo compile ✓; breaker state sim (1st try → open → HYPERDL=1/0 overrides) ✓.
 
 ### 260904-CP — eporner (adult hosts) ytdlp multi/bulk: add to _YTDL_HINT
-**Git:** (push ke baad)
+**Git:** `28174fe`
 **Date:** 2026-09-04
 **User:** eporner link (video-e3DEfNO2Aip) "ytdlp iska multi support nahi kar raha".
 **Root cause:** `/l` + bulk `-b/-i` ka auto-engine `is_ytdlp_link()` use karta hai jo SIRF `_YTDL_HINT` host-list match karta hai. `eporner.com` list me nahi tha → engine eporner ko **aria/HTML** pe bhej deta (fail), ytdl pe nahi. (`/yl` chalता tha kyunki woh `is_ytdlp_supported()` ka generic content-type check use karta hai.) Single video yt-dlp me chalta hai (tested: Eporner extractor formats deta hai, age_limit 99 set) — routing hi galat thi. Bulk multi isliye toota kyunki har link wahi auto-engine se route hota hai.
