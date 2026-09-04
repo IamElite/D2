@@ -101,7 +101,9 @@ def qbit_port_down(timeout=3):
 
 
 def log_mem(tag='tick'):
-    """CL: process-wise RSS breakdown — qBit/gunicorn/aria2 presence ka live saboot."""
+    """CL/CK: process RSS + anon(real) vs page-cache cgroup RAM + live aria2
+    connection/peer counts (proof of whether aria2 actually opens the requested
+    sockets — if config says 16/200 but actives are 1-2, the swarm/host is the cap)."""
     try:
         from psutil import Process
         cur = Process()
@@ -112,7 +114,34 @@ def log_mem(tag='tick'):
             except Exception:
                 pass
         kid_s = ' '.join(f'{k}={v >> 20}MB' for k, v in sorted(kids.items()))
-        LOGGER.info(f"MEM[{tag}]: bot={cur.memory_info().rss >> 20}MB | {kid_s or 'no-children'}")
+        # cgroup real-vs-cache RAM
+        cg = ''
+        try:
+            from .bot_utils import get_container_memory, get_container_memory_breakdown
+            cm = get_container_memory()
+            anon, fc = get_container_memory_breakdown()
+            if cm:
+                tot = cm[1] >> 20
+                anon_p = round(anon / cm[1] * 100, 1) if anon else 0.0
+                cache_p = round((fc or 0) / cm[1] * 100, 1)
+                cg = f" | cgroup: real={anon_p}% cache={cache_p}% (limit {tot}MB)"
+        except Exception:
+            pass
+        # live aria2 actives: connections + peers per GID
+        a2 = ''
+        try:
+            from ... import aria2
+            acts = aria2.get_downloads()
+            live = [(d) for d in acts if d.status == 'active' and d.total_length]
+            parts = []
+            for d in live[:6]:
+                spd = (d.download_speed or 0) >> 20
+                parts.append(f"{spd}MB/s conn={d.connections} peers={d.num_seeders}")
+            if parts:
+                a2 = f" | aria2[{len(live)}]: " + " ; ".join(parts)
+        except Exception:
+            pass
+        LOGGER.info(f"MEM[{tag}]: bot={cur.memory_info().rss >> 20}MB | {kid_s or 'no-children'}{cg}{a2}")
     except Exception as e:
         LOGGER.error(f"MEM log failed: {e}")
 

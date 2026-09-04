@@ -327,7 +327,15 @@ def get_readable_message():
     button = buttons.build_menu(3)
     _ccpu = get_container_cpu()
     _cmem = get_container_memory()
-    _ram = round(_cmem[0] / _cmem[1] * 100, 1) if _cmem else virtual_memory().percent
+    # RAM% = anonymous (real process RAM), NOT page cache: memory.current counts
+    # reclaimable file cache which is not a leak and frees under pressure.
+    _anon, _filec = get_container_memory_breakdown()
+    if _cmem and _anon is not None:
+        _ram = round(_anon / _cmem[1] * 100, 1)
+    elif _cmem:
+        _ram = round(_cmem[0] / _cmem[1] * 100, 1)
+    else:
+        _ram = virtual_memory().percent
     msg += BotTheme('Cpu', cpu=_ccpu if _ccpu is not None else cpu_percent())
     msg += BotTheme('FREE', free=get_readable_file_size(disk_usage(config_dict['DOWNLOAD_DIR']).free), free_p=round(100-disk_usage(config_dict['DOWNLOAD_DIR']).percent, 1))
     msg += BotTheme('Ram', ram=_ram)
@@ -531,6 +539,32 @@ def get_container_memory():
         except ValueError:
             pass
     return None
+
+
+def get_container_memory_breakdown():
+    """(anon_bytes, file_bytes) cgroup v2 memory.stat; None/0 if unavailable.
+    anon = real process RAM (the number that matters). file = page cache,
+    reclaimable under pressure — inflates memory.current but is not a leak."""
+    stat = _cg_read('/sys/fs/cgroup/memory.stat')
+    anon = file_ = None
+    if stat:
+        for line in stat.splitlines():
+            if line.startswith('anon '):
+                anon = int(line.split()[1])
+            elif line.startswith('file '):
+                file_ = int(line.split()[1])
+        return anon, file_
+    # cgroup v1: memory.stat has 'rss' (anon) and 'cache' (page cache)
+    v1 = _cg_read('/sys/fs/cgroup/memory/memory.stat')
+    if v1:
+        rss = cache = None
+        for line in v1.splitlines():
+            if line.startswith('rss '):
+                rss = int(line.split()[1])
+            elif line.startswith('cache '):
+                cache = int(line.split()[1])
+        return rss, cache
+    return None, None
 
 
 _cg_cpu_last = [0.0, 0.0]

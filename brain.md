@@ -1435,3 +1435,34 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Fix:** a2c.conf → exact pre-CH `0de560a` (git show restore, T1 exact-diff ✓). Overlay default-OFF → `ARIA2_PERF=1` (7 keys) / `ARIA2_NO_DHT=1` (dht keys) opt-in. CI/CJ/CK/CL retain (passive/log-only).
 **Tests:** conf-exact ✓; overlay opt-in sim (none/7/3) ✓; CI/CJ/CK/CL intact ✓; py3.10 107/107.
 **Next protocol:** baseline benchmark same-workload (seeders/leechers note karke) → ek-ek env experiment + benchmark.
+
+### 260904-CM — FINAL throughput pass: aria2 peer/connection caps + real(anon) RAM readout + live conn diagnostics
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**Files:** `a2c.conf`, `bot/__init__.py`, `bot/helper/mirror_utils/download_utils/aria2_download.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/ext_utils/engine_lifecycle.py`
+
+**User (final pass):** CPU theek (13.6%) par total DL sirf 18.87MB/s (same 3 files, fresh dyno; pichli baar ~34), RAM 44.8% stuck. Dost same env pe 100–150MB/s @ 19–20% RAM. "Speed sacrifice karke CPU kam mat karo"; random tweak nahi — root-cause → fix → benchmark.
+
+**ROOT CAUSE (code-confirmed, listener/status NAHI):**
+1. **BT throughput = hum jitne peers se connect karte hain** (Heroku outbound-leech; inbound UDP blocked). Per-task `aria2_download.py` hardcode `bt-max-peers=80` + **`bt-request-peer-speed-limit=1K`** — woh threshold AGGREGATE TARGET hai: aria2 1KB/s cross hote hi aur peers maangna BAND kar deta hai → kuch peers pe settle → 19MB/s cap. 80 peers tak pahunchta hi nahi. Dost ki speed isi se aati hai (zyada peers), magic se nahi.
+2. `max-upload-limit=256K` se reciprocal DL bhi dabta (tit-for-tat).
+3. HTTP: `max-connection-per-server=8 / split=8 / min-split-size=20M / max-concurrent-downloads=2` — chhoti file = 1 connection; teesra task active-slot ke bahar.
+4. **RAM 44.8% ≈ page-cache inflated readout:** footer `memory.current/memory.max` (cgroup v2) me **file cache counted** — downloads ka reclaimable cache. Real anon RAM ~25–32%. Leak nahi (koi growing dict/duplicate worker/lock nahi mila; listener notification-based 60s long-poll, status 6s = RPC overhead negligible, CPU 13.6% proof).
+
+**FIX (staged, env-guarded — CH lesson respected: DHT force-toggle NAHI, peers hard-capped 200 = no unbounded announce churn):**
+- `a2c.conf`: HTTP concurrent 2→5, conn/server 8→16, split 8→16, min-split 20M→1M; BT max-peers/open-files 80→200, peer-speed-limit 1K→10M (bounded by peers 200), upload 256K/128K → 1M/512K.
+- `aria2_download.py` per-task BT opts ab env-overridable, production default 200/10M/512K. `ARIA2_TORRENT_PROFILE=safe` = purana 80/1K/256K baseline (A/B).
+- `__init__.py`: **default-on throughput overlay** Mongo-restore ke BAAD (DB purani prefs na la sake) — same values; `ARIA2_PROFILE=safe` se poora revert. Purana `ARIA2_PERF` block se BT peer keys hata (woh CH ka 15M-unbounded churn tha) → ab sirf HTTP falloc opt-in. DHT ON rehta.
+- `bot_utils.py`: footer RAM% ab **anon (real)** = `memory.stat anon/limit`; page-cache alag. Naya `get_container_memory_breakdown()` (v2 anon/file + v1 rss/cache).
+- `engine_lifecycle.log_mem`: ab cgroup **real% vs cache%** + live aria2 `conn=`/`peers=` per active GID log karta hai — proof ki aria2 requested sockets khol raha hai ya swarm/host cap hai.
+
+**BENCHMARK METHOD (one-variable, brain protocol):**
+1. Default (boost ON) deploy — same 3 files; logs me `MEM[boot]` + `aria2[N]: ..MB/s conn= peers=` dekho.
+2. Agar peers kam (<20) bane → swarm/host cap (tracker count) — config nahi.
+3. Agar churn/CPU badhe → `ARIA2_TORRENT_PROFILE=safe` (sirf BT revert, HTTP boost rahega).
+4. Total revert chahiye → `ARIA2_PROFILE=safe`.
+5. HTTP direct-link alag se test (16 conn/split).
+**Expected:** BT 19→40–100+MB/s (fat swarm me), HTTP chhoti files 1-conn→16; RAM footer real ~25–32% dikhayega (cache alag). CPU thoda upar (zyada peers) par headroom bड़ा hai (13.6%).
+
+**Tests:** py3.10 full-repo compile ✓; BT-opt logic prod/safe/env-override sim ✓; cgroup anon vs file parse ✓.
+**NEVER:** pkill; DHT force-off; peer-speed-limit bina hard peer-cap ke (CH churn).

@@ -895,19 +895,13 @@ else:
                for op in aria2c_global if op in aria2_options}
     aria2.set_global_options(a2c_glo)
 
-# Heroku: UDP dead + conf me perf-killers the (peer-speed-limit 1K = aria2 lazy peers).
 # CH-REVERT: force-overlay ne 15M peer-speed-limit + DHT-off force kiya tha → thin-swarm pe
-# aria2 permanent peer-hunt churn (CPU 59.8%) + peer-discovery band. Known-good = NO overlay.
-# Experiments ab opt-in: ARIA2_PERF=1 (perf keys), ARIA2_NO_DHT=1 (dht/lpd/pex off).
+# aria2 permanent peer-hunt churn (CPU 59.8%). Is block se BT peer keys hata diye — woh ab
+# neeche bounded throughput-overlay me hain (DHT on, peers capped 200). ARIA2_PERF=1 ab
+# sirf HTTP disk-perf (falloc) opt-in karta hai; ARIA2_NO_DHT=1 dht/lpd/pex off karta hai.
 _a2_perf = {}
 if environ.get('ARIA2_PERF', '').lower() in ('1', 'true', 'yes'):
     _a2_perf.update({
-        'bt-request-peer-speed-limit': '15M',
-        'bt-max-peers': '120',
-        'max-connection-per-server': '16',
-        'split': '16',
-        'min-split-size': '1M',
-        'max-concurrent-downloads': '5',
         'file-allocation': 'falloc',
     })
 if environ.get('ARIA2_NO_DHT', '').lower() in ('1', 'true', 'yes'):
@@ -918,6 +912,32 @@ if _a2_perf:
         log_info(f"Aria2 perf overlay (opt-in): {','.join(_a2_perf)}")
     except Exception as e:
         log_error(f"Aria2 perf overlay skipped: {e}")
+
+# 260904-CK: throughput defaults enforced AFTER Mongo restore (DB may carry old
+# conservative prefs = 8 conn / 80 peers / 1K peer-speed-limit -> 19MB/s cap).
+# CH lesson respected: DHT/PEX are NOT force-toggled here (DHT stays on), and the
+# peer-speed-limit is bounded by bt-max-peers=200 (no unbounded announce churn).
+#   ARIA2_PROFILE=safe            -> old conservative baseline (8/8/80/1K)
+#   ARIA2_PEER_SPEED_LIMIT / ARIA2_MAX_PEERS / ARIA2_CONN_PER_SERVER override
+if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
+    _a2_boost = {
+        'max-concurrent-downloads': environ.get('ARIA2_MAX_CONCURRENT', '5'),
+        'max-connection-per-server': environ.get('ARIA2_CONN_PER_SERVER', '16'),
+        'split': environ.get('ARIA2_SPLIT', '16'),
+        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '1M'),
+        'bt-max-peers': environ.get('ARIA2_MAX_PEERS', '200'),
+        'bt-max-open-files': environ.get('ARIA2_MAX_PEERS', '200'),
+        'bt-request-peer-speed-limit': environ.get('ARIA2_PEER_SPEED_LIMIT', '10M'),
+        'max-overall-upload-limit': environ.get('ARIA2_TORRENT_UP_GLOBAL', '1M'),
+        'max-upload-limit': environ.get('ARIA2_TORRENT_UP', '512K'),
+    }
+    try:
+        aria2.set_global_options(_a2_boost)
+        log_info(f"Aria2 throughput overlay: conn/split 16, peers 200, peer-target 10M (set ARIA2_PROFILE=safe to revert)")
+    except Exception as e:
+        log_error(f"Aria2 throughput overlay skipped: {e}")
+else:
+    log_info("Aria2 throughput overlay OFF (ARIA2_PROFILE=safe) — conservative baseline 8/8/80/1K")
 
 qb_client = get_client()
 if not qbit_options:
