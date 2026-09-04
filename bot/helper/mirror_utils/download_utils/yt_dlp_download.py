@@ -9,7 +9,7 @@ from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lo
 from ...telegram_helper.message_utils import sendStatusMessage
 from ..status_utils.yt_dlp_download_status import YtDlpDownloadStatus
 from ..status_utils.queue_status import QueueStatus
-from ...ext_utils.bot_utils import sync_to_async, async_to_sync, as_bytes
+from ...ext_utils.bot_utils import sync_to_async, async_to_sync, as_bytes, get_readable_file_size
 from ...ext_utils.task_manager import is_queued, stop_duplicate_check, limit_checker
 
 LOGGER = getLogger(__name__)
@@ -86,6 +86,25 @@ def fix_generic_title(link, title, ydl=None):
     return title
 
 
+def _content_length_size(url, headers=None):
+    """HEAD -> Content-Length. Extractors that do not publish filesize (eporner
+    returns None for every format) leave self.__size = 0, which silently skips
+    both the size-limit and the disk-space checks -> a multi-GB 4K file only
+    fails minutes later with 'No space left on device'. One cheap HEAD request
+    gives the real size up front."""
+    from urllib.request import Request, urlopen
+    try:
+        req = Request(url, headers={**(headers or {}), 'Range': 'bytes=0-0'})
+        with urlopen(req, timeout=10) as r:
+            cr = r.headers.get('Content-Range')
+            if cr and '/' in cr:
+                return int(cr.rsplit('/', 1)[1])
+            cl = r.headers.get('Content-Length')
+            return int(cl) if cl else 0
+    except Exception:
+        return 0
+
+
 def add_impersonate(opts):
     """opts me impersonation add karo (agar available + user ne khud set na kiya ho)."""
     if _IMPERSONATE_TARGET is not None and 'impersonate' not in opts:
@@ -146,6 +165,7 @@ class YoutubeDLHelper:
         self.__is_cancelled = False
         self.__downloading = False
         self.__ext = ''
+        self.__extracted_info = None
         self.name = ''
         self.is_playlist = False
         self.playlist_count = 0
@@ -162,14 +182,16 @@ class YoutubeDLHelper:
                      'overwrites': True,
                      'writethumbnail': True,
                      'trim_file_name': 220,
-                     'retries': 10,
-                     'fragment_retries': 10,
+                     # 3 bounded retries: transient network errors still recover,
+                     # a dead/permanent URL fails in seconds instead of minutes.
+                     'retries': 3,
+                     'fragment_retries': 3,
                      'socket_timeout': 30,
                      'ffmpeg_location': f"/bin/{bot_cache['pkgs'][2]}",
-                     'retry_sleep_functions': {'http': lambda n: 3,
-                                               'fragment': lambda n: 3,
-                                               'file_access': lambda n: 3,
-                                               'extractor': lambda n: 3}}
+                     'retry_sleep_functions': {'http': lambda n: min(2 * n, 10),
+                                               'fragment': lambda n: min(2 * n, 10),
+                                               'file_access': lambda n: 1,
+                                               'extractor': lambda n: min(2 * n, 10)}}
         self.opts = add_impersonate(self.opts)
 
     @property
@@ -240,6 +262,7 @@ class YoutubeDLHelper:
                 result = ydl.extract_info(link, download=False)
                 if result is None:
                     raise ValueError('Info result is None')
+                self.__extracted_info = result
                 if 'entries' not in result:
                     result['title'] = fix_generic_title(link, result.get('title'), ydl)
             except Exception as e:
@@ -280,10 +303,39 @@ class YoutubeDLHelper:
 
     def __download(self, link, path):
         from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy
+        # Fail fast instead of filling the disk: yt-dlp only errors with
+        # "No space left on device" after it has already pulled data (a 4K file
+        # can be several GB while a dyno disk is ~1 GB).
+        need = self.__size
+        if not need and self.__extracted_info:
+            fmts = self.__extracted_info.get('formats') or []
+            req = self.opts.get('format') or ''
+            f = next((x for x in fmts if x.get('format_id') == req), None)
+            if f:
+                need = as_bytes(f.get('filesize') or f.get('filesize_approx')) \
+                    or _content_length_size(f.get('url'), f.get('http_headers'))
+                if need:
+                    self.__size = need
+        if need:
+            try:
+                from shutil import disk_usage
+                if disk_usage(path).free <= need:
+                    raise DownloadError(
+                        f'Not enough free disk space for {get_readable_file_size(need)}.')
+            except (OSError, ValueError):
+                pass
         try:
             with YoutubeDL(self.opts) as ydl:
                 try:
-                    ydl.download([link])
+                    # extractMetaData() already fetched webpage+JSON for this link.
+                    # Feeding that info back avoids a second full extraction per
+                    # task (2 HTTP requests saved, measured) and guarantees the
+                    # download uses the exact format/URL/headers we showed the user.
+                    if self.__extracted_info is not None:
+                        ydl.process_ie_result(
+                            ydl.sanitize_info(self.__extracted_info, False), download=True)
+                    else:
+                        ydl.download([link])
                 except DownloadError as e:
                     if not self.__is_cancelled:
                         self.__onDownloadError(str(e))
