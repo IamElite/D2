@@ -24,8 +24,23 @@ faulthandler_enable()
 install()
 setdefaulttimeout(600)
 
-def _patch_tg_upload_queue(depth=8):
-    """Pyrogram save_file uses Queue(1) = 1 chunk in flight. Depth 8 pipelines MTProto parts."""
+def _patch_tg_upload_queue(depth=16):
+    """Remove the wzgram upload per-file rate cap (root cause of "upload KB/s").
+
+    wzgram save_file.py hardcodes dispatch pacing:
+        is_bot      -> rate_limit=40  (~20 MiB/s/file)  pool=8
+        is_premium  -> rate_limit=300                   pool=14
+        normal user -> rate_limit=50  (~25 MiB/s/file)  pool=12
+    rate_limit = MTProto chunks dispatched per second (PART 512KiB). The old
+    Queue(1)/workers_count pattern this used to target no longer exists, so the
+    patch was a no-op on wzgram 3.1.x -> bulk uploads crawled. We now patch the
+    actual rate_limit/pool_size constants (env-overridable), keep the legacy
+    patterns as harmless fallback, and only rewrite if a target string matched.
+    """
+    bot_rate = environ.get('TG_UP_RATE_LIMIT', '300')       # chunks/s (~150 MiB/s)
+    user_rate = environ.get('TG_USER_UP_RATE_LIMIT', '300')
+    bot_pool = environ.get('TG_UP_POOL', '14')              # media sessions/file
+    user_pool = environ.get('TG_USER_UP_POOL', '14')
     try:
         from pyrogram.methods.advanced import save_file as sf
         path = getattr(sf, '__file__', None)
@@ -34,16 +49,27 @@ def _patch_tg_upload_queue(depth=8):
         with open(path, 'r', encoding='utf-8') as fh:
             src = fh.read()
         orig = src
+        # --- wzgram 3.1.x: rate-limit + pool constants ---
+        src = src.replace('rate_limit = 40  # ~20 MiB/s', f'rate_limit = {bot_rate}  # patched (was 40 ~20MiB/s)')
+        src = src.replace('rate_limit = 40 # ~20 MiB/s',  f'rate_limit = {bot_rate}  # patched')
+        src = src.replace('rate_limit = 50  # ~25 MiB/s', f'rate_limit = {user_rate}  # patched (was 50 ~25MiB/s)')
+        src = src.replace('rate_limit = 50 # ~25 MiB/s',  f'rate_limit = {user_rate}  # patched')
+        src = src.replace('pool_size = min(8, POOL_SIZE) if is_big else 1',
+                          f'pool_size = min({bot_pool}, POOL_SIZE) if is_big else 1')
+        src = src.replace('pool_size = min(12, POOL_SIZE) if is_big else 1',
+                          f'pool_size = min({user_pool}, POOL_SIZE) if is_big else 1')
+        # --- legacy pyrogram/wzgram patterns (no-op if absent) ---
         src = src.replace('Queue(1)', f'Queue({depth})')
         src = src.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 2')
         if src == orig:
+            log_warning('TG upload patch: no target pattern matched (wzgram layout changed)')
             return
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write(src)
         importlib_reload(sf)
-        log_info(f"TG upload pipeline Queue({depth})")
+        log_info(f'TG upload pacing patched: rate={bot_rate}/{user_rate} chunks/s, pool={bot_pool}/{user_pool} (legacy Queue depth {depth})')
     except Exception as e:
-        log_warning(f"TG upload queue patch skipped: {e}")
+        log_warning(f'TG upload queue patch skipped: {e}')
 
 _patch_tg_upload_queue(16)
 
@@ -998,11 +1024,11 @@ except Exception as e:
     log_error(f"qBit boot-stop skipped: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=6,
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=12,
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 from concurrent.futures import ThreadPoolExecutor as _TPE
-bot_loop.set_default_executor(_TPE(max_workers=6, thread_name_prefix='sync'))  # sync_to_async thread-explosion guard
+bot_loop.set_default_executor(_TPE(max_workers=24, thread_name_prefix="sync"))  # sync_to_async thread-explosion guard
 
 # CI: in-bot web server (aiohttp) — gunicorn replacement, PORT Heroku router
 if PORT:

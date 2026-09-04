@@ -1466,3 +1466,32 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 
 **Tests:** py3.10 full-repo compile ✓; BT-opt logic prod/safe/env-override sim ✓; cgroup anon vs file parse ✓.
 **NEVER:** pkill; DHT force-off; peer-speed-limit bina hard peer-cap ke (CH churn).
+
+### 260904-CN — UPLOAD regression ROOT CAUSE: wzgram hardcoded bot rate_limit=40 (~20MiB/s cap) + dead queue patch
+**Git:** (push ke baad)
+**Date:** 2026-09-04
+**Files:** `bot/__init__.py` (`_patch_tg_upload_queue`, workers, executor)
+
+**User report (CRITICAL):** optimization ke baad bulk 50-link leech: DL 40+→~20MB/s, **UL 30+MB/s → KB/s**. "Speed sacrifice karke CPU mat kam karo." High CPU wali old behavior baseline wapas chahiye.
+
+**ROOT CAUSE (wzgram 3.1.1 source me, runtime-naapa):**
+- `pyrogram/methods/advanced/save_file.py` **per-file dispatch rate hardcode** karta hai:
+  - `is_bot` → **`rate_limit = 40`** chunks/s (PART 512KiB = **~20 MiB/s hard cap/file**), `pool_size = min(8, …)`
+  - `is_premium` → `rate_limit=300`, pool 14
+  - normal user → `rate_limit=50` (~25 MiB/s), pool 12
+  - Dispatch loop: `_dispatch_interval = 1/rate_limit; if _now < _next_dispatch: await sleep(...)` — **yahi pacing throttle hai.** Bulk 50 files har ek isi 20MiB/s cap se takrati.
+- **Hamara `_patch_tg_upload_queue` DEAD tha** — woh purane pyrogram patterns (`Queue(1)`, `workers_count = 4 if is_big else 1`) ko replace karta hai jo wzgram 3.1.x me **exist hi nahi karte** (ab `rate_limit`/`pool_size`/`asyncio.Queue(n_workers)`). `src==orig` → silently no-op. Isliye 260831-H/J ka "16 workers" speedup kabhi live hua hi nahi.
+- Crypto/handler threads cap NAHI the: handler executor `min(16,cpu*2)`=16, crypto pool=4 (wzgram default, pehle bhi same). `sync_to_async` apna 24-thread pool. CB ka `set_default_executor(6)` sirf bare loop-default calls ko chhota hai — pyrogram save_file apna handler pool use karta hai.
+- `RateLimiter` (rate_limiter.py) sirf API-call level (MEDIA=5/s completion calls) — chunk throughput cap nahi.
+
+**Baseline→HEAD diff (0bdcba5 → HEAD) me TG UL path (pyrogramEngine, hyperul_utils, max_concurrent_transmissions=16) UNCHANGED tha** — UL cap configuration/regression nahi, library ki bot-rate-cap + dead-patch thi.
+
+**FIX:**
+- `_patch_tg_upload_queue` rewrite: ab wzgram 3.1.x ke asli targets patch karta hai — bot `rate_limit 40→300`, user `50→300`, pool `8/12→14`; legacy patterns fallback me rakhe. Env override: `TG_UP_RATE_LIMIT`, `TG_USER_UP_RATE_LIMIT`, `TG_UP_POOL`, `TG_USER_UP_POOL`. Patch-result BOOT LOG me (`TG upload pacing patched: rate=300/300, pool=14/14`). Match na ho to warning (silent no-op nahi).
+- `bot` pyrogram `workers 6→12` (old baseline restore — handler threads, UL non-critical par parity).
+- default loop executor `max_workers 6→24` (bulk sync-ops serialize na hon).
+- ffmpeg `-threads 1` rakha (stream-copy muxing, CPU guard; bulk default metadata off).
+
+**Expected:** per-file UL ceiling 20→network/DC-bound (150 MiB/s theoretical); bulk 50 tasks genuinely parallel (max_concurrent_transmissions=16/client × bot+user+helpers). Patched-file compile ✓; rate/pool match real wzgram source ✓; py3.10 full-repo 107/107 ✓.
+**Verify on Heroku:** boot log me `TG upload pacing patched` line. Agar flood aaye to `TG_UP_RATE_LIMIT` env se ghटao (per-file), tokens add karo (helpers = more parallel).
+**NEVER:** pkill; patch ko silent-no-op chhodna (na-pattern-match ab warning deta hai).
