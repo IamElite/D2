@@ -1752,3 +1752,41 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - py3.10.12 full-repo compile **109/109 PASS**.
 
 **Still NOT verified:** asli 7z binary ka exact output (sandbox me 7z nahi) — format real 7z 16.x ke mutabik likha tha, par live confirm aapke dyno pe hi hoga. Extract ka end-to-end count (real zip, Telegram status) bhi user run pe depend.
+
+### 260905-F — File Count Metadata/Split/Attachment pe dikhta hi nahi tha (wiring dead thi)
+**Git:** `9c23fa7`  
+**Date:** 2026-09-05  
+**OLD:** 260905-E  
+**Files:** `bot/helper/ext_utils/file_count.py` (`stage_counts` helper + `current_file`), `bot_utils.py` (renderer `{Current}`), status_utils: `metadata/attachment/split/zip`
+
+**User complaint (sahi tha):** "metadata, ffmpeg process, split — sab pe show hona chahiye, universal isi liye bola tha; tumne sirf zip aur upload pe add kiya."
+
+**Galti (meri, 260905-C se chali aa rahi thi):** stages wire kiye the (`set_stage`/`advance` listener me sahi the), par **renderer tak count pahunchta hi nahi tha**:
+- `MetadataStatus`/`ZipStatus`.files_count() → `return 0, 0` (socha tha renderer tracker se fallback karega)
+- `SplitStatus` me `files_count()` **tha hi nahi**
+- `AttachmentStatus` walk-count deta tha, total `0` ke saath → `total > 1` fail → hidden
+- Aur renderer ka fallback `getattr(download, 'listener')` dhundhta hai — par in 5 classes me listener **private** hai (`self.__listener`), public `listener()` sirf `aria2_status`/`qbit_status` me hai. Matlab **fallback kabhi chalta hi nahi tha**.
+- Extract kaam kar raha tha sirf isliye ki uska apna `files_count()` real numbers deta hai.
+
+**Fix:** naya `file_count.stage_counts(listener)` — chaaron status classes ab seedha apne task ka tracker padhti hain:
+```python
+def files_count(self):
+    return stage_counts(self.__listener)
+```
+Koi renderer-fallback bharosa nahi, koi duplicate logic nahi. `tracker.current()` ab `(done, total, failed, current_file)` deta hai aur renderer `{Current}` theme ko pass karta hai — default `FILE_COUNT` string me nahi hai, isliye display same `( 120 / 300 )` hi rahega; user chaho to `kpsml_minimal.py:181` me `{Current}`/`{Failed}` add kar sakta hai.
+
+**VERIFIED (code-level, bot chalaye bina):** `/home/user/D2-tests/stage_coverage_check.py` — har status class ka **shipped `files_count()` body `ast` se nikaal ke** chalaya (isliye production lines hi test hui), tracker `120/300` ke saath:
+| stage | files_count() | rendered |
+|---|---|---|
+| Extract | `(120, 300)` | ✅ line |
+| Metadata | `(120, 300, 0, 'ep119.mkv')` | ✅ line |
+| Attachment | `(120, 12, 0, …)` | ✅ line |
+| Split | `(120, 40, 0, …)` | ✅ line |
+| Zip | `None` (listener tracker clear karta hai) | ✅ hidden (jaan-boojh ke) |
+- single-file stage → hidden ✅; cleared tracker → hidden ✅; `renderer_check.py` **7/7** ✅
+- pehla run **5/5 CRASH** deta tha (`__listener` name-mangling) — harness ka bug tha, code ka nahi; dono spellings set karke fix kiya.
+- py3.10.12 full-repo compile **109/109 PASS** + py3.13 PASS.
+
+**NOT verified:** real Telegram status pe line ka dikhna (bot-level, user dyno). Extract ka `{Current}` khaali rahega (7z ek hi process hai, per-file name track nahi hota).
+
+**Lesson (agli baar ke liye):** "wire kar diya" ≠ "user ko dikhega". Har stage ka end-to-end path (producer → status object → renderer → theme) ek saath chalake dekhna chahiye, sirf producer side nahi.
