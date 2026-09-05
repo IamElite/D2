@@ -1659,3 +1659,49 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - Harness repo ke **bahar** (`/home/user/D2-tests/ydl_1byte_verify.py`) — user rule: repo me sirf main code.
 
 **Note (pending, code nahi kiya):** (a) **4K 1 GB dyno pe possible nahi** (2.56/7.67 GB) — ab clean fast error milta hai, par 4K chahiye to bada disk chahiye. (b) **Filename collision:** `240p` aur `av1-240p` dono ka naam `... 240p.mp4` (`outtmpl` me sirf `%(height)s`) — ek task me dono quality li to overwrite; user ne option chuna nahi, isliye untouched.
+
+### 260905-C — Universal Multi-File `File Count` in task status (stage-aware, reusable)
+**Git:** `96ab2db`  
+**Date:** 2026-09-05  
+**Spec:** batbin.me/manganese — status me `┠ **File Count:** ( 120 / 300 )`, USER ke neeche/BAR ke upar. Sirf Unzip ke liye nahi — **common reusable mechanism**, har multi-file stage (download/extract/ffmpeg/metadata/thumbnail/upload/split/archive + future) usi interface se report kare. Single-file ya count-unavailable par line **hide**. Percent bytes-based rahe, count file-based (dono same value se derive nahi). Existing throttling preserve, runtime pe archive baar-baar scan nahi, minimal diff.
+
+**Design (reusable core):** naya `bot/helper/ext_utils/file_count.py` → `FileCountTracker` (`stage/done/total/base/current_file/failed`, methods `set_stage(stage, total, base)`, `advance(name, failed=)`, `finish()`, `clear()`, `current()`).
+- Ek tracker per task, listener pe: `listener.file_count` (`tasks_listener.py`).
+- Renderer (`bot_utils.file_count_line`) source order: **status object ka `files_count()`** (engine khud jaanta hai) → warna **listener ka tracker**. Dono try/except me, isliye koi engine/status exception status message nahi tod sakta.
+- `current()` tabhi non-None jab `stage` set ho, `total > 1` aur `done >= 1` → single-file/unknown/no-stage = line hidden.
+- Naya processor sirf `listener.file_count.set_stage('x', n)` + `advance()` kare — koi duplicate logic nahi.
+- Theme key `FILE_COUNT` (`kpsml_minimal.py`) — layout baaki sab same.
+
+**Stage-wise wiring:**
+| stage | done ka source | total ka source |
+|---|---|---|
+| Download/Aria2 | `tell_status(gid, ['files'])` → selected+complete files (1 RPC, sirf jab `num_files>1`) | `download.num_files` |
+| Download/qBit | `info.num_complete` | `info.num_files` |
+| Download/Direct | `DirectListener` per-file counter (error wale bhi count, dobara nahi) | `len(contents)` |
+| Extract/Unzip | `get_path_stats()` ka file-count — **wahi walk jo bytes ke liye pehle se har tick chalti thi**, extra scan 0 | ek baar `7z l -slt` (Path − Folder), start pe |
+| Metadata (ffmpeg) | loop me `advance()` | eligible files pre-count (ek walk) |
+| Attachment | same | same |
+| Split | same | same getsize walk jo pehle se chal rahi thi (list collect, extra scan 0) |
+| Upload (TG) | `advance()` har file ke baad (corrupt/failed bhi) | pre-walk (wahi filters/order, 1 walk) |
+| Zip/Archive | **available nahi** → tracker `clear()`, line hidden | — |
+| Seed/GDrive/rclone/DDL | abhi nahi → hidden | — |
+
+`fs_utils`: `get_path_stats(path) -> (size, files)` ek hi walk me; `get_path_size()` ab uska wrapper (byte-for-byte same behaviour).
+
+**Files changed (15, +269/−73):** `file_count.py` (new), `fs_utils.py`, `bot_utils.py` (`file_count_line` + `tstatus` reuse), `tasks_listener.py`, `pyrogramEngine.py`, `direct_listener.py`, `kpsml_minimal.py`, status_utils: `extract/metadata/attachment/zip/telegram/direct/aria2/qbit`.
+
+**VERIFIED LOCALLY (honest, chhota):**
+- `py3.10.12` full-repo compile **109/109 PASS** + py3.13 PASS.
+- Installed lib APIs **padh ke** confirm: `aria2p 0.12.1` → `Download.update()` **keys accept nahi karta** aur `API.api` **exist nahi karta** (sirf `API.client`) — meri pehli line `aria2.api.client.tell_status(..., keys=)` silently `0,0` deti; ab `aria2.client.tell_status(gid, ['files'])`. `qbittorrent-api 2026.8.1` → `num_complete`/`num_files` real attrs hain, missing par `AttributeError` (try/except me).
+- Code review me pakde 4 bugs fix kiye: extract ka total tracker se (warna `total=0` → line hide), metadata/zip ka stale walk-count tracker ko mask kar raha tha, zip stage pe tracker clear nahi ho raha tha, seed path pe tracker clear nahi ho raha tha.
+
+**NOT VERIFIED (bot-level, user run karega — sandbox me Telegram/7z/qBit/real archives nahi):**
+- Actual Telegram status message me line ka dikhna; 300-file archive pe `120/300`; 7z `-slt` listing parse (sandbox me **7z binary hi nahi**); aria2/qBit/Direct engines pe real counts; upload stage ka real count; parallel tasks.
+- Deep stub-harness (`/home/user/D2-tests/file_count_verify.py`) banaya tha par user ne sahi kaha — bot-level cheezein stub se verify nahi hoti, time waste. **Delete kar diya.** Rule yaad rakho: *bot-level verification user ke bot run se hoti hai, sandbox me sirf code-level (compile + API signature + review).*
+
+**Known gaps (jaan-boojh ke, documented):**
+- **Zip/Archive creation** pe count nahi — 7z single process hai, per-file stdout parse bina live 7z ke risky tha. Line hidden (galat number nahi).
+- **Nested archives** (folder-of-zips): total sirf outer archive ka; extracted count zyada ho sakta → `ExtractStatus.files_count` total ko `max(listed, observed)` karta hai, isliye `120/300` kabhi `350/300` nahi dikhega.
+- Seed tasks (seeding stage) pe count nahi dikhta — seeding processing stage nahi.
+
+**User ke liye test plan (bot chalake):** (1) multi-file zip leech+unzip → `File Count` badhta dikhe; (2) single file → line **nahi** aani chahiye; (3) multi-file torrent (aria2/qBit) → download stage pe count; (4) multi-file TG upload → upload stage pe count; (5) `/status` pe baaki layout/percent/ETA same rahe. Kuch bhi off lage to status ka screenshot + `logs` bhej dena.
