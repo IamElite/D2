@@ -110,11 +110,11 @@ _Fill up the rest of the fields. Meaning of each field is discussed below._
   ```
 - **Build the Docker image:**
   ```bash
-  sudo docker build . -t projectx
+  sudo docker build . -t d2
   ```
 - **Run the image:**
   ```bash
-  sudo docker run -p 80:80 -p 8080:8080 projectx
+  sudo docker run -p 80:80 -p 8080:8080 d2
   ```
 - **To stop the running image:**
   ```bash
