@@ -182,10 +182,18 @@ async def list_archive_files(path, pswd=''):
     except Exception:
         return 0
     entries = folders = 0
+    listed = False
     for line in out.decode(errors='ignore').split('\n'):
-        if line.startswith('Path = '):
+        # the archive's own header carries a 'Path = ' line too; entries start
+        # after the separator, otherwise every total comes out one too high
+        if line.startswith('----------'):
+            listed = True
+        elif not listed:
+            continue
+        elif line.startswith('Path = '):
             entries += 1
-        elif line.startswith('Folder = '):
+        elif line.startswith('Folder = +'):
+            # 7z marks files with 'Folder = -', so only '+' is a real folder
             folders += 1
     return max(0, entries - folders)
 

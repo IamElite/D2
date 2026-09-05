@@ -246,11 +246,21 @@ class MirrorLeechListener:
                     download_dict[self.uid] = ExtractStatus(
                         name, size, gid, self)
                 extract_base = 0
-                if await aiopath.isdir(dl_path) and not self.seed:
-                    extract_base = (await get_path_stats(self.dir))[1]
                 extract_total = 0
+                if not self.seed:
+                    extract_base = (await get_path_stats(self.dir))[1] if await aiopath.isdir(dl_path) else 1
                 if await aiopath.isfile(dl_path):
                     extract_total = await list_archive_files(dl_path, pswd)
+                else:
+                    # same predicate as the extract loop below, so total matches
+                    # what actually gets extracted (capped: one listing per archive)
+                    archives = []
+                    for dirpath, _, files in await sync_to_async(walk, dl_path):
+                        for file_ in files:
+                            if is_first_archive_split(file_) or is_archive(file_) and not file_.endswith('.rar'):
+                                archives.append(ospath.join(dirpath, file_))
+                    for archive in archives[:25]:
+                        extract_total += await list_archive_files(archive, pswd)
                 self.file_count.set_stage('extract', extract_total, base=extract_base)
                 if await aiopath.isdir(dl_path):
                     if self.seed:
