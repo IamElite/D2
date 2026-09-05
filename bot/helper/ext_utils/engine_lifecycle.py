@@ -59,7 +59,6 @@ def stop_heavy():
         from ... import get_client, environ
         c = get_client()
         c.app_set_preferences({"dht": False, "pex": False, "lsd": False})
-        c.auth_log_out()
         if environ.get('QBIT_IDLE_STOP', '').lower() in ('0', 'false', 'no'):
             LOGGER.info("Idle: DHT/PEX off (processes still running)")
             return
@@ -76,8 +75,23 @@ def stop_heavy():
         LOGGER.warning("Idle stop skipped: %s", e)
 
 
+async def idle_stop_if_free():
+    """Idle-stop the heavy engines without touching the event loop.
+
+    stop_heavy() does several blocking qBittorrent HTTP calls, so it must never
+    run on the loop. It is also pointless while other tasks are still running,
+    which is what made bulk mode freeze: every completion paid for it.
+    """
+    from ... import download_dict
+    from .bot_utils import sync_to_async
+    if len(download_dict) > 1:
+        return
+    await sync_to_async(stop_heavy)
+
+
 async def idle_now():
     from ... import download_dict, download_dict_lock, Interval
+    from .bot_utils import sync_to_async
     async with download_dict_lock:
         if download_dict:
             return
@@ -87,7 +101,7 @@ async def idle_now():
         except Exception:
             pass
         Interval.clear()
-    stop_heavy()
+    await sync_to_async(stop_heavy)
 
 
 def qbit_port_down(timeout=3):
