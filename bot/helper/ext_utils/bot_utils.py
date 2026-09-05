@@ -282,9 +282,12 @@ def file_count_line(download):
         if tracker is not None:
             counts = tracker.current()
     if counts:
-        done, total, failed = counts
+        # engines report (done, total); the shared tracker adds a failed count
+        done = counts[0]
+        total = counts[1] if len(counts) > 1 else 0
+        failed = counts[2] if len(counts) > 2 else 0
         if done and total > 1:
-            return BotTheme('FILE_COUNT', Done=done, Total=total)
+            return BotTheme('FILE_COUNT', Done=done, Total=total, Failed=failed)
     return ''
 
 
