@@ -1790,3 +1790,48 @@ Koi renderer-fallback bharosa nahi, koi duplicate logic nahi. `tracker.current()
 **NOT verified:** real Telegram status pe line ka dikhna (bot-level, user dyno). Extract ka `{Current}` khaali rahega (7z ek hi process hai, per-file name track nahi hota).
 
 **Lesson (agli baar ke liye):** "wire kar diya" ≠ "user ko dikhega". Har stage ka end-to-end path (producer → status object → renderer → theme) ek saath chalake dekhna chahiye, sirf producer side nahi.
+
+### 260905-G — Bot lag under load: stop_heavy() event loop block karta tha
+**Git:** `4a09719`  
+**Date:** 2026-09-05  
+**OLD:** 260905-F  
+**Files:** `bot/helper/ext_utils/engine_lifecycle.py`, `bot/helper/listeners/aria2_listener.py`
+
+**User complaint:** CPU/RAM optimization ke **baad se** bot lag karne laga — pehle 18-20 tasks pe bhi smooth tha, ab ek 30GB task pe `/usersettings` ka response **1 minute** baad aaya. Callbacks bhi late, commands bhi late. Bulk me aur bura.
+
+**Root cause (yeh code CPU/RAM work ke saath aaya tha — `0020a6a` + `23ac575` CB "qBit idle-shutdown", isliye pehle nahi hota tha):**
+`engine_lifecycle.stop_heavy()` **synchronously, event loop pe** yeh sab karta tha:
+1. `_port_up(8090)` — TCP connect, `timeout=0.4`
+2. `get_client()` — qBit client + **HTTP login**
+3. `app_set_preferences({...})` — HTTP
+4. **`auth_log_out()`** — HTTP, session invalidate
+5. `torrents_info()` — HTTP
+6. kabhi-kabhi `app_shutdown()` — HTTP
+
+Aur yeh **har download complete pe** chalta tha, loop freeze karke:
+- `aria2_listener.py:130` (`__onDownloadComplete`) → `stop_heavy()` direct sync
+- `aria2_listener.py:145` (`__onBtDownloadComplete`) → `stop_heavy()` direct sync
+- `tasks_listener.py:123` → `await idle_now()` → andar `stop_heavy()` sync
+
+Do cheezein aur bigaadti thin:
+- **Listener calls pe koi "task active?" guard nahi tha** (`idle_now()` me tha, listener me nahi) → bulk me **har completion pe** freeze, chahe 20 tasks chal rahe ho.
+- **`auth_log_out()`** client session uda deta tha → agli `get_client()` pe phir login. Har completion pe logout→login churn.
+
+qBit 30GB task + 120 connections pe busy ho to har HTTP round-trip seconds leta hai → loop frozen → commands/callbacks queue me.
+
+**Fix (4 changes):**
+1. Naya `idle_stop_if_free()` — `len(download_dict) > 1` ho to **skip**, warna `await sync_to_async(stop_heavy)` (loop se bahar).
+2. Dono `aria2_listener` call sites ab `await idle_stop_if_free()`.
+3. `idle_now()` me bhi `await sync_to_async(stop_heavy)`.
+4. `stop_heavy()` se **`auth_log_out()` hataya** — koi fayda nahi, sirf re-login churn.
+
+**VERIFIED (code-level):** shipped `idle_stop_if_free` body `ast` se nikaal ke chalaya, stub `download_dict`/`sync_to_async` ke saath:
+- aakhri task (dict me 1) → `stop_heavy` **sync_to_async se** (off-loop) ✅
+- 5 active tasks → **skipped**, koi blocking qBit work nahi ✅
+- idle (0 tasks) → `stop_heavy` ✅
+- `'DIRECT-BLOCKING'` marker kabhi trigger nahi hua = loop pe direct call nahi
+- py3.10.12 full-repo compile **109/109 PASS**
+
+**NOT verified:** real dyno pe lag khatam hua ya nahi (bot-level, user run). Agar abhi bhi lage to agli suspect list: `STATUS_UPDATE_INTERVAL=2` (bot_settings default) + extract/metadata status ka per-tick full-tree walk (8 baar per tick — `get_readable_message` me `progress()` 2 baar call hota hai), aur wzgram `rate_limit=300/pool_size=14` + `max_concurrent_transmissions=16` ka loop CPU load.
+
+**Pending (user se info chahiye):** Auto-rename naya parameter apply nahi kar raha. Code padhne se ek confirmed baat mili: **auto-rename sirf Leech pe lagta hai, Mirror/GDrive pe kabhi nahi** (`format_filename(..., isMirror=True)` → `get_autorename` skip). Baaki exact wajah pin nahi kar paya — guess nahi kar raha.
