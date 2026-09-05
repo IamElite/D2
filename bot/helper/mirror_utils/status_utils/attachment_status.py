@@ -3,7 +3,7 @@ from time import time
 
 from .... import LOGGER
 from ...ext_utils.bot_utils import clock_fmt, EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time, async_to_sync
-from ...ext_utils.fs_utils import get_path_size
+from ...ext_utils.fs_utils import get_path_size, get_path_stats
 
 
 class AttachmentStatus:
@@ -16,6 +16,8 @@ class AttachmentStatus:
         self.__uid = listener.uid
         self.__start_time = time()
         self.message = listener.message
+        self.__proc_size = 0
+        self.__proc_files = 0
 
     def gid(self):
         return self.__gid
@@ -54,11 +56,23 @@ class AttachmentStatus:
     def processed_bytes(self):
         return get_readable_file_size(self.processed_raw())
 
-    def processed_raw(self):
+    def __stats(self):
         if self.__listener.newDir:
-            return async_to_sync(get_path_size, self.__listener.newDir)
+            size, files = async_to_sync(get_path_stats, self.__listener.newDir)
+            base_files = 0
         else:
-            return async_to_sync(get_path_size, self.__listener.dir) - self.__size
+            size, files = async_to_sync(get_path_stats, self.__listener.dir)
+            base_files = 0
+        self.__proc_size = size - (0 if self.__listener.newDir else self.__size)
+        self.__proc_files = files - base_files
+        return self.__proc_size
+
+    def processed_raw(self):
+        return self.__stats()
+
+    def files_count(self):
+        self.__stats()
+        return max(0, self.__proc_files), 0
 
     def download(self):
         return self

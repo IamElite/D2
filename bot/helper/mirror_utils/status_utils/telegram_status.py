@@ -22,6 +22,10 @@ class TelegramStatus:
             return MirrorStatus.STATUS_UPLOADING
         return MirrorStatus.STATUS_DOWNLOADING
 
+    def files_count(self):
+        counts = getattr(self.__obj, 'files_count', None)
+        return counts() if callable(counts) else None
+
     def name(self):
         return self.__obj.name
 

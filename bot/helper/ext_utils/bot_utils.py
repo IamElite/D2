@@ -263,6 +263,31 @@ class EngineStatus:
         self.STATUS_RCLONE = f"RClone {version_cache['rclone']}"
 
 
+def file_count_line(download):
+    """`( done / total )` of the stage being shown; '' when it is not multi-file.
+
+    Source order: the status object itself (engines like aria2/qBit/Direct know
+    their own file counts), then the task's shared FileCountTracker (extract,
+    metadata, attachment, split, upload and any future stage).
+    """
+    counts = None
+    try:
+        if hasattr(download, 'files_count'):
+            counts = download.files_count()
+    except Exception:
+        counts = None
+    if not counts or not counts[0]:
+        listener = getattr(download, 'listener', None)
+        tracker = getattr(listener() if callable(listener) else listener, 'file_count', None)
+        if tracker is not None:
+            counts = tracker.current()
+    if counts:
+        done, total, failed = counts
+        if done and total > 1:
+            return BotTheme('FILE_COUNT', Done=done, Total=total)
+    return ''
+
+
 def get_readable_message():
     msg = ""
     button = None
@@ -279,7 +304,9 @@ def get_readable_message():
         msg += BotTheme('STATUS_NAME', Tno=f'{{{tno}}}', Name="Task is being Processed!" if config_dict['SAFE_MODE'] and elapsed >= config_dict['STATUS_UPDATE_INTERVAL'] else escape(f'{download.name()}'))
         msg += BotTheme('USER',
                         Id=download.message.from_user.id)
-        if download.status() not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
+        tstatus = download.status()
+        if tstatus not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
+            msg += file_count_line(download)
             msg += BotTheme('BAR', Bar=f"{get_progress_bar_string(download.progress())} {download.progress()}")
             msg += BotTheme('PROCESSED', Processed=f"{download.processed_bytes()} / {download.size()}")
             msg += BotTheme('STATUS', Status=download.status(), Url=msg_link)
@@ -294,7 +321,7 @@ def get_readable_message():
                     msg += BotTheme('LEECHERS', Leechers=download.leechers_num())
                 except Exception:
                     pass
-        elif download.status() == MirrorStatus.STATUS_SEEDING:
+        elif tstatus == MirrorStatus.STATUS_SEEDING:
             msg += BotTheme('STATUS', Status=download.status(), Url=msg_link)
             msg += BotTheme('SEED_SIZE', Size=download.size())
             msg += BotTheme('SEED_SPEED', Speed=download.upload_speed())

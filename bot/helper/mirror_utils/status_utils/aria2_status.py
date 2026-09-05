@@ -2,7 +2,7 @@
 from time import time
 
 from .... import aria2, LOGGER
-from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, clock_fmt, get_readable_file_size, get_readable_time, sync_to_async
+from ...ext_utils.bot_utils import EngineStatus, MirrorStatus, async_to_sync, clock_fmt, get_readable_file_size, get_readable_time, sync_to_async
 
 
 def get_download(gid):
@@ -71,6 +71,21 @@ class Aria2Status:
             return MirrorStatus.STATUS_SEEDING
         else:
             return MirrorStatus.STATUS_DOWNLOADING
+
+    def files_count(self):
+        try:
+            total = self.__download.num_files
+            if total < 2:
+                return 0, 0
+            status = async_to_sync(aria2.client.tell_status, self.__gid, ['files'])
+            done = 0
+            for f in status.get('files', ()):
+                if f.get('selected') == 'true' and int(f.get('length') or 0) \
+                        and int(f.get('completedLength') or 0) >= int(f['length']):
+                    done += 1
+            return done, total
+        except Exception:
+            return 0, 0
 
     def seeders_num(self):
         return self.__download.num_seeders

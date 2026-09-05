@@ -363,6 +363,10 @@ class TgUploader:
             if not self.__is_cancelled:
                 LOGGER.error(f"Failed To Send in User Dump:\n{str(err)}")
 
+    def files_count(self):
+        tracker = getattr(self.__listener, 'file_count', None)
+        return tracker.current() if tracker is not None else None
+
     async def upload(self, o_files, m_size, size):
         await self.__user_settings()
         user_dict = user_data.get(self.__user_id, {})
@@ -372,14 +376,22 @@ class TgUploader:
         if not await self.__msg_to_reply():
             return
         isDeleted = False
+        # One walk up-front: it both keeps the old order and gives the stage a real total.
+        pending = []
         for dirpath, _, files in sorted(await sync_to_async(walk, self.__path)):
             if dirpath.endswith('/yt-dlp-thumb'):
                 continue
             for file_ in natsorted(files):
-                self.__up_path = ospath.join(dirpath, file_)
+                f_path = ospath.join(dirpath, file_)
                 if file_.lower().endswith(tuple(GLOBAL_EXTENSION_FILTER)) or not is_ext_allowed(file_, inc_exts, exc_exts):
-                    await aioremove(self.__up_path)
+                    await aioremove(f_path)
                     continue
+                if self.__listener.seed and file_ in o_files:
+                    continue
+                pending.append((dirpath, file_))
+        self.__listener.file_count.set_stage('upload', len(pending))
+        for dirpath, file_ in pending:
+                self.__up_path = ospath.join(dirpath, file_)
                 try:
                     f_size = await aiopath.getsize(self.__up_path)
                     if self.__listener.seed and file_ in o_files and f_size in m_size:
@@ -388,6 +400,7 @@ class TgUploader:
                     if f_size == 0:
                         LOGGER.error(f"{self.__up_path} size is zero")
                         self.__corrupted += 1
+                        self.__listener.file_count.advance(file_, failed=True)
                         continue
                     if self.__is_cancelled:
                         return
@@ -411,9 +424,11 @@ class TgUploader:
                         return
                     if not self.__is_corrupted and (self.__listener.isSuperGroup or config_dict['LEECH_LOG_ID']):
                         self.__msgs_dict[self.__sent_msg.link] = file_
+                    self.__listener.file_count.advance(file_)
                     await sleep(0.5)
                 except Exception:
                     LOGGER.error(f"{format_exc()}. Path: {self.__up_path}")
+                    self.__listener.file_count.advance(file_, failed=True)
                     if self.__is_cancelled:
                         return
                     continue

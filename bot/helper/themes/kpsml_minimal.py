@@ -178,6 +178,7 @@ Type {help_command} to get a list of available commands</b>'''
     STATUS_NAME =       '{Tno} <b><i>{Name}</i></b>'
 
     #####---------PROGRESSIVE STATUS-------
+    FILE_COUNT =        '\n┠ <b>File Count:</b> ( {Done} / {Total} )'
     BAR =               '\n┃ {Bar}'
     PROCESSED =         '\n┠ <b>Done:</b> {Processed}'
     STATUS =            '\n┠ <b>Status:</b> <a href="{Url}">{Status}</a>'

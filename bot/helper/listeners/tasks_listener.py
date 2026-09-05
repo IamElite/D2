@@ -17,11 +17,12 @@ from ... import OWNER_ID, Interval, aria2, DOWNLOAD_DIR, download_dict, download
     MAX_SPLIT_SIZE, config_dict, status_reply_dict_lock, user_data, non_queued_up, non_queued_dl, queued_up, \
     queued_dl, queue_dict_lock, bot, GLOBAL_EXTENSION_FILTER
 from ..ext_utils.bot_utils import extra_btns, sync_to_async, get_readable_file_size, get_readable_time, is_mega_link, is_gdrive_link
-from ..ext_utils.fs_utils import get_base_name, get_path_size, clean_download, clean_target, \
+from ..ext_utils.fs_utils import get_base_name, get_path_size, get_path_stats, list_archive_files, clean_download, clean_target, \
     is_first_archive_split, is_archive, is_archive_split, join_files
 from ..ext_utils.ffmpeg import edit_metadata, edit_attachment
 from ..ext_utils.leech_utils import split_file, format_filename, get_document_type
 from ..ext_utils.exceptions import NotSupportedExtractionArchive
+from ..ext_utils.file_count import FileCountTracker
 from ..ext_utils.task_manager import start_from_queued
 from ..mirror_utils.status_utils.extract_status import ExtractStatus
 from ..mirror_utils.status_utils.zip_status import ZipStatus
@@ -86,6 +87,7 @@ class MirrorLeechListener:
         self.botpmmsg = None
         self.start_msgs = []
         self.upload_details = {'max_dl': 0, 'max_ul': 0, 'avg_dl': 0, 'avg_ul': 0, '_dl_t0': time()}
+        self.file_count = FileCountTracker()
         self.leech_utils = leech_utils
         self.source_url = (
             source_url
@@ -243,6 +245,13 @@ class MirrorLeechListener:
                 async with download_dict_lock:
                     download_dict[self.uid] = ExtractStatus(
                         name, size, gid, self)
+                extract_base = 0
+                if await aiopath.isdir(dl_path) and not self.seed:
+                    extract_base = (await get_path_stats(self.dir))[1]
+                extract_total = 0
+                if await aiopath.isfile(dl_path):
+                    extract_total = await list_archive_files(dl_path, pswd)
+                self.file_count.set_stage('extract', extract_total, base=extract_base)
                 if await aiopath.isdir(dl_path):
                     if self.seed:
                         self.newDir = f"{self.dir}10000"
@@ -315,26 +324,31 @@ class MirrorLeechListener:
             await makedirs(self.newDir, exist_ok=True)
             async with download_dict_lock:
                 download_dict[self.uid] = MetadataStatus(name, size, gid, self)
+            meta_files = []
             if await aiopath.isfile(meta_path):
                 _dt = await get_document_type(meta_path)
                 if _dt[0] or _dt[1]:  # video ya audio — kisi bhi media pe metadata
-                    base_dir, file_name = ospath.split(meta_path)
-                    outfile = ospath.join(self.newDir, file_name)
-                    new_path = await edit_metadata(self, base_dir, meta_path, outfile, metadata, stream_titles)
+                    meta_files.append(meta_path)
+            elif await aiopath.isdir(meta_path):
+                for dirpath, _, files in await sync_to_async(walk, meta_path):
+                    for file in files:
+                        video_file = ospath.join(dirpath, file)
+                        _dt = await get_document_type(video_file)
+                        if _dt[0] or _dt[1]:  # video ya audio dono pe metadata
+                            meta_files.append(video_file)
+            self.file_count.set_stage('metadata', len(meta_files))
+            for video_file in meta_files:
+                if self.suproc == 'cancelled':
+                    return
+                base_dir, file = ospath.split(video_file)
+                outfile = ospath.join(self.newDir, file)
+                new_path = await edit_metadata(self, base_dir, video_file, outfile, metadata, stream_titles)
+                self.file_count.advance(file, failed=not new_path)
+                if video_file == meta_path:
                     if self.suproc == 'cancelled':
                         return
                     if new_path:
                         up_path = new_path
-            elif await aiopath.isdir(meta_path):
-                for dirpath, _, files in await sync_to_async(walk, meta_path):
-                    for file in files:
-                        if self.suproc == 'cancelled':
-                            return
-                        video_file = ospath.join(dirpath, file)
-                        _dt = await get_document_type(video_file)
-                        if _dt[0] or _dt[1]:  # video ya audio dono pe metadata
-                            outfile = ospath.join(self.newDir, file)
-                            await edit_metadata(self, dirpath, video_file, outfile, metadata, stream_titles)
 
         if attachment := self.user_dict.get("lattachment") or config_dict['ATTACHMENT']:
             meta_path = up_path or dl_path
@@ -342,21 +356,24 @@ class MirrorLeechListener:
             await makedirs(self.newDir, exist_ok=True)
             async with download_dict_lock:
                 download_dict[self.uid] = AttachmentStatus(name, size, gid, self)
-            if await aiopath.isfile(meta_path) and (await get_document_type(meta_path))[0]:
-                base_dir, file_name = ospath.split(meta_path)
-                outfile = ospath.join(self.newDir, file_name)
-                await edit_attachment(self, base_dir, meta_path, outfile, attachment)
-                if self.suproc == 'cancelled':
-                    return
+            attach_files = []
+            if await aiopath.isfile(meta_path):
+                if (await get_document_type(meta_path))[0]:
+                    attach_files.append(meta_path)
             elif await aiopath.isdir(meta_path):
                 for dirpath, _, files in await sync_to_async(walk, meta_path):
                     for file in files:
-                        if self.suproc == 'cancelled':
-                            return
                         video_file = ospath.join(dirpath, file)
                         if (await get_document_type(video_file))[0]:
-                            outfile = ospath.join(self.newDir, file)
-                            await edit_attachment(self, dirpath, video_file, outfile, attachment)
+                            attach_files.append(video_file)
+            self.file_count.set_stage('attachment', len(attach_files))
+            for video_file in attach_files:
+                if self.suproc == 'cancelled':
+                    return
+                base_dir, file = ospath.split(video_file)
+                outfile = ospath.join(self.newDir, file)
+                await edit_attachment(self, base_dir, video_file, outfile, attachment)
+                self.file_count.advance(file, failed=self.suproc == 'cancelled')
 
         if self.compress:
             pswd = self.compress if isinstance(self.compress, str) else ''
@@ -368,6 +385,7 @@ class MirrorLeechListener:
                 up_path = f"{self.newDir}/{name}.zip"
             else:
                 up_path = f"{dl_path}.zip"
+            self.file_count.clear()
             async with download_dict_lock:
                 download_dict[self.uid] = ZipStatus(name, size, gid, self)
             LEECH_SPLIT_SIZE = user_dict.get('split_size', False) or config_dict['LEECH_SPLIT_SIZE']
@@ -406,35 +424,40 @@ class MirrorLeechListener:
                 checked = False
                 LEECH_SPLIT_SIZE = user_dict.get(
                     'split_size', False) or config_dict['LEECH_SPLIT_SIZE']
+                split_files = []
                 for dirpath, _, files in await sync_to_async(walk, up_dir, topdown=False):
                     for file_ in files:
                         f_path = ospath.join(dirpath, file_)
                         f_size = await aiopath.getsize(f_path)
                         if f_size > LEECH_SPLIT_SIZE:
-                            if not checked:
-                                checked = True
-                                async with download_dict_lock:
-                                    download_dict[self.uid] = SplitStatus(
-                                        up_name, size, gid, self)
-                                LOGGER.info(f"Splitting: {up_name}")
-                            res = await split_file(f_path, f_size, file_, dirpath, LEECH_SPLIT_SIZE, self)
-                            if not res:
-                                return
-                            if res == "errored":
-                                if f_size <= MAX_SPLIT_SIZE:
-                                    continue
-                                try:
-                                    await aioremove(f_path)
-                                except:
-                                    return
-                            elif not self.seed or self.newDir:
-                                try:
-                                    await aioremove(f_path)
-                                except:
-                                    return
-                            else:
-                                m_size.append(f_size)
-                                o_files.append(file_)
+                            split_files.append((f_path, f_size, file_, dirpath))
+                self.file_count.set_stage('split', len(split_files))
+                for f_path, f_size, file_, dirpath in split_files:
+                    if not checked:
+                        checked = True
+                        async with download_dict_lock:
+                            download_dict[self.uid] = SplitStatus(
+                                up_name, size, gid, self)
+                        LOGGER.info(f"Splitting: {up_name}")
+                    res = await split_file(f_path, f_size, file_, dirpath, LEECH_SPLIT_SIZE, self)
+                    self.file_count.advance(file_, failed=res != 'errored' and not res)
+                    if not res:
+                        return
+                    if res == "errored":
+                        if f_size <= MAX_SPLIT_SIZE:
+                            continue
+                        try:
+                            await aioremove(f_path)
+                        except:
+                            return
+                    elif not self.seed or self.newDir:
+                        try:
+                            await aioremove(f_path)
+                        except:
+                            return
+                    else:
+                        m_size.append(f_size)
+                        o_files.append(file_)
 
         up_limit = config_dict['QUEUE_UPLOAD']
         all_limit = config_dict['QUEUE_ALL']
@@ -689,6 +712,7 @@ class MirrorLeechListener:
                 await sendMessage(self.message, message, buttons.build_menu(2), photo=self.random_pic)
 
             if self.seed:
+                self.file_count.clear()
                 if self.newDir:
                     await clean_target(self.newDir)
                 elif self.compress:
@@ -705,6 +729,7 @@ class MirrorLeechListener:
         async with download_dict_lock:
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
+            self.file_count.clear()
             count = len(download_dict)
         if count == 0:
             await self.clean()
@@ -723,6 +748,7 @@ class MirrorLeechListener:
         async with download_dict_lock:
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
+            self.file_count.clear()
             count = len(download_dict)
             if self.sameDir and self.uid in self.sameDir['tasks']:
                 self.sameDir['tasks'].remove(self.uid)
@@ -765,6 +791,7 @@ class MirrorLeechListener:
         async with download_dict_lock:
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
+            self.file_count.clear()
             count = len(download_dict)
         msg = f'''<i><b>Upload Stopped!</b></i>
 ┠ <b>Task for:</b> {self.tag}

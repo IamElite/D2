@@ -12,6 +12,8 @@ class DirectListener:
         self.__a2c_opt = a2c_opt
         self.__proc_bytes = 0
         self.__failed = 0
+        self.__files_done = 0
+        self.total_files = 0
         self.task = None
         self.name = foldername
         self.total_size = total_size
@@ -23,11 +25,16 @@ class DirectListener:
         return self.__proc_bytes
 
     @property
+    def files_count(self):
+        return self.__files_done, self.total_files
+
+    @property
     def speed(self):
         return self.task.download_speed if self.task else 0
 
     def download(self, contents):
         self.is_downloading = True
+        self.total_files = len(contents)
         for content in contents:
             if self.__is_cancelled:
                 break
@@ -41,6 +48,7 @@ class DirectListener:
                 self.task = aria2.add_uris([content['url']], self.__a2c_opt, position=0)
             except Exception as e:
                 self.__failed += 1
+                self.__files_done += 1
                 LOGGER.error(f'Unable to download {filename} due to: {e}')
                 continue
             self.task = self.task.live
@@ -54,9 +62,11 @@ class DirectListener:
                     self.__failed += 1
                     LOGGER.error(f'Unable to download {self.task.name} due to: {error_message}')
                     self.task.remove(True, True)
+                    self.__files_done += 1
                     break
                 elif self.task.is_complete:
                     self.__proc_bytes += self.task.total_length
+                    self.__files_done += 1
                     self.task.remove(True)
                     break
                 sleep(1)

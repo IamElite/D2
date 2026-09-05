@@ -6,6 +6,8 @@ from shutil import rmtree, disk_usage
 from magic import Magic
 from re import split as re_split, I, search as re_search
 from subprocess import run as srun
+from asyncio import create_subprocess_exec
+from asyncio.subprocess import PIPE
 from sys import exit as sexit
 
 from .exceptions import NotSupportedExtractionArchive
@@ -133,15 +135,22 @@ async def clean_unwanted(path):
             await rmdir(dirpath)
 
 
-async def get_path_size(path):
+async def get_path_stats(path):
+    """Same single walk as get_path_size, but also returns the file count."""
     if await aiopath.isfile(path):
-        return await aiopath.getsize(path)
+        return await aiopath.getsize(path), 1
     total_size = 0
+    total_files = 0
     for root, dirs, files in await sync_to_async(walk, path):
+        total_files += len(files)
         for f in files:
             abs_path = ospath.join(root, f)
             total_size += await aiopath.getsize(abs_path)
-    return total_size
+    return total_size, total_files
+
+
+async def get_path_size(path):
+    return (await get_path_stats(path))[0]
 
 
 async def count_files_and_folders(path):
@@ -154,6 +163,31 @@ async def count_files_and_folders(path):
                 total_files -= 1
         total_folders += len(dirs)
     return total_folders, total_files
+
+
+async def list_archive_files(path, pswd=''):
+    """Entry count of an archive, counted once at the start of the stage.
+
+    Reads 7z's technical listing (`-slt`) and counts non-folder entries.
+    Returns 0 when 7z is missing or the listing cannot be parsed, in which
+    case the stage simply reports no total instead of a wrong one.
+    """
+    cmd = ["7z", "l", "-slt", "-ba"]
+    if pswd:
+        cmd.append(f"-p{pswd}")
+    cmd.append(path)
+    try:
+        proc = await create_subprocess_exec(*cmd, stdout=PIPE, stderr=PIPE)
+        out, _ = await proc.communicate()
+    except Exception:
+        return 0
+    entries = folders = 0
+    for line in out.decode(errors='ignore').split('\n'):
+        if line.startswith('Path = '):
+            entries += 1
+        elif line.startswith('Folder = '):
+            folders += 1
+    return max(0, entries - folders)
 
 
 def get_base_name(orig_path):

@@ -67,6 +67,12 @@ class QbittorrentStatus:
         else:
             return MirrorStatus.STATUS_DOWNLOADING
 
+    def files_count(self):
+        try:
+            return self.__info.num_complete, self.__info.num_files
+        except Exception:
+            return 0, 0
+
     def seeders_num(self):
         return self.__info.num_seeds
 
