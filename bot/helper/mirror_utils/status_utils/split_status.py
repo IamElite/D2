@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from .... import LOGGER
 from ...ext_utils.bot_utils import EngineStatus, get_readable_file_size, MirrorStatus
+from ...ext_utils.file_count import stage_counts
 
 
 class SplitStatus:
@@ -35,6 +36,9 @@ class SplitStatus:
 
     def processed_bytes(self):
         return 0
+
+    def files_count(self):
+        return stage_counts(self.__listener)
 
     def download(self):
         return self

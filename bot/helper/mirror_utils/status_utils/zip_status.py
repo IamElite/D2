@@ -3,6 +3,7 @@ from time import time
 
 from .... import LOGGER
 from ...ext_utils.bot_utils import clock_fmt, EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time, async_to_sync
+from ...ext_utils.file_count import stage_counts
 from ...ext_utils.fs_utils import get_path_size, get_path_stats
 
 
@@ -68,7 +69,7 @@ class ZipStatus:
         return self.__stats()
 
     def files_count(self):
-        return 0, 0
+        return stage_counts(self.__listener)
 
     def processed_bytes(self):
         return get_readable_file_size(self.processed_raw())

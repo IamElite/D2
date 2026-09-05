@@ -3,6 +3,7 @@ from time import time
 
 from .... import LOGGER
 from ...ext_utils.bot_utils import clock_fmt, EngineStatus, get_readable_file_size, MirrorStatus, get_readable_time, async_to_sync
+from ...ext_utils.file_count import stage_counts
 from ...ext_utils.fs_utils import get_path_size, get_path_stats
 
 
@@ -71,8 +72,7 @@ class AttachmentStatus:
         return self.__stats()
 
     def files_count(self):
-        self.__stats()
-        return max(0, self.__proc_files), 0
+        return stage_counts(self.__listener)
 
     def download(self):
         return self

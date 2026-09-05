@@ -47,11 +47,17 @@ class FileCountTracker:
         self.failed = 0
 
     def current(self):
-        """(done, total, failed) or None when there is nothing to display.
+        """(done, total, failed, current_file) or None when nothing is displayable.
 
         Hidden for single-file stages and for stages that could not count, so
         single-file tasks keep their existing status untouched.
         """
         if not self.stage or self.total <= 1 or self.done < 1:
             return None
-        return self.done, self.total, self.failed
+        return self.done, self.total, self.failed, self.current_file
+
+
+def stage_counts(listener):
+    """What a status object should report: its task's current stage counts."""
+    tracker = getattr(listener, 'file_count', None)
+    return tracker.current() if tracker is not None else None

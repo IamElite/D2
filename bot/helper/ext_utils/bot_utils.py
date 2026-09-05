@@ -286,8 +286,10 @@ def file_count_line(download):
         done = counts[0]
         total = counts[1] if len(counts) > 1 else 0
         failed = counts[2] if len(counts) > 2 else 0
+        current = counts[3] if len(counts) > 3 else ''
         if done and total > 1:
-            return BotTheme('FILE_COUNT', Done=done, Total=total, Failed=failed)
+            return BotTheme('FILE_COUNT', Done=done, Total=total, Failed=failed,
+                            Current=current or '')
     return ''
 
 
