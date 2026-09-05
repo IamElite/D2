@@ -1728,3 +1728,27 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 **Single-file rule (confirmed by test):** line tabhi aati hai jab `done >= 1` **aur** `total > 1`. Single file (1/1) → hidden. Total unknown (0) → hidden. Stage abhi shuru (0/300) → hidden.
 
 **Gate:** py3.10.12 full-repo compile **109/109 PASS**.
+
+### 260905-E — Extract File Count: folder-of-archives total + 3 counting bugs
+**Git:** `15b72ed`  
+**Date:** 2026-09-05  
+**OLD:** 260905-D  
+**Files:** `bot/helper/ext_utils/fs_utils.py` (`list_archive_files`), `bot/helper/listeners/tasks_listener.py` (extract stage setup)
+
+**User demand:** extract ke time total files aur processed files dono sahi dikhne chahiye — folder-of-archives aur nested cases bhi handle ho.
+
+**Bugs (teeno code padhte/test karte pakde, andaze nahi):**
+1. **`Folder = -` ko folder gina ja raha tha.** 7z `-slt` me directory = `Folder = +`, file = `Folder = -` (kuch formats me). Purana code `line.startswith('Folder = ')` se **har** Folder line subtract karta tha → jitni files pe `Folder = -` print hota, total utna kam. Ab sirf `'Folder = +'`.
+2. **Archive ka apna header `Path = ` line count ho jaata.** `7z l -slt` output me `----------` se **pehle** archive info block hota hai (`Path = pack.zip`, `Type = zip`). Use count karne se total hamesha **+1** aata. Ab parse sirf separator ke baad shuru hota hai.
+3. **Single-file non-seed extract me off-by-one.** `extract_base` sirf directory case me set hota tha, isliye single archive pe `done = 1 (archive) + N (extracted)` → `301/300`. Ab non-seed single-file pe `base = 1`.
+
+**Naya: folder-of-archives total.** Pehle `extract_total` sirf tab nikalta tha jab `dl_path` ek **file** ho; download directory hone pe (multi-part `.zip.001` folder / folder-of-zips) total `0` → line hide. Ab usi predicate se (`is_first_archive_split(f) or is_archive(f) and not f.endswith('.rar')` — **exactly wahi jo extract loop 7z ko deta hai**) archives collect karke har ek ki listing ka sum liya jata hai. Isliye total = woh files jo sach me extract hongi.
+- **Cap 25 archives**: har archive pe ek `7z l` (index read, data nahi) hota hai, sequential — 1 GB dyno pe stage-start stall bounded rakhne ke liye. 25 se zyada archives ho to total kam dikhega, par `ExtractStatus.files_count` ka `max(listed, done)` clamp total ko done ke saath badhata hai, isliye `350/300` jaisa kabhi nahi dikhega.
+- Nested archives (zip ke andar zip) bot extract hi nahi karta (walk extract se **pehle** hota hai), isliye outer listing hi correct total hai.
+
+**VERIFIED (code-level, bot chalaye bina):**
+- Fake `7z` PATH pe rakh ke **shipped `list_archive_files` body** (`ast` se nikaal ke) real subprocess ke against chalaya: listing me 4 files + 3 folders (ek file pe `Folder = -`, header me archive ka `Path =`) → **total 4 PASS**; 7z binary gayab → **0, no crash PASS**. Pehla run **3** deta tha — tabhi bug #1 pakda.
+- `renderer_check.py` ab bhi **7/7 PASS**.
+- py3.10.12 full-repo compile **109/109 PASS**.
+
+**Still NOT verified:** asli 7z binary ka exact output (sandbox me 7z nahi) — format real 7z 16.x ke mutabik likha tha, par live confirm aapke dyno pe hi hoga. Extract ka end-to-end count (real zip, Telegram status) bhi user run pe depend.
