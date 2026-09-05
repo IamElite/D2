@@ -1705,3 +1705,26 @@ User request: library wzgram hi rahegi, sirf status me naam "notygram" dikhana h
 - Seed tasks (seeding stage) pe count nahi dikhta — seeding processing stage nahi.
 
 **User ke liye test plan (bot chalake):** (1) multi-file zip leech+unzip → `File Count` badhta dikhe; (2) single file → line **nahi** aani chahiye; (3) multi-file torrent (aria2/qBit) → download stage pe count; (4) multi-file TG upload → upload stage pe count; (5) `/status` pe baaki layout/percent/ETA same rahe. Kuch bhi off lage to status ka screenshot + `logs` bhej dena.
+
+### 260905-D — File Count: renderer tuple crash fix + format fully theme-driven
+**Git:** `340881b`  
+**Date:** 2026-09-05  
+**OLD:** 260905-C  
+**Files:** `bot/helper/ext_utils/bot_utils.py` (sirf `file_count_line`)
+
+**User demand:** (1) File Count sirf tab dikhe jab **1 se zyada** file ho, single file pe hidden; (2) display format **kpsml_minimal theme se** aaye, taaki baad me format badalna ho to theme file me hi change ho jaye — main code me dhundhna na pade.
+
+**Galti (260905-C me maine ki, ab pakdi):** `file_count_line` me `done, total, failed = counts` tha, par **5 status classes 2-tuple deti hain** (`aria2_status`, `qbit_status`, `direct_status`, `extract_status`, `metadata_status` → `return done, total`), sirf `FileCountTracker.current()` 3-tuple deta hai. Matlab har aria2/qBit/Direct/Extract/Metadata task pe `ValueError: not enough values to unpack (expected 3, got 2)` → **poora `/status` message hi fail**. Push ho chuka tha, dyno pe chalta to status toot-ta.
+
+**Proof (code-level, bot chalaye bina):** shipped `file_count_line` body ko `ast` se nikaal ke stub inputs pe chalaya (`/home/user/D2-tests/renderer_check.py`, repo ke bahar):
+- pehle: **3/7 ok, 4 CRASH** (2-tuple, single-file, unknown-total, done=0 sab ValueError)
+- fix ke baad: **7/7 PASS** — `120/300` render, single-file hidden, unknown-total hidden, done=0 hidden, no-`files_count` hidden, engine-0 → tracker fallback
+
+**Fix:** counts ko tuple-length-safe unpack (`counts[0/1/2]`, missing → 0), aur `BotTheme('FILE_COUNT', Done=…, Total=…, Failed=failed)` — ab `{Failed}` theme me available hai, isliye format badalne ke liye **sirf** `kpsml_minimal.py` chhedna padega.
+
+**Theme-driven confirm (real theme file load karke):** `kpsml_minimal.py:181 FILE_COUNT = '\n┠ <b>File Count:</b> ( {Done} / {Total} )'`. Rendered: `┠ <b>File Count:</b> ( 120 / 300 )` — spec ke mutabik USER ke neeche, BAR ke upar. Extra kwargs se crash nahi hota (verified), aur `themes/__init__.py` me fallback hai: custom theme me key na ho to `kpsml_minimal` se uthata hai (error log ke saath), isliye naya theme banane pe bot nahi tootega.
+**Format badalna ho to:** `bot/helper/themes/kpsml_minimal.py` line 181 only. Available placeholders: `{Done}`, `{Total}`, `{Failed}`. Example: `'\n┠ <b>Files:</b> {Done}/{Total}'` ya failed dikhana ho to `… ) ❌{Failed}`.
+
+**Single-file rule (confirmed by test):** line tabhi aati hai jab `done >= 1` **aur** `total > 1`. Single file (1/1) → hidden. Total unknown (0) → hidden. Stage abhi shuru (0/300) → hidden.
+
+**Gate:** py3.10.12 full-repo compile **109/109 PASS**.
