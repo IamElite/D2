@@ -13,6 +13,12 @@ def get_download(gid):
         return None
 
 
+# Per-file list ko kitne second me ek baar refresh karein. Status tick har
+# STATUS_UPDATE_INTERVAL (2-6s) pe chalta hai; pehle har tick pe poori file list
+# RPC se aati thi, jo bade multi-file torrent pe MBs JSON har 2 second tha.
+_FILES_REFRESH = 15.0
+
+
 class Aria2Status:
 
     def __init__(self, gid, listener, seeding=False, queued=False):
@@ -24,6 +30,8 @@ class Aria2Status:
         self.start_time = 0
         self.seeding = seeding
         self.message = self.__listener.message
+        self.__files_done = 0
+        self.__files_at = 0.0
 
     def __update(self):
         if self.__download is None:
@@ -73,19 +81,37 @@ class Aria2Status:
             return MirrorStatus.STATUS_DOWNLOADING
 
     def files_count(self):
+        """(done, total) for a multi-file download.
+
+        Status-render path pe I/O-free: per-file list at most once per
+        _FILES_REFRESH seconds. Pehle har status tick pe live
+        tell_status(['files']) hota tha — download_dict_lock hold karte hue, aur
+        async_to_sync worker thread ko event loop ka wait karata tha. Bahut task
+        hone par commands isi me phans kar minutes late hoti thin.
+        Baaki status classes (qBit/direct/extract/split/...) pehle se I/O-free hain.
+        """
         try:
             total = self.__download.num_files
             if total < 2:
                 return 0, 0
+            now = time()
+            if now - self.__files_at < _FILES_REFRESH:
+                return self.__files_done, total
+            self.__files_at = now
             status = async_to_sync(aria2.client.tell_status, self.__gid, ['files'])
             done = 0
             for f in status.get('files', ()):
                 if f.get('selected') == 'true' and int(f.get('length') or 0) \
                         and int(f.get('completedLength') or 0) >= int(f['length']):
                     done += 1
+            self.__files_done = done
             return done, total
         except Exception:
-            return 0, 0
+            # Purani value rakho — 0,0 return karne se status line flicker karti thi.
+            try:
+                return self.__files_done, self.__download.num_files
+            except Exception:
+                return 0, 0
 
     def seeders_num(self):
         return self.__download.num_seeders

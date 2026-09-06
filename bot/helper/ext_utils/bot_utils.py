@@ -293,16 +293,25 @@ def file_count_line(download):
     return ''
 
 
-def get_readable_message():
+def get_readable_message(downloads=None):
+    """Status page render karo.
+
+    `downloads` = caller ka snapshot (download_dict.values()). Snapshot lock ke
+    andar lekar render lock ke BAHAR karna zaroori hai — warna har command
+    handler download_dict_lock ke liye queue karti hai jab tak poora page (jisme
+    engine RPCs hain) ban raha ho.
+    """
+    if downloads is None:
+        downloads = list(download_dict.values())
     msg = ""
     button = None
     STATUS_LIMIT = config_dict['STATUS_LIMIT']
-    tasks = len(download_dict)
+    tasks = len(downloads)
     globals()['PAGES'] = (tasks + STATUS_LIMIT - 1) // STATUS_LIMIT
     if PAGE_NO > PAGES and PAGES != 0:
         globals()['STATUS_START'] = STATUS_LIMIT * (PAGES - 1)
         globals()['PAGE_NO'] = PAGES
-    for tno, download in enumerate(list(download_dict.values())[STATUS_START:STATUS_LIMIT+STATUS_START], start=STATUS_START + 1):
+    for tno, download in enumerate(downloads[STATUS_START:STATUS_LIMIT+STATUS_START], start=STATUS_START + 1):
         msg_link = download.message.link if download.message.chat.type in [
             ChatType.SUPERGROUP, ChatType.CHANNEL] and not config_dict['DELETE_LINKS'] else ''
         elapsed = time() - download.message.date.timestamp()
@@ -362,7 +371,7 @@ def get_readable_message():
 
     dl_speed = 0
     up_speed = 0
-    for download in download_dict.values():
+    for download in downloads:
         tstatus = download.status()
         spd = download.speed() if tstatus != MirrorStatus.STATUS_SEEDING else download.upload_speed()
         speed_in_bytes_per_second = convert_speed_to_bytes_per_second(spd)

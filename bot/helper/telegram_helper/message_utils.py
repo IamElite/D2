@@ -330,8 +330,11 @@ async def update_all_messages(force=False):
             return
         for chat_id in list(status_reply_dict.keys()):
             status_reply_dict[chat_id][1] = time()
+    # Lock sirf snapshot ke liye — render (engine RPCs wala hissa) bahar, taaki
+    # commands status-page banne ka wait na karein.
     async with download_dict_lock:
-        msg, buttons = await sync_to_async(get_readable_message)
+        downloads = list(download_dict.values())
+    msg, buttons = await sync_to_async(get_readable_message, downloads)
     if msg is None:
         return
     async with status_reply_dict_lock:
@@ -347,7 +350,8 @@ async def update_all_messages(force=False):
 
 async def sendStatusMessage(msg):
     async with download_dict_lock:
-        progress, buttons = await sync_to_async(get_readable_message)
+        downloads = list(download_dict.values())
+    progress, buttons = await sync_to_async(get_readable_message, downloads)
     if progress is None:
         return
     chat = getattr(msg, "chat", None)
