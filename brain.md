@@ -2131,3 +2131,33 @@ Doosri chhoti bug: `int(BASE_URL_PORT)` galat value pe import-time pe cryptic `V
 **Expected effect:** status tick ka CPU/RAM cost multi-file torrents pe ~12× kam (15s/2s), aur lock hold-time snapshot copy tak simat gayi ⇒ commands ab render ka wait nahi karti.
 **Tuning:** agar file-count line zyada fresh chahiye to `_FILES_REFRESH` kam karo (CPU badhega); kam chahiye to badhao.
 **Bacha hua (jaan-boojh ke chhoda):** `Aria2Status.status()` → `__update()` → `.live` = 1 RPC/task/tick — yeh **upstream behaviour** hai, progress isi se aata hai. Chhedne se progress stale hota, isliye untouched.
+
+### 260905-Q — NameError: `download_dict` message_utils me use hua par import hi nahi tha (260905-P ka regression)
+**Git:** `8b38866`  
+**Date:** 2026-09-06  
+**OLD:** 260905-P  \
+**Files:** `bot/helper/telegram_helper/message_utils.py` (+1/−1 — sirf import line)
+
+**User (production log):** `NameError: name 'download_dict' is not defined. Did you mean: 'download_dict_lock'?` — `message_utils.py:353` in `sendStatusMessage`, called from `aria2_download.py:242` → `mirror_leech.py:465`. Har naya aria2 task crash ho raha tha (`Task exception was never retrieved`), status message kabhi nahi banti thi.
+
+**GALTI MERI THI.** `260905-P` me maine dono call sites pe `downloads = list(download_dict.values())` likha, lekin `message_utils.py:15` ke import me sirf `download_dict_lock` tha — `download_dict` nahi. `git show b507891` se confirm: dono `download_dict` references usi commit me introduce hue the. `bot_utils.py:34` me `download_dict` already imported tha, isliye wahan koi dikkat nahi — maine assume kar liya ki `message_utils` me bhi hoga, **verify nahi kiya**.
+
+**ROOT PROCESS FAILURE:** `py_compile` NameError nahi pakadta, aur maine naye symbols ko imports ke against grep nahi kiya. Yeh rule brain.md me pehle se likha tha ("`py_compile` doesn't catch NameErrors — grep new symbols against imports") — maine follow nahi kiya.
+
+**FIX:** `message_utils.py:15` me `download_dict` add kiya. **Sirf 1 line.** `download_dict` repo me sirf `bot/__init__.py:173` pe bind hota hai aur kahin rebind nahi hota (grep se confirm: `download_dict\s*=` sirf wahi) ⇒ module-level import safe hai, same dict object milta hai.
+
+**VERIFIED (real shipped code se, `ast` se function bodies exec karke; namespace actual import line + fake `bot` package se banaya, taaki test sach me import ko test kare):**
+- T1 `sendStatusMessage` (3 tasks) → PASS, snapshot=3, message sent, `Interval` set
+- T2 `update_all_messages` (5 tasks, force=True) → PASS, snapshot=5, edit hua
+- T3 khaali `download_dict` → PASS, kuch send nahi hua, crash nahi
+- **T4 negative control (dono functions):** `download_dict` ko import line se hata ke (bilkul `b507891` wali state) → **production wala exact error reproduce hua**: `name 'download_dict' is not defined` ⇒ test bug detect karta hai, aur fix use hata deta hai
+- py3.10.12 full-repo **109/109 PASS**
+**NOT VERIFIED:** live dyno pe actual task run.
+
+**Isi class ka repo-wide scan (AST: har module me Load-names vs defined-names) — 3 AUR LATENT NameError mile, TEENON PRE-EXISTING (mere nahi), ABHI FIX NAHI KIYE:**
+1. **`bot/modules/clone.py:70,101,103,105` — `bot_cache['pkgs'][3]`, par `bot_cache` import nahi** (`clone.py:10` me nahi hai). ⇒ **har rclone clone hard-crash** hoga. Live path (`rcloneNode`).
+2. **`bot/modules/clone.py:242` — `cmd_txt` kabhi define hi nahi hota.** Line 231-234 `msg` list banate hain (`msg.index('-i')` → `msg[index+1] = nxt`) par string me join nahi karte. ⇒ multi-clone (`-i N` > 1) crash. Compare: `mirror_leech.py:207` aur `ytdlp.py:421` dono `cmd_txt = next_cmd_text(input_list, bulk, nxt)` karte hain — aur `next_cmd_text` `clone.py:12` me **imported hai par unused**. Bonus: `msg.index('-i')` bina `-i` ke `ValueError` deta hai, `next_cmd_text` handle karta hai.
+3. **`bot/helper/ext_utils/leech_utils.py:46` — `json.loads(...)`, par file me `import json` kahin nahi** (commit `f66cf31` se). Yeh `try/except Exception` ke andar hai ⇒ **silently swallow** hota hai: `Remux mp4 probe skipped (name 'json' is not defined) — default mapping`. Matlab MP4 remux ka **bitmap-subtitle exclusion aur per-stream title-fold kabhi apply hi nahi hota** — feature dead hai, sirf warning log aata hai.
+4. `bot/modules/bot_settings.py:709` — `'HELPER_TOKENS': HELPER_TOKENS` (`load_config()` ke andar, `config_dict.update({...})`), par `HELPER_TOKENS` `bot_settings.py:18` ke import me nahi (defined at `bot/__init__.py:695`). `load_config()` `bot/__init__.py`/`__main__.py` se call nahi hota (grep se confirm), isliye boot crash nahi — par jis path se bhi chalega wahan NameError.
+
+**Scan tool:** `/tmp/undefcheck.py` (repo ke bahar). False positives (`except ... as e`) hatane ke liye `ExceptHandler.name` handle karna zaroori hai.
