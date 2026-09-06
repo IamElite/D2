@@ -42,7 +42,7 @@ MAGNET_REGEX = r"^magnet:\?.*xt=urn:(btih|btmh):([a-zA-Z0-9]{32,40}|[a-z2-7]{32}
 URL_REGEX    = r'^(?!\/)(rtmps?:\/\/|mms:\/\/|rtsp:\/\/|https?:\/\/|ftp:\/\/)?([^\/:]+:[^\/@]+@)?(www\.)?(?=[^\/:\s]+\.[^\/:\s]+)([^\/:\s]+\.[^\/:\s]+)(:\d+)?(\/[^#\s]*[\s\S]*)?(\?[^#\s]*)?(#.*)?$'
 _YTDL_HINT = (
     "youtube.com/", "youtu.be/", "m.youtube.com/",
-    "vimeo.com/", "dailymotion.com/", "tiktok.com/",
+    "vimeo.com/", "dailymotion.com/", "dai.ly/", "tiktok.com/",
     "instagram.com/", "facebook.com/", "fb.watch/",
     "twitter.com/", "x.com/", "reddit.com/",
     "soundcloud.com/", "twitch.tv/",
