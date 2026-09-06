@@ -2091,3 +2091,43 @@ Doosri chhoti bug: `int(BASE_URL_PORT)` galat value pe import-time pe cryptic `V
 
 **Backward compatibility:** Heroku pe `PORT` platform set karta hai ⇒ `WEB_SERVER_PORT = PORT` ⇒ **behaviour bilkul unchanged**. Jinke paas na `PORT` ho na `BASE_URL`, unka server pehle bhi start nahi hota tha, ab bhi nahi hoga.
 **Risk:** `docker compose` ab **`--env-file config.env` ke bina chalega hi nahi** (guard jaan-boojh ke) — yeh desired hai, par purani muscle-memory `docker compose up -d` ab error dega.
+
+### 260905-P — Bahut task pe bot hang / commands 2-min late: file-count RPC + lock-during-render
+**Git:** `b507891`  
+**Date:** 2026-09-06  
+**OLD:** 260905-O  
+**Files:** `bot/helper/mirror_utils/status_utils/aria2_status.py` (+27/−1), `bot/helper/ext_utils/bot_utils.py` (+13/−4), `bot/helper/telegram_helper/message_utils.py` (+6/−2)
+
+**User:** "bahut task add karne par bot hang, koi cmd daalo to 2 min baad answer; pehle aisa nahi hota tha. Background killer me dikkat?"
+
+**Background killer CULPRIT NAHI tha (verify kiya):** `idle_stop_if_free()` → `await sync_to_async(stop_heavy)` + `if len(download_dict) > 1: return` (heavy load pe chalta hi nahi); `idle_now()` → `sync_to_async`; `ensure_aria2`/`ensure_qbit` → saari 5 call sites `await sync_to_async(...)`. 260905-G ka fix intact hai.
+
+**ASLI ROOT CAUSE — mera apna regression (260905-C..F, File Count feature):**
+`aria2_status.files_count()` **har status tick pe live `aria2.client.tell_status(gid, ['files'])`** karta tha. Chain (sab file:line verify):
+1. `message_utils.py:376` → `setInterval(STATUS_UPDATE_INTERVAL, update_all_messages)` (env default **6**, UI default **2**)
+2. `update_all_messages` → `async with download_dict_lock:` **ke andar** `sync_to_async(get_readable_message)`
+3. `get_readable_message` → har task pe `file_count_line()` (`bot_utils.py:275`) → `download.files_count()`
+4. aria2 task → `tell_status(gid,['files'])` = **poora file-list** (bade torrent pe MBs JSON)
+5. `async_to_sync` = `run_coroutine_threadsafe(...).result()` ⇒ **worker thread EVENT LOOP ka wait karta hai**
+6. sab kuch **`download_dict_lock` hold karte hue**, aur **60+ command call-sites** usi lock ka wait karti hain
+⇒ N multi-file torrent × har 2-6s × full file-list ⇒ commands starve. **Yehi 2-min delay tha.**
+
+**Design contract khud tod diya tha:** `FileCountTracker` ka docstring kehta hai *"nothing here does I/O, so a status tick never scans the disk"* — aur baaki **saari** status classes I/O-free hain (`qbit_status:70` cached `__info`, `direct_status:53` attribute, extract/split/metadata/attachment/zip/telegram → tracker). **Sirf `aria2_status` offender tha.** Isliye "pehle nahi hota tha" — `files_count()` pehle exist hi nahi karta tha.
+
+**FIX — 3 layers:**
+1. **`aria2_status.files_count()` TTL cache** (`_FILES_REFRESH = 15.0`): per-file list at most once per 15s, warna cached. RPC fail ho to **purani value** return (pehle `0,0` → status line flicker karti thi). Single-file (`num_files < 2`) pe RPC **zero** (pehle bhi tha).
+2. **`get_readable_message(downloads=None)`** — caller ka snapshot leta hai; bina arg ke purana behaviour (backward compatible).
+3. **`download_dict_lock` sirf snapshot tak** — dono call sites (`update_all_messages`, `sendStatusMessage`) pe lock ke andar sirf `list(download_dict.values())`; **render lock ke BAHAR**. Ab commands status-page banne ka wait hi nahi karti. `turn_page` check kiya — woh sirf page globals badalta hai, render nahi karta ⇒ untouched.
+
+**VERIFIED (real shipped code se, sandbox me):**
+- `files_count()` 500-file torrent, **12 consecutive ticks → 1 RPC (pehle 12) = 12× kam**, value sahi `(120,500)`
+- TTL ke andar → **0 RPC**; TTL expire → **refresh (1→2)** ✅
+- single-file → **0 RPC** ✅; RPC fail → cached `(77,500)`, flicker nahi ✅
+- `get_readable_message` signature `(downloads=None)`; **global `download_dict` KHALI** rakhte hue snapshot me 2 tasks diye → **2 render hue** (snapshot use hua ✅), file-count line intact, khaali snapshot → `None` (no-task path)
+- `message_utils` ke dono lock-blocks ab **snapshot-only** (regex se confirm: `get_readable_message` lock ke andar nahi)
+- py3.10.12 full-repo **109/109 PASS**
+**NOT VERIFIED:** real dyno pe bahut-task load test (sandbox me Telegram/aria2/qBit live nahi), actual latency numbers.
+
+**Expected effect:** status tick ka CPU/RAM cost multi-file torrents pe ~12× kam (15s/2s), aur lock hold-time snapshot copy tak simat gayi ⇒ commands ab render ka wait nahi karti.
+**Tuning:** agar file-count line zyada fresh chahiye to `_FILES_REFRESH` kam karo (CPU badhega); kam chahiye to badhao.
+**Bacha hua (jaan-boojh ke chhoda):** `Aria2Status.status()` → `__update()` → `.live` = 1 RPC/task/tick — yeh **upstream behaviour** hai, progress isi se aata hai. Chhedne se progress stale hota, isliye untouched.
