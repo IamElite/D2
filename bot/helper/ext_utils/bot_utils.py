@@ -56,6 +56,8 @@ _YTDL_HINT = (
     "hellporno.com/", "drtuber.com/", "sunporno.com/", "sexu.com/",
     "alphaporno.com/", "pornflip.com/", "pornerbros.com/", "murrtube.com/",
     "4tube.com/", "chaturbate.com/", "stripchat.com/", "nubiles.net/",
+    # multi-server page; served by the bundled yt_dlp_plugins/extractor/letsjerk.py
+    "letsjerk.tv/",
 )
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
 STATUS_START = 0
