@@ -2052,3 +2052,42 @@ Matlab "friendly" message `"StreamTape Login & Key not Found, Kindly Recheck !"`
 **⚠️ Jo deliberately NAHI kiya — `.dockerignore` add nahi kiya.** Repo me `.dockerignore` **hai hi nahi**, isliye `COPY . .` se `config.env`, `.git`, `accounts/` (GDrive service accounts), `token.pickle`, `.netrc` sab **image me bake** ho jaate hain. Yeh security ke liye theek nahi, par `.dockerignore` me credential files daalne se **GDrive toot jaayega** (unless runtime pe mount kiye jaayein). Yeh behaviour change hai — isliye bina aapke confirm kiye touch nahi kiya. Bolo to `.dockerignore` + runtime mounts ke saath properly kar dunga.
 
 **⚠️ User ko bataya:** ek hi `BOT_TOKEN` **ek hi jagah** chalao — Heroku + VPS dono ek saath = duplicate replies + task conflicts. Switch pe purana pehle band.
+
+### 260905-O — Web server port: BASE_URL_PORT ab source of truth (PORT sirf Heroku precedence)
+**Git:** `5f0ab76`  
+**Date:** 2026-09-06  
+**OLD:** 260905-N  
+**Files:** `bot/__init__.py` (+30/−6), `bot/modules/bot_settings.py` (+9/−3), `docker-compose.yml`, `.env.example`
+
+**ROOT CAUSE — boot aur runtime DO ALAG source of truth use kar rahe the:**
+| path | port kahan se | file:line |
+|---|---|---|
+| **boot** | `PORT` (`environ.get('PORT')`), aur `if PORT:` gate | `bot/__init__.py:896`, `:1080` |
+| **runtime** (`/botsettings`) | `BASE_URL_PORT` | `bot_settings.py:359`, `:952` |
+
+`BASE_URL_PORT` boot pe parse (`:532-533`) aur `config_dict` (`:744`) me jaata tha, par **web server start karne ke liye kabhi use hi nahi hota tha**. VPS pe `PORT` set nahi hota ⇒ `if PORT:` false ⇒ **`BASE_URL_PORT=7896` configured hone ke bawajood web server start hi nahi hua**. Yeh `PORT` us waqt ka bacha hua tha jab gunicorn hataya gaya (comment: "gunicorn replacement, PORT Heroku router").
+Doosri chhoti bug: `int(BASE_URL_PORT)` galat value pe import-time pe cryptic `ValueError: invalid literal for int()` deta tha.
+
+**FIX (smallest correct, 3 code edits):**
+1. `bot/__init__.py` — naya `_parse_port(raw, name, default)`: safe `int` + `1..65535` range check, galat value pe `log_error` + `exit(1)` (codebase ke existing `OWNER_ID`/`TELEGRAM_API` checks jaisa style). `BASE_URL_PORT` ab isi se parse hota hai.
+2. `bot/__init__.py:896` — `PORT = _parse_port(environ.get('PORT'),'PORT',0)` + **`WEB_SERVER_PORT = PORT or BASE_URL_PORT`**. Boot gate `if PORT:` → **`if PORT or BASE_URL:`** (runtime path `bot_settings.py:355-359` ke semantics se match: BASE_URL khaali ho to server nahi).
+3. `bot_settings.py` — runtime path bhi **wahi rule** follow kare (`:359` aur `:952` dono pe `PORT precedence, warna BASE_URL_PORT`), warna boot aur runtime phir diverge kar jaate. `edit_variable` me khaali value pe purana value rehta hai (warna `restart_web_server(0)` = random ephemeral port).
+
+**7896 kahin hardcode NAHI** — resolution poori config-driven hai.
+
+**Docker/config consistency:**
+- `docker-compose.yml`: **`environment:` block hata diya** — usme `PORT: "8080"` + `BASE_URL_PORT: "8080"` tha jo `env_file: config.env` ko **override** kar raha tha (260905-N meri hi galti). Port mapping ab `"${BASE_URL_PORT:?…}:${BASE_URL_PORT}"` — `:?guard` se compose **clear error dekar ruk jaata hai** agar `--env-file config.env` bhool jaao (chup-chaap galat port map nahi karega).
+- `Dockerfile`/`start.sh`: koi `EXPOSE`/`80:80` tha hi nahi ⇒ change nahi kiya.
+- `.env.example`: `PORT` ab commented (sirf Heroku), `BASE_URL_PORT` source of truth documented, PORTS section add (6800 aria2 / 8090 qBit / 8080 rclone-serve alag hain).
+- `web/aio_wserver.py`: **koi change nahi** (aiohttp impl sahi hai — `0.0.0.0`, `reuse_address=True`, 3-attempt rebind guard pehle se maujood).
+
+**VERIFIED (shipped code se, sandbox me):**
+- `_parse_port` **7/7**: `'7896'`→7896, `''`→default, `'  7896 '`→7896 (strip), `'abc'/'0'/'70000'/'-5'` → `exit(1)` clear message ke saath
+- Resolution **4/4**: PORT+BUP → PORT; sirf BUP → BUP; dono khaali + BASE_URL empty → **start nahi** (aaj jaisa); PORT=3000 → 3000
+- **Real HTTP**: `start_web_server(7896)` → bind `0.0.0.0:7896` TCP OK, `GET /` → **HTTP 200 (1822 B text/html)**, `GET /app/files/abc123def` → **HTTP 200 (5110 B, pin-code page)**, `/nonexistent` → 404, `stop→start` ke baad bhi **200** (restart-safe)
+- compose YAML parse OK, `environment` key **nahi**, koi hardcoded `N:N` port map **nahi**, `:?guard` maujood
+- py3.10.12 full-repo **109/109 PASS**
+**NOT VERIFIED:** real `docker compose up` (sandbox me Docker daemon nahi), VPS pe live boot, real Telegram `/botsettings` BASE_URL_PORT change.
+
+**Backward compatibility:** Heroku pe `PORT` platform set karta hai ⇒ `WEB_SERVER_PORT = PORT` ⇒ **behaviour bilkul unchanged**. Jinke paas na `PORT` ho na `BASE_URL`, unka server pehle bhi start nahi hota tha, ab bhi nahi hoga.
+**Risk:** `docker compose` ab **`--env-file config.env` ke bina chalega hi nahi** (guard jaan-boojh ke) — yeh desired hai, par purani muscle-memory `docker compose up -d` ab error dega.
