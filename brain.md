@@ -1957,3 +1957,32 @@ GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
 - py3.10.12 full-repo **109/109 PASS**
 **NOT VERIFIED:** real dyno pe Telegram `/upload` flow, bada file, StreamTape path (signature backward-compatible rakha: `filename=None` default, `if uploaded:` dict pe bhi truthy).
 **Note:** gofile **download** abhi bhi band hai (260905-I, `error-notPremium`) — yeh fix sirf **upload** ke liye hai. Guest uploads temporary hote hain.
+
+### 260905-L — Dailymotion short link (dai.ly) auto-engine me missing tha
+**Git:** `60a1290`  
+**Date:** 2026-09-06  
+**OLD:** 260905-K  
+**Files:** `bot/helper/ext_utils/bot_utils.py` (+1 token in `_YTDL_HINT`, 47 → 48 hosts)
+
+**User demand:** "Mirror wali CMD me bhi auto detect engine daalo, jaise leech me hai."
+
+**⚠️ Premise verify karne pe galat nikla — mirror me auto-engine PEHLE SE hai.** Proof:
+- `_auto_engine(link, file_=None)` — signature me **`isLeech` param hi nahi** (`mirror_leech.py:43`)
+- Sirf **ek** call site: `mirror_leech.py:325`, **shared** `_mirror_leech()` ke andar, **koi `isLeech` condition nahi**
+- `/mirror` → `_mirror_leech(client, message)`; `/leech` → `_mirror_leech(client, message, isLeech=True)` — dono usi ek call pe pahunchte hain
+- History: `2256abd` "Leech/mirror: auto-pick qBit or yt-dlp" (brain `260831-Y`) ne dono ke liye add kiya tha
+
+**Asli gap jo mila:** `_YTDL_HINT` (47 hosts) me `dailymotion.com/` tha par **`dai.ly` NAHI**. Matlab `https://dai.ly/k58O461c1Bo6VtJtxpQ` (260905-H wala link) → **`aria`** pe jaata tha, yt-dlp pe nahi. **Mirror aur leech dono me same bug.**
+
+**Verify (yt-dlp 2026.08.19, `ie.suitable()` se — authoritative):**
+| host | yt-dlp extractor |
+|---|---|
+| `dai.ly` | **`dailymotion`** ✅ add kiya |
+| `t.co` | `twitter:shortener` ✅ (add NAHI kiya — `not.co` false-positive risk, user OK chahiye) |
+| `instagr.am`, `redd.it`, `fb.watch` | generic (dedicated extractor nahi) |
+
+**VERIFIED (real `_auto_engine` chala ke):** `dai.ly` 3 variants → `ytdl`; **10/10 regression pass** (youtube/tiktok → ytdl, magnet/.torrent/gdflix/pixeldrain/gofile → aria, mega → mega, gdrive → gd, telegram → tg); py3.10.12 **109/109 PASS**.
+**Known pre-existing weakness (maine introduce nahi kiya):** `_YTDL_HINT` substring match karta hai, isliye `https://example.com/?r=dai.ly/` bhi ytdl pe jaayega — yeh 48 hosts sab pe pehle se lagu tha (jaise `x.com/`). Scope badhane ke liye touch nahi kiya.
+
+**Deliberately NAHI kiya:** `if eng == "qbit"` branch wapas nahi laya — woh `8eabad8` ("Aria2 handles .torrent URL and file, not yt-dlp") me **jaan-boojh ke** hataya gaya tha. Bina user confirm kiye purana decision palatna galat hota. Agar magnet/torrent → qBit chahiye to bolo.
+**NOT VERIFIED:** real bot pe `/mirror <dai.ly link>` end-to-end (sandbox me Telegram login nahi).
