@@ -140,6 +140,15 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     await sync_to_async(ensure_aria2)
     a2c_opt = {**aria2_options}
     [a2c_opt.pop(k) for k in aria2c_global if k in aria2_options]
+    # 260905-S: pipelining must stay OFF. A server that mishandles Range answers
+    # with the WHOLE file, so aria2 aborts with `Invalid range header. Request:
+    # a-b/N, Response: 0-(N-1)/N` (exit 8) and the task dies. `aria2_options` can
+    # come from Mongo's settings.aria2c, which db_load() seeds only ONCE
+    # (`if find_one() is None`) and never refreshes — so it can still carry the
+    # old 'true'. A per-download option overrides a2c.conf, which is why fixing
+    # the conf alone did not help. Forced here, at the single place per-download
+    # options are assembled. Verified against real aria2c 1.37.0 over RPC.
+    a2c_opt['enable-http-pipelining'] = environ.get('ARIA2_PIPELINING', 'false')
     a2c_opt['dir'] = path
     if filename:
         a2c_opt['out'] = filename
