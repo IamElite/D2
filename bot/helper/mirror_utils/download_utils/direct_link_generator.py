@@ -131,6 +131,8 @@ def direct_link_generator(link):
         return osdn(link)
     elif 'github.com' in domain:
         return github(link)
+    elif 'sourceforge.net' in domain:
+        return sourceforge(link)
     elif 'hxfile.co' in domain:
         return hxfile(link)
     elif '1drv.ms' in domain:
@@ -673,111 +675,36 @@ def terabox(url):
 
 
 def gofile(url, auth):
+    # Gofile closed anonymous API access: contents/<id> returns error-notPremium
+    # even for invalid ids, and the websiteToken moved to an obfuscated bundle
+    # (/js/wt.obf.js). The old kpsbots/moron-bots worker chain 302s to a 404.
+    # No free path exists, so fail clearly instead of handing back a dead link.
+    raise DirectDownloadLinkException(
+        'ERROR: Gofile requires a premium account; free/anonymous access is closed by the site.')
+
+
+def sourceforge(url):
+    """SourceForge direct link. Chrome impersonation is load-bearing here: with
+    cloudscraper the page comes back without the meta-refresh (verified live)."""
     try:
-        _id = url.split('/')[-1]
-        worker_base_url = "https://gofile.kpsbots.workers.dev/"
-        gofile_url = f"{worker_base_url}{_id}"
-        return gofile_url
-    except Exception as e:
-        raise e
+        from curl_cffi.requests import Session as CurlSession
+    except ImportError as e:
+        raise DirectDownloadLinkException(
+            'ERROR: curl-cffi missing — rebuild the image so requirements.txt installs it') from e
+    if not url.rstrip('/').endswith('/download'):
+        url = f"{url.rstrip('/')}/download"
+    with CurlSession(impersonate='chrome') as session:
+        res = session.get(url, headers={'Referer': url.rsplit('/', 2)[0] + '/'})
+        meta = [x for x in HTML(res.text).xpath('//meta[@http-equiv]/@content')
+                if 'url=http' in x]
+        if not meta:
+            raise DirectDownloadLinkException('ERROR: File Not Found')
+        res = session.get(meta[0].split('url=', 1)[1],
+                          headers={'Referer': url}, allow_redirects=False)
+    if not (durl := res.headers.get('location', '')):
+        raise DirectDownloadLinkException('ERROR: File Not Found')
+    return durl
 
-    '''    
-    try:
-        _password = sha256(auth[1].encode("utf-8")).hexdigest() if auth else ""
-        _id = url.split("/")[-1]
-    except Exception as e:
-        raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}")
-
-    def __get_token(session):
-        headers = {
-            "User-Agent": user_agent,
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept": "*/*",
-            "Connection": "keep-alive",
-        }
-        __url = "https://api.gofile.io/accounts"
-        try:
-            __res = session.post(__url, headers=headers).json()
-            if __res["status"] != "ok":
-                raise DirectDownloadLinkException("ERROR: Failed to get token.")
-            return __res["data"]["token"]
-        except Exception as e:
-            raise e
-
-    def __fetch_links(session, _id, folderPath=""):
-        _url = f"https://api.gofile.io/contents/{_id}?wt=4fd6sg89d7s6&cache=true"
-        headers = {
-            "User-Agent": user_agent,
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept": "*/*",
-            "Connection": "keep-alive",
-            "Authorization": "Bearer" + " " + token,
-        }
-        if _password:
-            _url += f"&password={_password}"
-        try:
-            _json = session.get(_url, headers=headers).json()
-        except Exception as e:
-            raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}")
-        if _json["status"] in "error-passwordRequired":
-            raise DirectDownloadLinkException(
-                f"ERROR:\n{PASSWORD_ERROR_MESSAGE.format(url)}"
-            )
-        if _json["status"] in "error-passwordWrong":
-            raise DirectDownloadLinkException("ERROR: This password is wrong !")
-        if _json["status"] in "error-notFound":
-            raise DirectDownloadLinkException(
-                "ERROR: File not found on gofile's server"
-            )
-        if _json["status"] in "error-notPublic":
-            raise DirectDownloadLinkException("ERROR: This folder is not public")
-
-        data = _json["data"]
-
-        if not details["title"]:
-            details["title"] = data["name"] if data["type"] == "folder" else _id
-
-        contents = data["children"]
-        for content in contents.values():
-            if content["type"] == "folder":
-                if not content["public"]:
-                    continue
-                if not folderPath:
-                    newFolderPath = path.join(details["title"], content["name"])
-                else:
-                    newFolderPath = path.join(folderPath, content["name"])
-                __fetch_links(session, content["id"], newFolderPath)
-            else:
-                if not folderPath:
-                    folderPath = details["title"]
-                item = {
-                    "path": path.join(folderPath),
-                    "filename": content["name"],
-                    "url": content["link"],
-                }
-                if "size" in content:
-                    size = content["size"]
-                    if isinstance(size, str) and size.isdigit():
-                        size = float(size)
-                    details["total_size"] += size
-                details["contents"].append(item)
-
-    details = {"contents": [], "title": "", "total_size": 0}
-    with Session() as session:
-        try:
-            token = __get_token(session)
-        except Exception as e:
-            raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}")
-        details["header"] = f"Cookie: accountToken={token}"
-        try:
-            __fetch_links(session, _id)
-        except Exception as e:
-            raise DirectDownloadLinkException(e)
-
-    if len(details["contents"]) == 1:
-        return (details["contents"][0]["url"], details["header"])
-    return details
-    '''
 
 def gd_index(url, auth):
     if not auth:
