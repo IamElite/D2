@@ -2267,3 +2267,60 @@ Aur pehle, is se pehle ka decisive test — **per-download option conf ko overri
 **SYSTEMIC ISSUE (report kiya, fix nahi kiya):** yeh mechanism **har us aria2 option** pe lagta hai jo `aria2c_global` (13 keys) me nahi hai — Mongo ka purana `settings.aria2c` un sab ko per-download force karta hai, aur `db_load()` use kabhi refresh nahi karta. `a2c.conf` ya overlay se woh options change nahi honge. Permanent fix ya to `db_load()` ko `settings.aria2c` refresh karna chahiye, ya `aria2_options` ko boot pe daemon se re-read karna.
 
 **Test harness:** `/tmp/rangetest/rpctest2.sh`, `/tmp/rangetest/verify_fix.sh` (repo ke bahar). **Gotcha:** `aria2p` ke is version me `Client.add` nahi hai (`api.add_uris()` use karo) aur `add_uris()` **list nahi, single `Download`** deta hai.
+
+### 260905-T — `letsjerk.tv` support: yt-dlp extractor plugin (multi-server, 2/3 servers se real bytes verify)
+**Git:** `d1916cf`  
+**Date:** 2026-09-07  \
+**Files:** `yt_dlp_plugins/extractor/letsjerk.py` (**naya**, 287 lines), `bot/helper/ext_utils/bot_utils.py` (+2 — `_YTDL_HINT`)
+
+**User:** *".build letsjerk.tv yt-dlp extractor"* — proper extractor, **external downloader hack nahi**. Acceptance: multi-server detection, actual byte download verification, hardcoded nahi.
+
+**ROOT CAUSE:** yt-dlp **2026.08.19** (1751 extractors) me `letsjerk` / `streamtape` / `voe` / byse-family — **kisi ka bhi extractor nahi**. Verify kiya: `[ie.IE_NAME for ie in gen_extractor_classes()]` par substring match → zero hits. Isliye URL seedha `generic` extractor pe jaata tha aur fail hota tha. Routing bhi absent: `_YTDL_HINT` (`bot_utils.py:43-59`) me `letsjerk` nahi tha, to `_auto_engine` (`mirror_leech.py:43`) use aria2 pe bhej deta.
+
+**BACKEND FLOW (live-verified, HTML guess nahi):**
+`letsjerk.tv/<slug>/?tape=N` → page me **ek player iframe** (absolute `https://`) → host-specific backend → real media.
+
+| tab | embed | backend | result |
+|---|---|---|---|
+| tape=1 | `bysejikuar.com/e/<code>` | `GET /api/videos/<code>` → JSON `playback` = **AES-256-GCM** blob → HLS | ✅ real bytes |
+| tape=2 | `streamtape.com/e/<id>` | `robotlink` JS expression → `get_video?id=…` → 302 → `tapecontent.net` MP4 | ✅ real bytes |
+| tape=3 | `voe.sx/e/<id>` | DDoS-Guard JS challenge → **403** (`curl_cffi` chrome impersonate bhi) | ❌ skip + warning |
+
+**9 candidate endpoints probe kiye** (`/api/video/`, `/api/files/`, `/api/embed/`, `/api/d/`, `/api/v1/videos/`, `/api/streams/`, `/api/playlist/`, `/api/videos/<id>/{play,source,stream,download}`, `/api/direct/<id>`) — sirf `/api/videos/<code>` ne 200 JSON diya.
+
+**Byse key schedule** (`videoPagesBundle-Bgi0QmPo.js` se nikala, decryption se prove kiya): `version n` → `base64url(key_parts[n]) + base64url(key_parts[31-n])` (1-based) = 32-byte AES-256 key; tag = payload ke aakhri 16 bytes. `version:"9"` / 30 parts → parts **9 aur 22**, jo exactly do 22-char entries hain (baaki 32-char decoys).
+
+**StreamTape obfuscation DYNAMIC hai** — yeh is fix ka sabse important hissa. Split point har page-load pe move karta hai:
+```js
+'//streamtape.com/get_video?i' + ('xcdd=…').substring(2).substring(1)   // load 1
+'//streamtape.com/g'           + ('xcdet_video?…').substring(2).substring(1)  // load 2
+```
+Pehla attempt fixed prefix/payload regex se kiya → galat URL bana (`get_vxcdideo`). **Fix:** pura expression generically evaluate karna — `eval_js_concat()`: string literals + `+` + chained `.substring/.substr/.slice`. Chhota tokenizer, **`eval()` nahi**; garbage input pe `ValueError` (verified).
+
+**Do aur live bugs jo test karne pe mile (blind-copy se nahi pakde jaate):**
+- `traverse_obj(payload, ('sources', lambda _, v: isinstance(v, list)))` — yeh form **list items** ke liye hai, dict key pe silently kuch nahi deta ⇒ "no sources". `traverse_obj(payload, 'sources')` sahi hai.
+- `yt_dlp.aes.aes_gcm_decrypt_and_verify` **lists of ints** leta hai (`TypeError: can't concat list to bytes`); bytes ke liye `aes_gcm_decrypt_and_verify_bytes`.
+- **API ka `label`/`height` jhoot bol sakta hai** — API ne `1080p` bola, actual playlist `1280x720`. Isliye `_extract_m3u8_formats` se real height li jaati hai, API label se nahi.
+- Filename se height nikaalne ka `r'(\d{3,4})p'` regex ne `h=8626` de diya ⇒ whitelist `240|360|480|576|720|1080|1440|2160`, warna `None`.
+
+**ACTUAL DOWNLOAD TEST** (`extract_info()` success ko user ne explicitly insufficient kaha — real bytes chahiye). yt-dlp ke **apne downloader** se, progress-hook se ~2 MB pe rokte hue:
+
+| stage | result |
+|---|---|
+| URL Extraction | ✅ 3/3 server tabs discover |
+| Backend/API Parsing | ✅ byse AES-GCM decrypt + streamtape robotlink eval |
+| Server 1 (bysejikuar) | ✅ **3,303,160 B — valid MPEG-TS** (`0x47` sync @0/188) |
+| Server 2 (streamtape) | ✅ **4,193,280 B — valid MP4** (`ftyp` box) |
+| Server 3 (voe.sx) | ⚠️ skip + warning (DDoS-Guard 403) — baaki servers chalte rahe |
+| Format Detection | ✅ 2 formats, height/tbr/filesize/protocol sab populated |
+| Actual Download | ✅ **PASS dono sources pe** |
+
+**Genericity (3 pages, hardcoded nahi):** no-`?tape` variant + 2 alag pages — sab pe 2 formats, sahi title/thumbnail/duration. Teesre page pe byse genuinely 1080p tha (real playlist se).
+
+**Perf:** per-tab sirf ek page fetch (`_server_pages` `?tape=N` tabs dedupe karta hai, current page pehle), koi subprocess nahi, duplicate API call nahi.
+
+**Deployment verify:** Dockerfile `COPY . .` → `/usr/src/app`, koi `.dockerignore` nahi ⇒ plugin image me jaayega. `python3 -m` se **cwd-based discovery** simulate karke confirm kiya: `load_all_plugins()` ke baad total 1752, `letsjerk` present.
+
+- py3.10.12 full-repo **110/110 PASS**
+**NOT VERIFIED:** live dyno/VPS pe actual leech task; voe.sx (browser-less bypass namumkin, dead end). **Plugin discovery CWD pe depend karta hai** — bot `/usr/src/app` se chalta hai to theek hai, par agar kisi aur cwd se start kiya gaya to plugin load nahi hoga.
+**Test harness:** `/tmp/ljfinal.py`, `/tmp/ljtest_generic.py` (repo ke bahar; koi test file commit nahi).
