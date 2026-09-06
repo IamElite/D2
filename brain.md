@@ -1858,3 +1858,34 @@ Error "firefox" isliye dikhta hai kyunki `yt_dlp/extractor/dailymotion.py:372-39
 **VERIFIED:** shipped `add_impersonate` body `ast` se chalaya — target available → impersonate set + no warning ✅; target missing → **1** warning ✅; dobara call → silent (spam nahi) ✅; baaki opts intact ✅. Live dailymotion extraction ✅. py3.10.12 full-repo **109/109 PASS**.
 
 **USER ACTION ZAROORI (code se yeh theek nahi hoga):** dyno pe **full redeploy** chahiye — sirf restart se `pip install` nahi chalega. Heroku pe naya build trigger karo (empty commit push ya dashboard se rebuild), tabhi `curl-cffi` install hoga. Verify: boot ke baad `/yl` dailymotion link chalao; agar warning log me `yt-dlp impersonation UNAVAILABLE` aaye to abhi bhi missing hai.
+
+### 260905-I — Gofile dead worker hataya (site ne free access band kiya) + SourceForge add (verified)
+**Git:** `c54c7c1`  
+**Date:** 2026-09-05  
+**OLD:** 260905-H  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (gofile −106/+7 lines, sourceforge +23, dispatcher +2)
+
+**User demand:** sab kuch **free** me chale, premium token nahi hai. Gofile worker dead hai, usse hatana hai; wzv3 branch ke generators add karne hain — par **blind copy nahi**, har ek HTTPS pe verify karke.
+
+**Verification method (yeh zaroori tha):** domain liveness **discriminator nahi** — dono files ke 97 unique domains check kiye: **81 alive, 0 dead**, phir bhi gofile dead hai (worker 302 deta hai, "alive" dikhta hai). Isliye asli test = *real URL → shipped function chalao → nikla link bytes serve kare*. Lab banaya (`/tmp/genlab.py`, repo ke bahar) jo **dono repos ki asli function bodies `ast` se** chalata hai aur result pe `Range: bytes=0-0` probe karta hai.
+
+**Gofile — free me possible NAHI (3 alag gates, live verify):**
+1. Worker chain dead: `gofile.kpsbots.workers.dev` → **302** → `gofile.moron-bots.workers.dev` → **404**
+2. `POST api.gofile.io/accounts` → 200, token milta hai ✅ — par `GET api.gofile.io/contents/<id>` → **`error-notPremium`**, aur **bilkul fake ID (`abcdef`) pe bhi wahi** ⇒ anonymous API access band
+3. websiteToken ab `/js/wt.obf.js` me **javascript-obfuscator se obfuscated** (37 KB hex string arrays) — purana `/dist/js/global.js` ab **0 bytes**
+
+⇒ wzv3 ka gofile port karne se bhi nahi chalta (wahi anonymous API + wahi websiteToken hunt). Isliye **dead worker + 96 lines commented dead code hataya**, clear exception rakha: *"Gofile requires a premium account; free/anonymous access is closed by the site."*
+
+**SourceForge — ADD kiya, kyunki VERIFY hua:**
+- Pehle `create_scraper` (humara existing style) se port karne ki koshish ki → **FAIL "File Not Found"**. `CurlSession(impersonate='chrome')` se **WORKING**. Matlab **Chrome impersonation load-bearing hai** — isliye "simplified" variant nahi chalta. Yeh verify kiye bina pata nahi chalta.
+- `curl_cffi` **lazily import** kiya (function ke andar) — warna curl-cffi missing hone pe **poora module import crash** ho jata aur saare direct links toot jaate.
+- **Live verify 3/3 WORKING:** sevenzip (1,863,192 B), keepass (2,898,806 B), filezilla (12,045,568 B) — sab HTTP 206 real bytes. (gimp fail hua — alag mirror, generator ka issue nahi.)
+
+**Coverage compare:** humare 38 → **39** generators. wzv3 me 54; 28 extra hain par **blind port nahi kiya** — har ek ko real link se verify karna padega, aur kaiyon pe account/key chahiye (yandex, pcloud, real_debrid, gdflix, hubcloud). Humare 12 extra hain jo wzv3 me nahi (`real_debrid, jiodrive, gdtot, gd_index, filelions, anonfilesBased, antfiles, fembed, letsupload, linkbox, route_intercept, sbembed`) — isliye file replace nahi, port karna padega.
+
+**Pixeldrain:** humara code official API use karta hai aur API alive hai (fake ID pe 404 = responding). End-to-end confirm ke liye real `pixeldrain.com/u/...` link chahiye — abhi **NOT VERIFIED**.
+
+**VERIFIED:** shipped `sourceforge`/`gofile` bodies `ast` se chalaye (upar wale numbers), py3.10.12 full-repo **109/109 PASS**.
+**NOT VERIFIED:** baaki 26 wzv3 generators (real links nahi mile), pixeldrain end-to-end.
+
+**User se chahiye:** (1) kaun si 10-15 sites aap actually use karte ho, (2) unme se jitne real file links de sako — main sirf woh port karunga aur jo verify na ho use NOT VERIFIED likh kar chhodunga.
