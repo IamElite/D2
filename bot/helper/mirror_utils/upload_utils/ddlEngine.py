@@ -7,7 +7,7 @@ from re import findall as re_findall
 from aiofiles.os import path as aiopath
 from time import time
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
-from aiohttp import ClientSession 
+from aiohttp import ClientSession, FormData
 from aiohttp.client_exceptions import ContentTypeError
 
 from .... import LOGGER, user_data
@@ -57,18 +57,33 @@ class DDLUploader:
     
     @retry(wait=wait_exponential(multiplier=2, min=4, max=8), stop=stop_after_attempt(3),
         retry=retry_if_exception_type(Exception))
-    async def upload_aiohttp(self, url, file_path, req_file, data):
+    async def upload_aiohttp(self, url, file_path, req_file, data, filename=None):
+        # Retry pe file 0 se dobara padhi jaati hai, isliye progress reset karo
+        # warna chunk_size negative ho kar processed_bytes ulta chala jaata tha.
+        self.last_uploaded = 0
         with ProgressFileReader(filename=file_path, read_callback=self.__progress_callback) as file:
-            data[req_file] = file
+            # FormData hi use karo: plain dict me (filename, file) tuple daalne se
+            # aiohttp proper multipart nahi banata aur server "400 No boundary
+            # found" deta hai (live verify kiya). filename= se naam set hota hai.
+            form = FormData()
+            for key, value in data.items():
+                form.add_field(key, value)
+            if filename is None:
+                form.add_field(req_file, file)
+            else:
+                form.add_field(req_file, file, filename=filename)
             async with ClientSession() as self.__asyncSession:
-                async with self.__asyncSession.post(url, data=data) as resp:
-                    if resp.status == 200:
-                        try:
-                            return await resp.json()
-                        except ContentTypeError:
-                            return "Uploaded"
-                        except JSONDecodeError:
-                            return None
+                async with self.__asyncSession.post(url, data=form) as resp:
+                    # Non-200 pe pehle None return hota tha, jisse caller me
+                    # AttributeError aata tha. Ab asal wajah surface hoti hai.
+                    if resp.status != 200:
+                        body = (await resp.text())[:300]
+                        raise Exception(f"HTTP {resp.status}: {body}")
+                    try:
+                        return await resp.json()
+                    except (ContentTypeError, JSONDecodeError):
+                        # String return karne se caller ka .get() toot jaata tha.
+                        return {"status": "ok", "data": {"downloadPage": "Uploaded"}}
 
     async def __upload_to_ddl(self, file_path):
         all_links = {}

@@ -5,7 +5,6 @@ from os import walk
 from random import choice
 
 from aiofiles.os import path as aiopath
-from aiofiles.os import rename as aiorename
 from aiohttp import ClientSession
 
 from ..... import LOGGER
@@ -37,13 +36,13 @@ class Gofile:
         return False
 
     async def __resp_handler(self, response):
+        if not isinstance(response, dict):
+            raise Exception(f"Gofile returned an unreadable response: {response!r}")
         if (api_resp := response.get("status", "")) == "ok":
             return response["data"]
-        raise Exception(
-            api_resp.split("-")[1]
-            if "error-" in api_resp
-            else "Response Status is not ok and Reason is Unknown"
-        )
+        # Purana code split("-")[1] bhejta tha, jisse user ko sirf "token" jaisa
+        # bekaar message milta tha. Poora status dikhao.
+        raise Exception(f"Gofile API error: {api_resp or 'unknown'}")
 
     async def __getServer(self):
         async with ClientSession() as session:
@@ -132,29 +131,37 @@ class Gofile:
 
         if self.dluploader.is_cancelled:
             return
-        new_path = ospath.join(
-            ospath.dirname(path), ospath.basename(path).replace(" ", ".")
-        )
-        await aiorename(path, new_path)
-        self.dluploader.last_uploaded = 0
+        # File ko disk pe rename mat karo: purana code spaces ko dots me badal kar
+        # file ka naam permanently change kar deta tha, aur upload fail hone par
+        # file mangled reh jaati thi. Naam sirf form field me bhejo.
+        upload_name = ospath.basename(path).replace(" ", ".")
         upload_file = await self.dluploader.upload_aiohttp(
             f"https://{server}.gofile.io/contents/uploadfile",
-            new_path,
+            path,
             "file",
             req_dict,
+            filename=upload_name,
         )
         return await self.__resp_handler(upload_file)
 
     async def upload(self, file_path):
-        if not await self.is_goapi(self.token):
+        # Token optional hai: gofile guest (anonymous) upload bhi allow karta hai,
+        # verified live. Purana code bina token ke "Invalid Gofile API Key" throw
+        # karta tha aur working anonymous path block ho jaata tha.
+        if self.token is not None and not await self.is_goapi(self.token):
             raise Exception("Invalid Gofile API Key, Recheck your account !!")
-        
+
         if await aiopath.isfile(file_path):
             if (gCode := await self.upload_file(path=file_path)) and gCode.get(
                 "downloadPage", False
             ):
                 return gCode["downloadPage"]
         elif await aiopath.isdir(file_path):
+            # Folder upload ke liye account ka rootFolder chahiye, isliye token zaroori.
+            if self.token is None:
+                raise Exception(
+                    "Gofile folder upload needs an API key — set it in /usersettings."
+                )
             if gCode := await self.upload_folder(path=file_path):
                 return f"https://gofile.io/d/{gCode}"
         if self.dluploader.is_cancelled:
@@ -201,7 +208,9 @@ class Gofile:
 
         async with ClientSession() as session:
             async with session.get(
-                url=f"{self.api_url}contents/{contentId}&token={self.token}&cache=true"
+                url=f"{self.api_url}contents/{contentId}",
+                params={"cache": "true"},
+                headers={"Authorization": f"Bearer {self.token}"},
             ) as resp:
                 return await self.__resp_handler(await resp.json())
 
