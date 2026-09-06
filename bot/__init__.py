@@ -529,8 +529,24 @@ EQUAL_SPLITS = EQUAL_SPLITS.lower() == 'true'
 MEDIA_GROUP = environ.get('MEDIA_GROUP', '')
 MEDIA_GROUP = MEDIA_GROUP.lower() == 'true'
 
-BASE_URL_PORT = environ.get('BASE_URL_PORT', '')
-BASE_URL_PORT = 80 if len(BASE_URL_PORT) == 0 else int(BASE_URL_PORT)
+def _parse_port(raw, name, default):
+    """Port config ko safely int me badlo. Galat value pe clear error + exit —
+    pehle import-time pe cryptic `ValueError: invalid literal for int()` aata tha."""
+    raw = (raw or '').strip()
+    if not raw:
+        return default
+    try:
+        port = int(raw)
+    except ValueError:
+        log_error(f"{name} must be an integer, got {raw!r}! Exiting now")
+        exit(1)
+    if not 1 <= port <= 65535:
+        log_error(f"{name} must be between 1 and 65535, got {port}! Exiting now")
+        exit(1)
+    return port
+
+
+BASE_URL_PORT = _parse_port(environ.get('BASE_URL_PORT'), 'BASE_URL_PORT', 80)
 
 BASE_URL = environ.get('BASE_URL', '').rstrip("/")
 if len(BASE_URL) == 0:
@@ -893,7 +909,11 @@ if ospath.exists('shorteners.txt'):
                 shorteners_list.append({'domain': temp[0],'api_key': temp[1]})
 
 # CI: gunicorn process hataya — web UI ab in-bot aiohttp (bot_loop ke baad start hota)
-PORT = environ.get('PORT')
+# D2 web server (file selector) ka source of truth BASE_URL_PORT hai. PORT sirf
+# Heroku router ke liye precedence rakhta hai. Pehle PORT hi gate tha, isliye VPS
+# pe BASE_URL_PORT set hone ke bawajood web server start hi nahi hota tha.
+PORT = _parse_port(environ.get('PORT'), 'PORT', 0)
+WEB_SERVER_PORT = PORT or BASE_URL_PORT
 
 bot_cache['pkgs'] = ['zetra', 'xon-bit', 'ggrof', 'cross-suck', 'zetra|xon-bit|ggrof|cross-suck']
 
@@ -1076,11 +1096,15 @@ bot_loop = bot.loop
 from concurrent.futures import ThreadPoolExecutor as _TPE
 bot_loop.set_default_executor(_TPE(max_workers=24, thread_name_prefix="sync"))  # sync_to_async thread-explosion guard
 
-# CI: in-bot web server (aiohttp) — gunicorn replacement, PORT Heroku router
-if PORT:
+# CI: in-bot web server (aiohttp) — gunicorn replacement.
+# Gate wahi hai jo bot_settings ke runtime path pe hai: PORT set ho (Heroku) ya
+# BASE_URL set ho (VPS/Docker). Dono na ho to server start nahi hota.
+if PORT or BASE_URL:
     try:
         from web.aio_wserver import start_web_server
-        bot_loop.create_task(start_web_server(int(PORT)))
+        log_info(f"Web server binding 0.0.0.0:{WEB_SERVER_PORT} "
+                 f"(source: {'PORT' if PORT else 'BASE_URL_PORT'})")
+        bot_loop.create_task(start_web_server(WEB_SERVER_PORT))
     except Exception as e:
         log_error(f"Web server start failed: {e}")
 

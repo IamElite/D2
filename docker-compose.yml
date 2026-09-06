@@ -1,18 +1,27 @@
 # ============================================================
 #  D2 — VPS / koi bhi Docker host ke liye
-#  Heroku pe iski zaroorat nahi (wahan platform khud manage karta hai).
+#  Heroku pe iski zaroorat nahi (wahan platform PORT khud set karta hai).
+#
+#  ⚠️ HAMESHA --env-file config.env ke saath chalao:
+#      docker compose --env-file config.env up -d --build
+#
+#     Yeh flag port-mapping interpolation ke liye zaroori hai. Bina iske
+#     compose ko BASE_URL_PORT nahi pata chalega aur neeche `:?` wala guard
+#     saaf error dekar ruk jaayega (chup-chaap galat port map nahi karega).
 #
 #  Pehli baar:
 #      cp .env.example config.env     # phir values bharo (config.env gitignored hai)
-#      docker compose up -d --build
+#      docker compose --env-file config.env up -d --build
 #
 #  Logs:     docker compose logs -f
-#  Update:   docker compose up -d --build     (ya bot me /restart)
+#  Update:   docker compose --env-file config.env up -d --build   (ya bot me /restart)
 #  Band:     docker compose down
 #
+#  Web server ka port sirf BASE_URL_PORT se decide hota hai — alag se PORT
+#  dene ki zaroorat nahi (bot/__init__.py: WEB_SERVER_PORT = PORT or BASE_URL_PORT).
+#
 #  ⚠️ Ek hi BOT_TOKEN ek hi jagah chalao. Heroku + VPS dono ek saath mat
-#     chalana — same token se Telegram pe duplicate replies aur task
-#     conflicts aayenge. Switch karte waqt purana instance pehle band karo.
+#     chalana — same token se duplicate replies aur task conflicts aayenge.
 #
 #  State MongoDB (DATABASE_URL) me hai, isliye host badalne pe settings,
 #  users, auto-rename aur DDL keys waise ke waise mil jaayenge.
@@ -33,22 +42,17 @@ services:
     # par crash/exit ke baad container wapas laane ke liye yeh zaroori hai.
     restart: unless-stopped
 
-    # config.env HOST pe padha jaata hai aur env vars ki tarah inject hota hai.
+    # config.env HOST pe padha jaata hai aur container me env vars ki tarah inject
+    # hota hai. Yahi bot ka source of truth hai — yahan `environment:` me PORT ya
+    # BASE_URL_PORT override MAT karna, warna config.env ignore ho jaayega.
     env_file:
       - config.env
 
-    environment:
-      # Heroku pe PORT platform set karta hai; yahan khud dena zaroori hai.
-      # bot/__init__.py:1080 -> `if PORT:` tabhi web server banta hai. PORT set
-      # na ho to web server hi nahi banega aur BASE_URL / rclone-serve links tootenge.
-      PORT: "8080"
-      # BASE_URL_PORT ka default 80 hai. Runtime pe /botsettings se BASE_URL
-      # badalne par server isi port pe rebind hota hai, isliye PORT ke barabar
-      # rakho — warna server port 80 pe chala jaayega.
-      BASE_URL_PORT: "8080"
-
     ports:
-      - "8080:8080"
+      # Host aur container dono BASE_URL_PORT pe — application isi pe bind karti hai.
+      # `:?` guard: BASE_URL_PORT na mile to compose clear error dekar ruk jaata hai
+      # (pehle wala 8080:8080 hardcode chup-chaap galat port map kar deta tha).
+      - "${BASE_URL_PORT:?BASE_URL_PORT set nahi mila. Chalao: docker compose --env-file config.env up -d --build}:${BASE_URL_PORT}"
 
     volumes:
       # Heroku pe disk ephemeral tha (~1 GB) — bade tasks wahin atakte the.
@@ -57,3 +61,8 @@ services:
 
     # Beech me download/upload chal raha ho to container turant kill na ho.
     stop_grace_period: 60s
+
+# NOTE: RCLONE_SERVE_PORT (default 8080) alag cheez hai — woh rclone serve ke liye
+# hai, D2 web server ke liye nahi. Agar RCLONE_SERVE_URL use karte ho to uska port
+# bhi yahan map karna padega. Aria2 RPC (6800) aur qBittorrent WebUI (8090) sirf
+# container ke andar use hote hain — inhe expose karne ki zaroorat nahi.

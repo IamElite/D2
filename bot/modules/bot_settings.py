@@ -14,7 +14,7 @@ from time import time
 from io import BytesIO
 from aioshutil import rmtree as aiormtree
 
-from .. import config_dict, user_data, DATABASE_URL, MAX_SPLIT_SIZE, list_drives_dict, categories_dict, aria2, GLOBAL_EXTENSION_FILTER, status_reply_dict_lock, Interval, aria2_options, aria2c_global, IS_PREMIUM_USER, download_dict, qbit_options, get_client, LOGGER, bot, extra_buttons, shorteners_list
+from .. import config_dict, user_data, DATABASE_URL, _parse_port, MAX_SPLIT_SIZE, list_drives_dict, categories_dict, aria2, GLOBAL_EXTENSION_FILTER, status_reply_dict_lock, Interval, aria2_options, aria2c_global, IS_PREMIUM_USER, download_dict, qbit_options, get_client, LOGGER, bot, extra_buttons, shorteners_list
 from ..helper.ext_utils.engine_lifecycle import ensure_qbit
 from ..helper.telegram_helper.message_utils import sendMessage, sendFile, editMessage, deleteMessage, update_all_messages
 from ..helper.telegram_helper.filters import CustomFilters
@@ -356,7 +356,10 @@ async def load_config():
         BASE_URL = ''
         await stop_web_server()
     else:
-        await restart_web_server(BASE_URL_PORT)
+        # PORT (Heroku router) set ho to wahi authoritative hai — warna server us
+        # port pe chala jaata jahan platform route hi nahi karta.
+        _port_override = _parse_port(environ.get('PORT'), 'PORT', 0)
+        await restart_web_server(_port_override or BASE_URL_PORT)
 
     UPSTREAM_REPO = environ.get('UPSTREAM_REPO', '')
     if len(UPSTREAM_REPO) == 0:
@@ -946,10 +949,13 @@ async def edit_variable(_, message, pre_message, key):
         if value not in ['b', 'i', 'u', 's', 'spoiler', 'code']:
             value = 'code'
     elif key == 'BASE_URL_PORT':
-        value = int(value)
+        # Khaali value pe purana value hi rehne do — warna 0 store ho kar server
+        # kisi random ephemeral port pe bind ho jaata.
+        value = _parse_port(value, 'BASE_URL_PORT', config_dict['BASE_URL_PORT'])
         if config_dict['BASE_URL']:
             from web.aio_wserver import restart_web_server
-            await restart_web_server(value)
+            # Boot jaisa hi rule: PORT (Heroku) precedence, warna BASE_URL_PORT.
+            await restart_web_server(_parse_port(environ.get('PORT'), 'PORT', 0) or value)
     elif key == 'EXTENSION_FILTER':
         fx = value.split()
         GLOBAL_EXTENSION_FILTER.clear()
