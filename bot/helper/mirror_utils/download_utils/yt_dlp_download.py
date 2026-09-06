@@ -43,6 +43,7 @@ def _detect_impersonate():
 
 
 _IMPERSONATE_TARGET = _detect_impersonate()
+_IMPERSONATE_WARNED = False
 
 
 def normalize_ydl_link(link):
@@ -107,9 +108,19 @@ def _content_length_size(url, headers=None):
 
 def add_impersonate(opts):
     """opts me impersonation add karo (agar available + user ne khud set na kiya ho)."""
+    global _IMPERSONATE_WARNED
     if _IMPERSONATE_TARGET is not None and 'impersonate' not in opts:
         opts = dict(opts)
         opts['impersonate'] = _IMPERSONATE_TARGET
+    elif _IMPERSONATE_TARGET is None and not _IMPERSONATE_WARNED:
+        # Without curl_cffi there are zero impersonate targets, and extractors that
+        # set require_impersonation (Dailymotion m3u8, CF-403 sites) then fail with
+        # a misleading "targets are available: firefox" error. Say why, once.
+        _IMPERSONATE_WARNED = True
+        LOGGER.warning('yt-dlp impersonation UNAVAILABLE (curl_cffi missing) — sites '
+                       'needing a TLS fingerprint (Dailymotion, CF-403) will fail. '
+                       'A restart is not enough: rebuild the image so requirements.txt '
+                       'installs curl-cffi.')
     return opts
 
 
