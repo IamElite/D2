@@ -2020,3 +2020,35 @@ Matlab "friendly" message `"StreamTape Login & Key not Found, Kindly Recheck !"`
 **VERIFIED (real `__upload_to_ddl` chala ke, stubbed Gofile/Streamtape):** `onlylogin`/`a:b:c`/``/`:`/`login:` → sab **friendly Exception** ✅; `login123:key456` → upload OK ✅; regression — gofile only, gofile+streamtape dono sahi, kuch enabled nahi (`No DDL Enabled to Upload.`) → sab sahi ✅; py3.10.12 **109/109 PASS**.
 **NOT VERIFIED:** real StreamTape API pe actual upload (sandbox me credentials nahi), Telegram `/usersettings` UI flow.
 **Note (deliberately chhoda):** agar gofile succeed ho jaaye aur streamtape fail ho, to poora upload error maana jaata hai aur gofile ka link **discard** ho jaata hai. Yeh behaviour change hai (partial-success reporting), isliye bina aapke confirm kiye touch nahi kiya — bolo to kar dunga.
+
+### 260905-N — VPS hosting support: docker-compose.yml + .env.example (code me zero change)
+**Git:** `4719286`  
+**Date:** 2026-09-06  
+**OLD:** 260905-M  
+**Files:** `docker-compose.yml` (new, 63 lines), `.env.example` (new, 62 lines)
+
+**User:** dost ne 1 month ka VPS diya; Heroku pe speed drop ho rahi hai; ek hi repo **VPS aur Heroku dono** pe smoothly chale, kaam kabhi na ruke.
+
+**Audit — repo pehle se host-agnostic hai (verify kiya, assume nahi):**
+- `DYNO`/`heroku`/`ephemeral` ka koi **code nahi** — sirf 2 comments (`bot_utils.py:592`, `yt_dlp_download.py:319`)
+- Standard `Dockerfile` + `ENTRYPOINT ["bash","start.sh"]`; base `python:3.11.9-slim-bookworm`
+- Saara state **MongoDB (`DATABASE_URL`)** me ⇒ host switch pe settings/users/auto-rename/DDL keys survive
+- `/restart` = **`osexec`** (`bot/__main__.py:106`) — in-place, platform restart ki zaroorat nahi
+- `config.env` supported (`bot/__init__.py:141` `load_dotenv(..., override=True)`) aur `.gitignore:1` me already ignored
+- `/usr/src/app` 5 jagah hardcoded (`__init__.py:271,916`, `engine_lifecycle.py:34`, `bot_settings.py:37,84`) — image ka `WORKDIR` bhi wahi hai ⇒ **problem nahi** (sirf Docker ke bahar chalane pe hoti)
+
+**Compose me jo 5 cheezein handle ki (sab code se verify karke):**
+1. **`restart: unless-stopped`** — Heroku dyno crash pe khud restart karta hai, Docker ko bolna padta hai
+2. **`PORT`** — `bot/__init__.py:896` `PORT = environ.get('PORT')`, `:1080` `if PORT:` ⇒ **PORT set na ho to web server hi nahi banta**. Heroku pe platform deta hai, VPS pe khud dena zaroori
+3. **`BASE_URL_PORT` = `PORT`** — ⚠️ gotcha: iska default **80** hai (`:533`) aur runtime pe `/botsettings` se BASE_URL badalne par `restart_web_server(BASE_URL_PORT)` (`bot_settings.py:359`) isi pe rebind karta hai. Match na ho to server port 80 pe chala jaata
+4. **`./downloads` volume** — Heroku ephemeral ~1 GB tha (30 GB wale task pe yahin atake the)
+5. **`env_file: config.env`** — host pe padha jaata hai, image me secrets bake nahi hote
+
+**`.env.example`:** 22 vars. **Sab 22 naam `bot/__init__.py` ke `environ.get()` se cross-check kiye — 0 unknown.** Poore ~132 vars hain; sirf zaroori + deploy-critical daale, baaki `/botsettings`/`help_messages.py` me documented.
+
+**VERIFIED:** YAML parse OK (saari keys sahi), 22/22 env var names repo me maujood, `git check-ignore` → `.env.example` **ignored nahi** (commit ho sakta hai) + `config.env` **ignored hai** ✅, py3.10.12 full-repo **109/109 PASS**.
+**NOT VERIFIED:** actual `docker compose up` (sandbox me Docker daemon nahi), VPS pe live run.
+
+**⚠️ Jo deliberately NAHI kiya — `.dockerignore` add nahi kiya.** Repo me `.dockerignore` **hai hi nahi**, isliye `COPY . .` se `config.env`, `.git`, `accounts/` (GDrive service accounts), `token.pickle`, `.netrc` sab **image me bake** ho jaate hain. Yeh security ke liye theek nahi, par `.dockerignore` me credential files daalne se **GDrive toot jaayega** (unless runtime pe mount kiye jaayein). Yeh behaviour change hai — isliye bina aapke confirm kiye touch nahi kiya. Bolo to `.dockerignore` + runtime mounts ke saath properly kar dunga.
+
+**⚠️ User ko bataya:** ek hi `BOT_TOKEN` **ek hi jagah** chalao — Heroku + VPS dono ek saath = duplicate replies + task conflicts. Switch pe purana pehle band.
