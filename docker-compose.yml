@@ -1,0 +1,59 @@
+# ============================================================
+#  D2 — VPS / koi bhi Docker host ke liye
+#  Heroku pe iski zaroorat nahi (wahan platform khud manage karta hai).
+#
+#  Pehli baar:
+#      cp .env.example config.env     # phir values bharo (config.env gitignored hai)
+#      docker compose up -d --build
+#
+#  Logs:     docker compose logs -f
+#  Update:   docker compose up -d --build     (ya bot me /restart)
+#  Band:     docker compose down
+#
+#  ⚠️ Ek hi BOT_TOKEN ek hi jagah chalao. Heroku + VPS dono ek saath mat
+#     chalana — same token se Telegram pe duplicate replies aur task
+#     conflicts aayenge. Switch karte waqt purana instance pehle band karo.
+#
+#  State MongoDB (DATABASE_URL) me hai, isliye host badalne pe settings,
+#  users, auto-rename aur DDL keys waise ke waise mil jaayenge.
+# ============================================================
+
+services:
+  bot:
+    build:
+      context: .
+      # MEGA credentials use nahi karte to yeh uncomment karo — build 10-15 min tez:
+      # args:
+      #   WITH_MEGA: "0"
+    image: d2-bot:latest
+    container_name: d2-bot
+
+    # Heroku dyno crash pe khud restart kar deta hai; Docker ko bolna padta hai.
+    # /restart command ise zaroorat nahi (woh osexec se in-place restart hota hai),
+    # par crash/exit ke baad container wapas laane ke liye yeh zaroori hai.
+    restart: unless-stopped
+
+    # config.env HOST pe padha jaata hai aur env vars ki tarah inject hota hai.
+    env_file:
+      - config.env
+
+    environment:
+      # Heroku pe PORT platform set karta hai; yahan khud dena zaroori hai.
+      # bot/__init__.py:1080 -> `if PORT:` tabhi web server banta hai. PORT set
+      # na ho to web server hi nahi banega aur BASE_URL / rclone-serve links tootenge.
+      PORT: "8080"
+      # BASE_URL_PORT ka default 80 hai. Runtime pe /botsettings se BASE_URL
+      # badalne par server isi port pe rebind hota hai, isliye PORT ke barabar
+      # rakho — warna server port 80 pe chala jaayega.
+      BASE_URL_PORT: "8080"
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      # Heroku pe disk ephemeral tha (~1 GB) — bade tasks wahin atakte the.
+      # VPS pe persist karo; container recreate hone pe bhi downloads bache rahenge.
+      - ./downloads:/usr/src/app/downloads
+
+    # Beech me download/upload chal raha ho to container turant kill na ho.
+    stop_grace_period: 60s
