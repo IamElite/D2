@@ -97,10 +97,14 @@ class DDLUploader:
                     all_links['GoFile'] = nlink
                 if serv == 'streamtape':
                     self.__engine = 'StreamTape API'
-                    try:
-                        login, key = api_key.split(':')
-                    except IndexError:
+                    # except IndexError yahan kabhi kaam nahi karta: split() hamesha
+                    # list deta hai, aur galat format pe unpack ValueError deta hai
+                    # ("not enough values to unpack"), IndexError nahi. Isliye
+                    # validate karo, exception pakadne ki koshish mat karo.
+                    parts = (api_key or '').split(':')
+                    if len(parts) != 2 or not parts[0] or not parts[1]:
                         raise Exception("StreamTape Login & Key not Found, Kindly Recheck !")
+                    login, key = parts
                     nlink = await Streamtape(self, login, key).upload(file_path)
                     all_links['StreamTape'] = nlink
                 self.__processed_bytes = 0
@@ -124,7 +128,8 @@ class DDLUploader:
                 return
             LOGGER.info(f"Uploaded To DDL: {item_path}")
         except Exception as err:
-            LOGGER.info("DDL Upload has been Cancelled")
+            # Pehle har error "Cancelled" log hota tha, jisse asli wajah chhup jaati thi.
+            LOGGER.info(f"DDL Upload Failed: {err}")
             if self.__asyncSession:
                 await self.__asyncSession.close()
             err = str(err).replace('>', '').replace('<', '')

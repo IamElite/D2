@@ -472,6 +472,13 @@ async def set_custom(client, message, pre_event, key, direct=False):
         mode, api = ddl_dict.get(key, [False, ""])
         if key == "gofile" and not await Gofile.is_goapi(value):
             value = ""
+        elif key == "streamtape":
+            # Gofile ki tarah save-time pe validate karo: streamtape ko "login:key"
+            # chahiye. Bina validation ke galat key save ho jaati thi aur upload
+            # pe ValueError crash hota tha.
+            parts = value.split(':')
+            if len(parts) != 2 or not parts[0] or not parts[1]:
+                value = ""
         ddl_dict[key] = [mode, value]
         value = ddl_dict
         n_key = 'ddl_servers'
