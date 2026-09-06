@@ -2161,3 +2161,52 @@ Doosri chhoti bug: `int(BASE_URL_PORT)` galat value pe import-time pe cryptic `V
 4. `bot/modules/bot_settings.py:709` — `'HELPER_TOKENS': HELPER_TOKENS` (`load_config()` ke andar, `config_dict.update({...})`), par `HELPER_TOKENS` `bot_settings.py:18` ke import me nahi (defined at `bot/__init__.py:695`). `load_config()` `bot/__init__.py`/`__main__.py` se call nahi hota (grep se confirm), isliye boot crash nahi — par jis path se bhi chalega wahan NameError.
 
 **Scan tool:** `/tmp/undefcheck.py` (repo ke bahar). False positives (`except ... as e`) hatane ke liye `ExceptHandler.name` handle karna zaroori hai.
+
+### 260905-R — `Invalid range header` se task mar jaate the: `enable-http-pipelining=true`
+**Git:** `cdee816`  
+**Date:** 2026-09-06  
+**OLD:** 260905-Q  \
+**Files:** `a2c.conf` (+8/−1 — 1 line change + comment)
+
+**User (production log, `260905-Q` deploy ke baad):** NameError **gayab** (fix kaam kar gaya), par task ab yeh error de kar mar raha tha:
+`Download Error: Invalid range header. Request: 309329920-310378495/447993945, Response: 0-447993944/447993945` (gdflix → `video-downloads.googleusercontent.com` link, aria2 gid, 1 sec me fail). Yeh error `260905-P` wale log me bhi tha — NameError ke saath dab gaya tha, naya nahi hai.
+
+**MERI PEHLI HYPOTHESIS GALAT THI — aur test ne pakda.** Maine pehle socha culprit `split=16 / max-connection-per-server=16 / min-split-size=1M` (260904-CK throughput overlay) hai, kyunki error ka range exactly 1 MB chunk tha (`310378495 − 309329920 = 1048575`). **Real aria2c se test kiya to `split=1 --max-connection-per-server=1` pe BHI wahi failure aaya.** Agar test na karta to galat fix ship kar deta.
+
+**ASLI ROOT CAUSE — `enable-http-pipelining=true` (`a2c.conf:27`, commit `10e2c8a` se).**
+Pipelining me aria2 ek hi connection par **kai Range requests pipeline** karta hai. Jo server Range theek se handle nahi karta woh **poori file** bhej deta hai ⇒ aria2 ka Content-Range check fail ⇒ `Invalid range header` ⇒ **exit code 8**, task dead. `split`/`max-connection-per-server` ka isme koi role nahi.
+
+**VERIFIED — real `aria2c 1.37.0` (apt se install), local HTTP server jo prod jaisa behave kare:**
+Server ke 3 modes — `wrong206` (206 + galat full `Content-Range: bytes 0-(N-1)/N`, **prod log se exact match**), `plain200` (Range pura ignore), `honest` (Range sahi). Payload 8 MB, sha256 se integrity verify.
+
+Bisect (sab me `--split=1 --max-connection-per-server=1`, upar repo ki `a2c.conf` HTTP/retry lines):
+| toggle | result | requested range |
+|---|---|---|
+| baseline (repo conf) | **FAILED rc=8** | `0-1048575` |
+| `enable-http-pipelining=false` | **OK+VERIFIED** | none |
+| `continue=false` | FAILED rc=8 | `0-1048575` |
+| `always-resume=false` | FAILED rc=8 | `0-1048575` |
+| `continue+always-resume=false` | FAILED rc=8 | `0-1048575` |
+| `min-split-size=8M` | FAILED rc=8 | `0-1048575` |
+| `piece-length=8M` | OK+VERIFIED | none (poori file ek piece ⇒ koi ranged request nahi) |
+| `http-accept-gzip=false` | FAILED rc=8 | `0-1048575` |
+| `reuse-uri=false` | FAILED rc=8 | `0-1048575` |
+
+**Prod config (`split=16/conn=16`) ke saath final matrix:**
+| server | pipelining=true | pipelining=**false** |
+|---|---|---|
+| `wrong206` | **FAILED rc=8** | **OK+VERIFIED** |
+| `plain200` | **FAILED rc=8** | **OK+VERIFIED** |
+| `honest` | OK+VERIFIED | OK+VERIFIED |
+
+**Shipped `a2c.conf` khud se end-to-end** (sirf daemon/rpc/port lines hataayi, baaki verbatim — `enable-http-pipelining=false`, `split=16`, `conn=16`, `min-split-size=1M` sab intact): teeno server modes → **OK+VERIFIED, sha256 match, 8388608 bytes, koi range error nahi.**
+
+**FIX:** `a2c.conf` me `enable-http-pipelining=false`. Bas itna hi.
+- **`__init__.py` kyun nahi chheda:** `enable-http-pipelining` `aria2c_global` list (`__init__.py:979`) me **nahi** hai, aur Mongo-restore branch sirf usi list ke keys apply karta hai (`a2c_glo = {op: aria2_options[op] for op in aria2c_global ...}`) ⇒ **DB is option ko override hi nahi kar sakta**. `a2c.conf` hi source of truth hai, aur `engine_lifecycle.py:34` use `--conf-path=/usr/src/app/a2c.conf` se load karta hai. Repo-wide grep: yeh option sirf isi ek jagah set hota hai.
+- **Throughput ka nuksaan:** aria2 ka apna default `false` hai (`aria2c --help=#http`), aur 16 connections/splits waise hi barkaraar hain. **NOT VERIFIED:** real-world throughput delta — localhost pe 8 MB instant complete hota hai (0.00s) to koi meaningful measurement nahi mil sakti.
+
+**NOT VERIFIED:** asli `video-downloads.googleusercontent.com` URL (time-limited, expire ho chuka) — uska exact behaviour test nahi kar saka. Maine uske **do** plausible misbehaviour (`wrong206`, `plain200`) reproduce karke dono pe fix verify kiya, aur prod log ka `Response: 0-(N-1)/N` pattern `wrong206` se exactly match karta hai.
+
+**Test harness:** `/tmp/rangetest/` (`srv2.py`, `bisect.sh`, `final.sh`, `realconf.sh`) — repo ke bahar. **Gotcha:** `pkill -f srv2.py` apne hi bash process ko maar deta hai (pattern khud ki command line me hota hai) ⇒ `pkill -f 'srv[2][.]py'` use karo. **Gotcha 2:** `cd X && cmd &` poora chain background kar deta hai, aage ke commands purani cwd me chalte hain ⇒ absolute paths ya script file.
+
+**Abhi bhi khula (260905-Q me report kiye the, fix nahi kiye):** `clone.py` me `bot_cache` import missing (har rclone clone crash), `clone.py:242` `cmd_txt` undefined, `leech_utils.py:46` `json` import missing (MP4 remux ka bitmap-sub/title-fold silently dead), `bot_settings.py:709` `HELPER_TOKENS` import missing.
