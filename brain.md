@@ -2210,3 +2210,60 @@ Bisect (sab me `--split=1 --max-connection-per-server=1`, upar repo ki `a2c.conf
 **Test harness:** `/tmp/rangetest/` (`srv2.py`, `bisect.sh`, `final.sh`, `realconf.sh`) — repo ke bahar. **Gotcha:** `pkill -f srv2.py` apne hi bash process ko maar deta hai (pattern khud ki command line me hota hai) ⇒ `pkill -f 'srv[2][.]py'` use karo. **Gotcha 2:** `cd X && cmd &` poora chain background kar deta hai, aage ke commands purani cwd me chalte hain ⇒ absolute paths ya script file.
 
 **Abhi bhi khula (260905-Q me report kiye the, fix nahi kiye):** `clone.py` me `bot_cache` import missing (har rclone clone crash), `clone.py:242` `cmd_txt` undefined, `leech_utils.py:46` `json` import missing (MP4 remux ka bitmap-sub/title-fold silently dead), `bot_settings.py:709` `HELPER_TOKENS` import missing.
+
+### 260905-S — `260905-R` kaam nahi kiya: stale Mongo `settings.aria2c` per-download option se `a2c.conf` ko override kar raha tha
+**Git:** `5db2c85`  
+**Date:** 2026-09-07  
+**OLD:** 260905-R  \
+**Files:** `bot/helper/mirror_utils/download_utils/aria2_download.py` (+10/−0 — 1 code line + comment)
+
+**User (production log, `260905-R` deploy ke BAAD):** wahi error phir aaya — `Download Error: Invalid range header. Request: 421527552-422576127/447993945, Response: 0-447993944/447993945`. User: *"ap sahi se bypass nhi kar rahe ho"*.
+
+**MERI VERIFICATION ME GAP THI.** `260905-R` maine **CLI mode** (`aria2c --conf-path=...`) me test kiya tha. Bot aria2 ko **RPC daemon** mode me chalata hai (`__init__.py:936` → `daemon=true`, `engine_lifecycle.py:34` same) aur downloads `aria2.add(uri, options)` se add karta hai. CLI test RPC path cover hi nahi karta tha.
+
+**ASLI ROOT CAUSE — `aria2_download.py:139-140`:**
+```python
+a2c_opt = {**aria2_options}
+[a2c_opt.pop(k) for k in aria2c_global if k in aria2_options]
+```
+Bot **saare global options ko per-download options bana kar** `aria2.add()` ko bhejta hai, sirf `aria2c_global` (13 keys) wale hata kar. **`enable-http-pipelining` us 13-key list me NAHI hai** (verify kiya) ⇒ woh `a2c_opt` me bach jaata hai aur har download pe explicitly pass hota hai.
+
+Aur `aria2_options` kahan se aata hai — `__init__.py:212-214`:
+```python
+if a2c_options := db.settings.aria2c.find_one({'_id': bot_id}):
+    aria2_options = a2c_options
+```
+**Mongo ka `settings.aria2c` collection.** Jo `db_load()` (`db_handler.py:32-33`) **sirf EK baar seed karta hai**:
+```python
+if await self.__db.settings.aria2c.find_one({'_id': bot_id}) is None:
+    await ...update_one({'_id': bot_id}, {'$set': aria2_options}, upsert=True)
+```
+⇒ **`a2c.conf` badalne se Mongo ka purana copy KABHI update nahi hota.** Usme `enable-http-pipelining: 'true'` baitha tha, aur woh har download pe explicitly jaata tha.
+
+Note: `_a2_boost` overlay (`__init__.py:1014-1030`) sirf **daemon** pe `set_global_options` karta hai — Python-side `aria2_options` dict update nahi karta. Isliye overlay bhi isse nahi bachata. Daemon ka apna global value sahi tha (`getGlobalOption()` → `'false'`); sirf **per-download** path toota hua tha.
+
+**VERIFIED — real `aria2c 1.37.0` RPC daemon + `aria2p`, stale Mongo simulate karke:**
+`a2c.conf` = patched (`enable-http-pipelining=false`), `aria2_options` = daemon ke global options + `enable-http-pipelining='true'` (jo purana Mongo seed rakhta hai). Option-building ki **asli lines file se nikaal kar** exec kiye.
+
+| trial | pipelining sent | result |
+|---|---|---|
+| **BEFORE 260905-S** (sirf a2c.conf fix) | `'true'` | **FAILED** — `Invalid range header. Request: 7340032-8388607/8388608, Response: 0-8388607/8388608` (**exact prod error format**) |
+| **AFTER 260905-S** | `'false'` | **OK+VERIFIED** (sha256 match) |
+| `ARIA2_PIPELINING=true` (escape hatch) | `'true'` | FAILED (env var sahi wired hai — proof) |
+
+Aur pehle, is se pehle ka decisive test — **per-download option conf ko override karta hai ya nahi:**
+| trial | effective | result |
+|---|---|---|
+| conf=`false`, koi override nahi | `'false'` | OK+VERIFIED |
+| conf=`false`, per-download=`'true'` | `'true'` | **FAILED** |
+| conf=`false`, per-download=`'false'` | `'false'` | OK+VERIFIED |
+
+**FIX:** `a2c_opt['enable-http-pipelining'] = environ.get('ARIA2_PIPELINING', 'false')` — `a2c_opt` banne ke turant baad. Yeh **single place** hai jahan per-download options assemble hote hain, isliye stale Mongo / overlay / profile — kisise bhi affect nahi hota. Escape hatch: `ARIA2_PIPELINING=true`.
+`a2c.conf` ka `260905-R` wala change bhi barkaraar hai (source-of-truth default + daemon global), bas akela kaafi nahi tha.
+
+- py3.10.12 full-repo **109/109 PASS**
+**NOT VERIFIED:** live dyno/VPS pe actual gdflix task; asli `video-downloads.googleusercontent.com` URL (expired). Local reproduction prod error se exact match karta hai.
+
+**SYSTEMIC ISSUE (report kiya, fix nahi kiya):** yeh mechanism **har us aria2 option** pe lagta hai jo `aria2c_global` (13 keys) me nahi hai — Mongo ka purana `settings.aria2c` un sab ko per-download force karta hai, aur `db_load()` use kabhi refresh nahi karta. `a2c.conf` ya overlay se woh options change nahi honge. Permanent fix ya to `db_load()` ko `settings.aria2c` refresh karna chahiye, ya `aria2_options` ko boot pe daemon se re-read karna.
+
+**Test harness:** `/tmp/rangetest/rpctest2.sh`, `/tmp/rangetest/verify_fix.sh` (repo ke bahar). **Gotcha:** `aria2p` ke is version me `Client.add` nahi hai (`api.add_uris()` use karo) aur `add_uris()` **list nahi, single `Download`** deta hai.
