@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 from threading import Thread
 from base64 import b64decode
 from json import loads
@@ -107,6 +108,11 @@ debrid_link_sites = ["1dl.net", "1fichier.com", "alterupload.com", "cjoint.net",
                 "yahoo.com", "screen.yahoo.com", "news.yahoo.com", "sports.yahoo.com", "video.yahoo.com", "youporn.com"]
 
 
+# GDFlix rotates both the subdomain (new.gdflix.io, new1..new19.gdflix.net, ...) and
+# the TLD (.io/.net/.dev/.com/.icu/.cc) whenever Google flags one, so never match a
+# single host: accept the brand label under any subdomain and any TLD.
+GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
+
 def direct_link_generator(link):
     auth = None
     if isinstance(link, tuple):
@@ -133,6 +139,8 @@ def direct_link_generator(link):
         return github(link)
     elif 'sourceforge.net' in domain:
         return sourceforge(link)
+    elif GDFLIX_HOST.search(domain or ''):
+        return gdflix(link)
     elif 'hxfile.co' in domain:
         return hxfile(link)
     elif '1drv.ms' in domain:
@@ -703,6 +711,36 @@ def sourceforge(url):
                           headers={'Referer': url}, allow_redirects=False)
     if not (durl := res.headers.get('location', '')):
         raise DirectDownloadLinkException('ERROR: File Not Found')
+    return durl
+
+
+def gdflix(url):
+    """GDFlix direct link. Cloudflare serves a challenge to anything but a real
+    browser fingerprint, so curl-cffi impersonation is load-bearing here
+    (cloudscraper gets HTTP 403). Verified live: 96 MB mkv, HTTP 200."""
+    if '/pack/' in url:
+        raise DirectDownloadLinkException(
+            'ERROR: GDFlix pack (multi-file) links are not supported yet — send a /file/ link.')
+    try:
+        from curl_cffi.requests import Session as CurlSession
+    except ImportError as e:
+        raise DirectDownloadLinkException(
+            'ERROR: curl-cffi missing — rebuild the image so requirements.txt installs it') from e
+    with CurlSession(impersonate='chrome') as session:
+        res = session.get(url, timeout=30)
+        if res.status_code == 403:
+            raise DirectDownloadLinkException(
+                'ERROR: GDFlix Cloudflare challenge — link may be dead or the domain rotated.')
+        instant = HTML(res.text).xpath("//a[contains(@href, 'instant')]/@href")
+        if not instant:
+            raise DirectDownloadLinkException('ERROR: GDFlix instant download link not found')
+        res = session.get(instant[0], allow_redirects=False, timeout=30)
+        loc = (res.headers.get('location') or '').strip()
+    if not loc:
+        raise DirectDownloadLinkException('ERROR: GDFlix file not found or expired')
+    durl = parse_qs(urlparse(loc).query).get('url', [loc])[0]
+    if not durl.startswith('http'):
+        raise DirectDownloadLinkException('ERROR: GDFlix returned an unusable link')
     return durl
 
 
