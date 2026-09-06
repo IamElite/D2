@@ -1835,3 +1835,26 @@ qBit 30GB task + 120 connections pe busy ho to har HTTP round-trip seconds leta 
 **NOT verified:** real dyno pe lag khatam hua ya nahi (bot-level, user run). Agar abhi bhi lage to agli suspect list: `STATUS_UPDATE_INTERVAL=2` (bot_settings default) + extract/metadata status ka per-tick full-tree walk (8 baar per tick — `get_readable_message` me `progress()` 2 baar call hota hai), aur wzgram `rate_limit=300/pool_size=14` + `max_concurrent_transmissions=16` ka loop CPU load.
 
 **Pending (user se info chahiye):** Auto-rename naya parameter apply nahi kar raha. Code padhne se ek confirmed baat mili: **auto-rename sirf Leech pe lagta hai, Mirror/GDrive pe kabhi nahi** (`format_filename(..., isMirror=True)` → `get_autorename` skip). Baaki exact wajah pin nahi kar paya — guess nahi kar raha.
+
+### 260905-H — Dailymotion "impersonate targets not available: firefox" = curl_cffi dyno pe missing
+**Git:** `38f4105`  
+**Date:** 2026-09-05  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` (`add_impersonate`), `requirements.txt`
+
+**User error:** `/yl https://dai.ly/k58O461c1Bo6VtJtxpQ` → `ERROR: [dailymotion] ... The extractor is attempting impersonation, but none of these impersonate targets are available: firefox`
+
+**Root cause:** `curl-cffi` requirements.txt me **`962cc2c` (260902-BH)** me aaya — initial commit me tha hi nahi. Aur **`update.py` sirf git pull + restart karta hai, `pip install` nahi** (260902-AA). Matlab jis dyno ka image 260902-BH se pehle bana tha aur tab se sirf restart hua hai, usme **curl_cffi install hi nahi hua** → yt-dlp ke paas **zero** impersonate targets.
+
+Error "firefox" isliye dikhta hai kyunki `yt_dlp/extractor/dailymotion.py:372-395` m3u8 ke liye 3 strategies try karta hai — (1) randomized headers, (2) `impersonate='chrome'` + `require_impersonation=True`, (3) `impersonate='firefox'` + `require_impersonation=True`. Teeno fail hone pe **aakhri** error propagate hota hai = firefox. Matlab "firefox" asli wajah nahi, sirf last fallback tha.
+
+**Rule-out (test karke):** purana curl-cffi theory **galat** — firefox targets yt-dlp ke sab supported versions me hain (0.10.0 → `firefox-133/135`, 0.11.0, 0.13.0, 0.16.3 → `firefox-144/147` bhi). Sandbox me `ImpersonateTarget('firefox')` theek resolve hota hai.
+
+**PROOF (live):** curl_cffi 0.16.3 + yt-dlp 2026.8.19 ke saath **wahi URL** sandbox me chala → `AX A Good Day to Ascend Ep 10 Eng`, duration 1182s, **7 formats**. Matlab extractor theek hai, sirf dependency missing hai.
+
+**Fix (2 changes):**
+1. `add_impersonate()` ab **ek baar loud warning** deta hai jab impersonation unavailable ho (pehle `_detect_impersonate()` chup-chaap `None` return karta tha — isliye kisi ko pata hi nahi chala). Message saaf batata hai: *restart kaafi nahi, image rebuild karo*.
+2. `requirements.txt`: `curl-cffi` → **`curl-cffi>=0.10,<0.17`** pin (yt-dlp 0.5.10 + 0.10.x–0.16.x support karta hai; chrome+firefox targets 0.10 se maujood).
+
+**VERIFIED:** shipped `add_impersonate` body `ast` se chalaya — target available → impersonate set + no warning ✅; target missing → **1** warning ✅; dobara call → silent (spam nahi) ✅; baaki opts intact ✅. Live dailymotion extraction ✅. py3.10.12 full-repo **109/109 PASS**.
+
+**USER ACTION ZAROORI (code se yeh theek nahi hoga):** dyno pe **full redeploy** chahiye — sirf restart se `pip install` nahi chalega. Heroku pe naya build trigger karo (empty commit push ya dashboard se rebuild), tabhi `curl-cffi` install hoga. Verify: boot ke baad `/yl` dailymotion link chalao; agar warning log me `yt-dlp impersonation UNAVAILABLE` aaye to abhi bhi missing hai.
