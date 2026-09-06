@@ -1986,3 +1986,37 @@ GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
 
 **Deliberately NAHI kiya:** `if eng == "qbit"` branch wapas nahi laya — woh `8eabad8` ("Aria2 handles .torrent URL and file, not yt-dlp") me **jaan-boojh ke** hataya gaya tha. Bina user confirm kiye purana decision palatna galat hota. Agar magnet/torrent → qBit chahiye to bolo.
 **NOT VERIFIED:** real bot pe `/mirror <dai.ly link>` end-to-end (sandbox me Telegram login nahi).
+
+### 260905-M — DDL upload crash fix: StreamTape key (except IndexError kabhi kaam hi nahi karta)
+**Git:** `90407fa`  
+**Date:** 2026-09-06  
+**OLD:** 260905-L  
+**Files:** `bot/helper/mirror_utils/upload_utils/ddlEngine.py` (+9/−4), `bot/modules/users_settings.py` (+7)
+
+**Source:** user ne production log diya (`https://batbin.me/hypogeous`). Log line 3 se confirm hua dyno **`8fa42e7` (260905-K) chala raha hai** — matlab gofile upload fix live hai. Crash **gofile me nahi, StreamTape path me** tha:
+```
+File ".../ddlEngine.py", line 120, in upload        -> link = await self.__upload_to_ddl(item_path)
+File ".../ddlEngine.py", line 101, in __upload_to_ddl -> login, key = api_key.split(':')
+ValueError: not enough values to unpack (expected 2, got 1)
+```
+Line numbers (`101`, `120`) humare current file se **exactly match** kiye — same code.
+
+**Root cause:** `except IndexError` **kabhi kaam hi nahi karta**. `str.split(':')` hamesha list deta hai, isliye IndexError kabhi aata hi nahi; galat format pe **unpack `ValueError`** deta hai. Reproduce kiya:
+| key | purana behaviour |
+|---|---|
+| `'onlylogin'` | **ValueError: not enough values** — NOT caught ❌ |
+| `'a:b:c'` | **ValueError: too many values** — NOT caught ❌ |
+| `''` | **ValueError** — NOT caught ❌ |
+| `'login:key'` | OK ✅ |
+Matlab "friendly" message `"StreamTape Login & Key not Found, Kindly Recheck !"` **kabhi bhi show nahi hota tha** — hamesha raw traceback.
+
+**Doosri wajah:** `users_settings.set_custom` me **gofile ke liye save-time validation hai** (`if not await Gofile.is_goapi(value): value = ""`) par **streamtape ke liye koi validation nahi tha** — isliye bina `:` wala key chup-chaap save ho gaya.
+
+**Fix (3 jagah):**
+1. `ddlEngine.__upload_to_ddl` — exception pakadne ke bajaye **validate** karo: `parts = (api_key or '').split(':')`; `len(parts) != 2 or not parts[0] or not parts[1]` → clear message
+2. `ddlEngine.upload` — `LOGGER.info("DDL Upload has been Cancelled")` har error pe chalta tha (asli wajah chhup jaati thi) → `f"DDL Upload Failed: {err}"`
+3. `users_settings.set_custom` — gofile jaisa hi **save-time validation** streamtape ke liye bhi
+
+**VERIFIED (real `__upload_to_ddl` chala ke, stubbed Gofile/Streamtape):** `onlylogin`/`a:b:c`/``/`:`/`login:` → sab **friendly Exception** ✅; `login123:key456` → upload OK ✅; regression — gofile only, gofile+streamtape dono sahi, kuch enabled nahi (`No DDL Enabled to Upload.`) → sab sahi ✅; py3.10.12 **109/109 PASS**.
+**NOT VERIFIED:** real StreamTape API pe actual upload (sandbox me credentials nahi), Telegram `/usersettings` UI flow.
+**Note (deliberately chhoda):** agar gofile succeed ho jaaye aur streamtape fail ho, to poora upload error maana jaata hai aur gofile ka link **discard** ho jaata hai. Yeh behaviour change hai (partial-success reporting), isliye bina aapke confirm kiye touch nahi kiya — bolo to kar dunga.
