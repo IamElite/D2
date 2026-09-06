@@ -1923,3 +1923,37 @@ GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
 **VERIFIED:** shipped `gdflix()` body `ast` se chala ke (96,005,750 B), `/pack/` error, `GDFLIX_HOST` routing 16 cases, regression check (`sourceforge` WORKING 206/1,863,192 B, `gofile` clear error), py3.10.12 full-repo **109/109 PASS**.
 **NOT VERIFIED:** `/pack/` multi-file (link nahi), gcloud.cyou (token expired), filepress (challenge).
 **Note:** `genlab.py` harness ka `get()` pehle `FunctionType(compile(...))` use kar raha tha → `TypeError: <module>() takes 0 positional arguments`. Fix: `exec` the def into a fresh locals dict with `ns` as globals.
+
+### 260905-K — Gofile UPLOAD fix: cryptic crashes, destructive rename, token gate (verified live upload)
+**Git:** `4b725f2`  
+**Date:** 2026-09-06  
+**OLD:** 260905-J  
+**Files:** `bot/helper/mirror_utils/upload_utils/ddlEngine.py` (+22/−7), `bot/helper/mirror_utils/upload_utils/ddlserver/gofile.py` (+22/−17)
+
+**User:** gofile pe upload me bahut dikkat; WZML-X `wzv3` ka gofile uploader sahi hai, uske according fix karo.
+
+**⚠️ Pehle assumption galat nikla — verify karne se bacha.** Maine socha wzv3 ka endpoint naya hai (wzv3 `/uploadfile`, humara `/contents/uploadfile`). **Live test: DONO 200 dete hain**, dono auth styles (`?token=` form aur `Bearer` header) bhi dono 200, `createFolder` camelCase aur lowercase bhi dono 200, `/update` form aur json bhi dono 200. ⇒ **endpoint/auth bug tha hi nahi**; blind port karta to kuch theek na hota.
+
+**Asli bugs — sab REAL shipped code chala ke prove kiye (`/tmp/uplab.py`, repo ke bahar):**
+
+| # | bug | purana behaviour (proven) | ab |
+|---|---|---|---|
+| 1 | `upload_aiohttp` non-200 pe **`return None`** (koi `else` nahi) | `__resp_handler(None)` → `AttributeError: 'NoneType' object has no attribute 'get'` | `raise Exception(f"HTTP {status}: {body}")` |
+| 2 | `ContentTypeError` pe **string `"Uploaded"`** return | `__resp_handler('Uploaded')` → `AttributeError: 'str' object has no attribute 'get'` | proper dict `{"status":"ok","data":{"downloadPage":"Uploaded"}}` |
+| 3 | `__resp_handler` `split("-")[1]` | `error-token` → user ko literally **`Exception("token")`** | `Gofile API error: error-token` |
+| 4 | `upload()` `if not await self.is_goapi(self.token)` | `is_goapi(None)` → **False** ⇒ bina token ke *"Invalid Gofile API Key"* — jabki **anonymous upload chalta hai** | token ho tabhi validate; folder ke liye alag clear message |
+| 5 | `upload_file` **disk pe file rename** karta tha (`aiorename`, spaces→dots) | upload fail hone par file permanently mangled; Telegram upload bhi tootta | naam sirf `FormData(filename=...)` me, disk untouched |
+| 6 | `get_content` URL `contents/{id}&token=...` (`?` ki jagah `&`) | live **401 `error-token`** | sahi query + Bearer header |
+| 7 | retry pe `last_uploaded` reset nahi | `chunk_size` negative → `processed_bytes` ulta | `self.last_uploaded = 0` |
+
+**🔴 Apni hi galti pakdi (isliye verify zaroori tha):** #5 fix karte waqt maine pehle `data[req_file] = (filename, file)` tuple daala. Real gofile pe chala ke mila: **`HTTP 400: No boundary found`**. Teen tareeke live compare kiye — `dict`+IOBase **200**, `dict`+tuple **400**, **`FormData` + `filename=` 200**. ⇒ wzv3 ka `FormData` approach hi sahi hai; ab wahi use hota hai. (Naya error handling hone ki wajah se yeh 400 dikha — pehle yahan bhi cryptic `AttributeError` hi aata.)
+
+**VERIFIED (live, fixed code se):**
+- `Gofile.upload()` end-to-end **anonymous upload → `https://gofile.io/d/OwubBiLj`** ✅
+- disk pe file ka naam intact: `'My Test File (2026).txt'` (rename nahi hua) ✅
+- galat token → `Invalid Gofile API Key, Recheck your account !!` ✅
+- folder bina token → `Gofile folder upload needs an API key — set it in /usersettings.` (crash nahi) ✅
+- `__resp_handler` 4/4 clear messages ✅
+- py3.10.12 full-repo **109/109 PASS**
+**NOT VERIFIED:** real dyno pe Telegram `/upload` flow, bada file, StreamTape path (signature backward-compatible rakha: `filename=None` default, `if uploaded:` dict pe bhi truthy).
+**Note:** gofile **download** abhi bhi band hai (260905-I, `error-notPremium`) — yeh fix sirf **upload** ke liye hai. Guest uploads temporary hote hain.
