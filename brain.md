@@ -1889,3 +1889,37 @@ Error "firefox" isliye dikhta hai kyunki `yt_dlp/extractor/dailymotion.py:372-39
 **NOT VERIFIED:** baaki 26 wzv3 generators (real links nahi mile), pixeldrain end-to-end.
 
 **User se chahiye:** (1) kaun si 10-15 sites aap actually use karte ho, (2) unme se jitne real file links de sako — main sirf woh port karunga aur jo verify na ho use NOT VERIFIED likh kar chhodunga.
+
+### 260905-J — GDFlix add kiya, domain-rotation-proof matching ke saath (verified 96 MB)
+**Git:** `3905c5f`  
+**Date:** 2026-09-06  
+**OLD:** 260905-I  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (`import re`, `GDFLIX_HOST` regex, dispatcher +2, `gdflix()` +31)
+
+**User ke 3 links, teeno alag-alag wajah se fail the — live diagnose:**
+
+| link | humare code me | live test | verdict |
+|---|---|---|---|
+| `new3.gdflix.io/file/MPVlSvps5DEVFnr` | **0 occurrences** — generator hi nahi tha | curl_cffi chrome → **200**, cloudscraper → 403 | **ADD kiya, verified** |
+| `gcloud.cyou/download/<token>/` | **0 occurrences**; `is_index_link` sirf `.../<id>:<subdir>/` match karta hai, yeh `/download/` hai | 404 | **token EXPIRED** (code bug nahi) |
+| `new4.filepress.baby/file/<id>` | `anonfilesBased` me filepress listed hai | **403 Cloudflare challenge** | **free me possible nahi** |
+
+**GDFlix flow (live verify, user ke hi link pe):** page 200 → `//a[contains(@href,'instant')]` → 302 → `fastdl-one.pages.dev/?url=...` → `video-downloads.googleusercontent.com/...` ⇒ **probe HTTP 200, video/mkv, 96,005,750 bytes.**
+Cloudflare sirf asli browser fingerprint ko chhodta hai: **cloudscraper 403**, curl_cffi chrome 200 ⇒ impersonation load-bearing, isliye `curl_cffi` lazily import (missing hone pe module crash na ho — wahi 260905-H wali trap).
+
+**⭐ User ka main point — multiple domains. Yeh bilkul sahi tha:** GDFlix ka official channel domain har kuch din me badalta hai: `new12 → new13 → … → new19.gdflix.net → new.gdflix.io → new1.gdflix.io`, redirect domain `gdflix.dev`. Unka khud ka note: *"we are using temp domain sometimes, and it will disappear anytime."* TLD bhi badalte hain (`.io/.net/.dev/.com/.icu/.cc`).
+⇒ Single host hardcode karna 3 din me toot jaata. Isliye **brand label pe regex**, koi host list nahi:
+```python
+GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
+```
+**Shipped regex pe test (16 cases):** `gdflix.io/.net/.dev/.com/.icu/.cc`, `new.gdflix.io`, `new1/new3/new19/new20.gdflix.*`, `www.gdflix.io` → **sab MATCH**. `notgdflix.com`, `mygdflix.org`, `gdflixtv.com`, `gdflix.us.sitescorechecker.com` → **sab reject**. Matlab naya `newN.` prefix ya naya TLD aane pe code change nahi karna padega.
+
+**`/pack/` (multi-file) links:** humare repo me dict returns supported hain (`:239-270`), par pack URL nahi mila ⇒ **unverified code ship nahi kiya**; clear exception: *"GDFlix pack (multi-file) links are not supported yet — send a /file/ link."* Pack link milte hi verify karke add kar dunga.
+
+**FilePress — deliberately add NAHI kiya:** 5 impersonation targets (chrome/safari/edge/chrome124/safari17_0) × 3 header combos (bare/referer/accept) = **15/15 sab 403 + `challenge-platform`**. Root domain `new4.filepress.baby` **200 bina challenge** ⇒ challenge **per-path `/file/` pe managed challenge** hai, browser ke bina solve nahi hoga. Dead generator daalna galat hota.
+
+**gcloud.cyou:** token base64 decode → `7ajb5d3488b314bcbf94c5959d7551f2|1788671831`, expiry **2026-09-06 05:17 UTC** vs now 05:48 UTC ⇒ **31 min pehle expire**. 404 isi wajah se. **Fresh link chahiye** verify karne ke liye.
+
+**VERIFIED:** shipped `gdflix()` body `ast` se chala ke (96,005,750 B), `/pack/` error, `GDFLIX_HOST` routing 16 cases, regression check (`sourceforge` WORKING 206/1,863,192 B, `gofile` clear error), py3.10.12 full-repo **109/109 PASS**.
+**NOT VERIFIED:** `/pack/` multi-file (link nahi), gcloud.cyou (token expired), filepress (challenge).
+**Note:** `genlab.py` harness ka `get()` pehle `FunctionType(compile(...))` use kar raha tha → `TypeError: <module>() takes 0 positional arguments`. Fix: `exec` the def into a fresh locals dict with `ns` as globals.
