@@ -60,6 +60,61 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260905-X (built, pushed)
+**Git:** `5be97d9`
+
+**Problem:** `/mirror https://gofile.io/d/YavqGbLl` failed with "Gofile direct
+download is not supported yet — free access is unverified and no premium account
+is configured." The user reported every other ML bot downloads this file; only
+ours refused. It was a real feature gap and my diagnosis of it was wrong.
+
+**Galti:** In an earlier session I reverse-engineered GoFile's site token as
+`sha256(userAgent :: navigator.language :: accountToken :: 124218 :: 12af056dacea0b)`
+and treated `124218` as a **build constant**, because two samples taken minutes
+apart produced the same value. It is not a constant — it is
+`int(time()) // 14400`, a **4-hour time slot**. Sending a stale/incorrect slot
+makes the API answer `error-notPremium`, which I then reported as "guest access
+is closed on GoFile's side; not fixable without premium." That conclusion was
+false and it closed off a working free path.
+
+**Cross-check:** the user pointed at SilentDemonSD/WZML-X (branch `wzv3`), whose
+`gofile()` uses exactly `int(time()) // 14400` and pulls the salt from
+`/js/wt.obf.js` — confirming the time slot. That was the missing piece; the salt
+(`12af056dacea0b`) and the header contract I had already derived correctly.
+
+**Fix (direct_link_generator.py):** rewrote `gofile()`. Mint a guest account
+(`POST api.gofile.io/accounts`, no premium, no config), read the rotating salt
+from `/js/wt.obf.js` at request time with the known value as fallback
+(`_gofile_salt`), sign `GET api.gofile.io/contents/<code>?cache=true` with
+`X-Website-Token = sha256(UA :: en-US :: token :: int(time())//14400 :: salt)`
+plus `X-BL: en-US`, and recurse folders via `children`. The download URL is bound
+to the account, so `Cookie: accountToken=<token>` travels with it: single file
+returns `(url, header)`, multi-file returns the `details` dict carrying `header`
+(consumed at `direct_downloader.py:48`). Password-protected links supported via
+`<url>::<password>`. Distinct errors for passwordRequired / passwordWrong /
+notFound / notPublic. Imports gained `time` and `re.sub`.
+
+**Verified live (real bytes, not just "format available"):**
+- User's link `YavqGbLl` -> "Goldfish Warning! The Movie.mkv",
+  **795,322,443 bytes streamed in 13.7s = 55.5 MB/s**, md5
+  `d4b67bab545e25bd1b8e23a142928290` **matched the API's md5 exactly**.
+- Fresh guest upload -> 740 B, md5 match.
+- Multi-file folder (2 files) -> `details` dict, both filenames, `header`
+  present, `total_size` 11290.
+- Dead code and bare-domain URL -> clean `File not found on gofile's server`.
+- All of the above by exec'ing the **real `gofile()` from the repo**, harness
+  `/home/user/D2-tests/gofile_live.py`.
+
+**Trap for the next agent:** the sandbox `/tmp` is a 993 MB tmpfs. Downloading
+795 MB test files into it fills the disk and curl then dies with
+`(23) Failure writing output to destination`, which looks exactly like the server
+truncating the download. Verify large files with `curl ... | md5sum` (streaming)
+instead of writing them out.
+
+**Verified:** py3.10 full-repo py_compile 110/110.
+**Not verified:** the bot's own mirror path (aria2 with the injected header) —
+needs the user's deployment.
+
 ### `260830-A` — first Heroku 2X profile  
 **Git:** `f33b586` (local) → rebase ke baad remote **`cee293`** (`cee2930`)  
 **Date:** 2026-08-30  
