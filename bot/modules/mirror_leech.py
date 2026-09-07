@@ -6,6 +6,7 @@ import shlex
 
 def _is_tg_msg(m):
     return m is not None and not isinstance(m, str) and getattr(m, "id", None) is not None
+from os import environ
 from traceback import format_exc
 from base64 import b64encode
 from re import match as re_match
@@ -22,6 +23,15 @@ from ..helper.ext_utils.task_manager import task_utils
 from ..helper.mirror_utils.download_utils.aria2_download import add_aria2c_download
 from ..helper.mirror_utils.download_utils.gd_download import add_gd_download
 from ..helper.mirror_utils.download_utils.qbit_download import add_qb_torrent
+
+
+# 260905-AA: torrents go to qBittorrent by default, not aria2. On the same
+# torrent and the same class of VPS the user measured aria2 at 4-5 MB/s while a
+# friend's libtorrent client reached 55 MB/s - aria2's BitTorrent side is far
+# weaker than libtorrent's peer management, so /mirror and /leech were leaving
+# most of the swarm on the table. TORRENT_ENGINE=aria2 restores the old routing;
+# /qbmirror and /qbleech are unaffected.
+_TORRENT_ENGINE = environ.get('TORRENT_ENGINE', 'qbit').strip().lower()
 from ..helper.mirror_utils.download_utils.mega_download import add_mega_download
 from ..helper.mirror_utils.download_utils.rclone_download import add_rclone_download
 from ..helper.mirror_utils.rclone_utils.list import RcloneList
@@ -467,7 +477,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     elif is_mega_link(link):
         await delete_links(message)
         await add_mega_download(link, f'{path}/', listener, name)
-    elif isQbit and 'real-debrid' not in link:
+    elif ((isQbit or (_TORRENT_ENGINE == 'qbit' and is_torrent_link(link)))
+          and 'real-debrid' not in link):
         await add_qb_torrent(link, path, listener, ratio, seed_time)
     elif not is_telegram_link(link):
         if ussr or pssw:

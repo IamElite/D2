@@ -1135,6 +1135,11 @@ try:
         _qp = _QBIT_PROFILE['paas' if _qbit_want in ('paas', 'heroku') else 'vps']
     else:
         _qp = _QBIT_PROFILE[HOST_PROFILE]
+    # 260905-AA: now that every torrent lands on qBit, the 260905-U queue limits
+    # (2 active downloads / 3 active torrents) would cap concurrent tasks and the
+    # rest would sit queued at 0%. QBIT_MAX_ACTIVE_DL lifts just those two, in
+    # either profile, without adopting the rest of the tuned values.
+    _qbit_madl = int(environ.get('QBIT_MAX_ACTIVE_DL') or 0)
     qb_client.app_set_preferences({
         **_qp,
         'hashing_threads': 1,
@@ -1144,6 +1149,10 @@ try:
         'pex': _qbit_dht,
         'queueing_enabled': True,
         'max_active_uploads': _qp.get('max_active_uploads', 3),
+        'max_active_downloads': _qbit_madl or _qp['max_active_downloads'],
+        'max_active_torrents': (max(_qbit_madl + _qp.get('max_active_uploads', 3),
+                                    _qp['max_active_torrents'])
+                                if _qbit_madl else _qp['max_active_torrents']),
         'ignore_slow_torrents': True,
         'slow_torrent_dl_rate_threshold': 100,
         'slow_torrent_inactive_timer': 120,
