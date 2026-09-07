@@ -60,6 +60,64 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260905-Z (built, pushed)
+**Git:** `f86ccb0`
+
+**Problem (user-reported regression):** after `260905-V`/`-W`/`-Y` were deployed,
+tasks stopped progressing — status stuck at 0% on everything. Previously they
+downloaded.
+
+**What the user's boot log proved (batbin.me/counterstep):**
+- line 3 `Running commit: d04cdf8` -> the new code really was live
+- line 11 `Aria2 throughput overlay [vps]` and line 12 `qBit runtime [vps]` ->
+  host detection was **correct**, not a misdetection
+- line 37 `QbitDownload started ... Hash: 8769b4b8...` -> the task was accepted
+- **no exceptions anywhere**; both overlay blocks are inside `try/except`
+So nothing crashed. The preferences themselves made qBit unable to progress.
+
+**Galti (mine):** across `260905-V`/`-W`/`-Y` I changed **eight** qBit knobs at
+once — `dht`/`pex` False->True, `up_limit` 256->0, `max_connec` 120->1000,
+`max_connec_per_torrent` 60->200, `max_uploads` 4->40, `max_uploads_per_torrent`
+2->8, `max_active_downloads` 2->8, `max_active_torrents` 3->12, `disk_cache`
+16->128, `async_io_threads` 1->8 — without being able to verify throughput. The
+user's standing rule was that every change must be verified before it ships; I
+applied it to generators and then ignored it for the throughput knobs. Most
+suspicious single item: `dht`/`pex` were flipped **on** even though the old log
+line for this same block read `(UDP-dead host)`, and DHT/PEX are UDP.
+
+**I do not know which knob caused the stall, and I am not claiming this fixes
+it.** What this change does is make the failure cheap to bisect on the real host.
+
+**Fix (`bot/__init__.py`):**
+- `_QBIT_SAFE` holds the exact `260905-U` prefs — the only configuration the user
+  confirmed was downloading.
+- **`safe` is now the DEFAULT.** `QBIT_PROFILE=tuned` selects
+  `_QBIT_PROFILE[HOST_PROFILE]`; `QBIT_PROFILE=vps|paas|heroku` forces one.
+  Rationale: we have one known-good config and zero known-good tuned ones, so the
+  known-good one ships and tuning is opt-in.
+- `dht`/`pex` back to opt-in (`QBIT_DHT=1`), matching `260905-U` semantics.
+- `max_active_uploads` now comes from the selected dict (`_qp.get(..., 3)`) so
+  safe mode really is 1, not the hardcoded 3 that would have overridden it.
+- Boot log now prints `safe/260905-U` vs the profile name, plus `up_limit` and
+  `active dl/tor`, so the live configuration is readable from the log alone.
+
+**Verified:** `/home/user/D2-tests/profile_overlays.py` — the decisive assertion
+is that the assembled dict **equals the 260905-U dict exactly** (all 22 keys, no
+extras) on both a vps-detected and a paas-detected host, for `QBIT_PROFILE`
+unset *and* explicitly `safe`; plus 6/6 host-combo detections, 20 invariants on
+the tuned profiles, `QBIT_DHT=1` turns DHT+PEX on, `QBIT_MAX_CONNEC` override,
+and `tuned`/`vps`/`paas` each leave the safe baseline. py3.10 full-repo
+py_compile 110/110.
+
+**Not verified:** whether this actually restores downloading. Only the user's
+host can answer that.
+
+**Bisection plan if `safe` still stalls** (then the cause is not the qBit prefs):
+`ARIA2_PROFILE=safe` rules out the aria2 overlay too. If both are safe and it
+still stalls, the regression is elsewhere and `260905-U` should be diffed file by
+file — only `a2c.conf`, `bot/__init__.py`, `aria2_download.py` and
+`direct_link_generator.py` changed since then.
+
 ### 260905-Y (built, pushed)
 **Git:** `6b68d9c`
 
