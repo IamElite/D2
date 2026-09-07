@@ -1097,6 +1097,10 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
         # crawled at KB/s while the CPU burned on churn.
         'max-overall-upload-limit': environ.get('ARIA2_TORRENT_UP_GLOBAL', '0'),
         'max-upload-limit': environ.get('ARIA2_TORRENT_UP', '0'),
+        # 260905-AC: max-overall-download-limit is in aria2c_global, so Mongo's
+        # settings.aria2c can set it globally at boot, and nothing here overrode
+        # it. Force it off (0 = unlimited) so no stale value can cap throughput.
+        'max-overall-download-limit': environ.get('ARIA2_DL_LIMIT', '0'),
     })
     _a2_boost.update(_a2_perf)   # explicit ARIA2_PERF / ARIA2_NO_DHT opt-ins win
     # bt-request-peer-speed-limit is deliberately left at aria2's 50K default.
@@ -1140,8 +1144,16 @@ try:
     # profiles, so the known-good one ships by default and tuning is opt-in:
     #   QBIT_PROFILE=tuned    -> _QBIT_PROFILE[HOST_PROFILE]
     #   QBIT_PROFILE=vps|paas -> that profile regardless of detection
+    # 260905-AC: the default is now 'stock' (qBittorrent's own documented
+    # defaults), not 'safe'. The safe/260905-U profile caps up_limit at 256
+    # BYTES/s with DHT/PEX off, which measurably produced KB/s - it was tuned for
+    # a CPU-starved dyno, not a VPS. Stock is also what the reference bot the
+    # user compares against is effectively running. QBIT_PROFILE=safe still
+    # restores the old baseline; tuned/vps/paas are unchanged.
     _qbit_want = environ.get('QBIT_PROFILE', '').strip().lower()
-    _qbit_safe = _qbit_want not in ('tuned', 'vps', 'paas', 'heroku', 'stock')
+    _qbit_safe = _qbit_want == 'safe'
+    if not _qbit_want:
+        _qbit_want = 'stock'
     if _qbit_safe:
         _qp = dict(_QBIT_SAFE)
     elif _qbit_want == 'stock':

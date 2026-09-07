@@ -147,6 +147,7 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     # a2c.conf and the boot overlay. Dropping them lets a2c.conf govern, and
     # the ARIA2_* env overrides still apply through the global overlay.
     for _stale in ('max-upload-limit', 'max-overall-upload-limit',
+                   'max-download-limit', 'max-overall-download-limit',
                    'bt-request-peer-speed-limit', 'bt-max-peers',
                    'bt-max-open-files', 'max-connection-per-server',
                    'split', 'min-split-size', 'peer-id-prefix', 'peer-agent',
