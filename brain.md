@@ -2379,7 +2379,7 @@ End-to-end: asli `gofile()` → asli handler → **ABORT**, user ko `ERROR: Gofi
 **Test harness:** `/tmp/test_handler.py`, `/tmp/test_gofile_e2e.py` (repo ke bahar).
 
 ### 260905-V — Torrent + leech KB/s pe: CPU/RAM "optimizations" ne upload cap + peer-discovery maar di thi
-**Git:** `PENDING`  
+**Git:** `81bb505`  
 **Date:** 2026-09-07  \
 **Files:** `a2c.conf`, `bot/__init__.py` (aria2 overlay + qBit overlay), `bot/helper/mirror_utils/download_utils/aria2_download.py`
 
