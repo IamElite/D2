@@ -683,12 +683,20 @@ def terabox(url):
 
 
 def gofile(url, auth):
-    # Gofile closed anonymous API access: contents/<id> returns error-notPremium
-    # even for invalid ids, and the websiteToken moved to an obfuscated bundle
-    # (/js/wt.obf.js). The old kpsbots/moron-bots worker chain 302s to a 404.
-    # No free path exists, so fail clearly instead of handing back a dead link.
+    # Anonymous access is NOT confirmed dead — an earlier conclusion here said so,
+    # but it was measured with a malformed website token, so it does not hold.
+    # What is verified: POST api.gofile.io/accounts mints a guest token, and
+    # GET /contents/<code> needs Authorization: Bearer <token> plus
+    # X-Website-Token: generateWT(<token>) and X-BL: <navigator.language>, where
+    # generateWT (in /js/wt.obf.js) is
+    #   sha256(userAgent :: navigator.language :: token :: <build> :: <secret>)
+    # and <secret> is rotated server-side. An invalid or stale token gets the
+    # caller's IP banned, which is why this is not guessed at: it needs the
+    # secret extracted from the current bundle at request time, and it must be
+    # verified against the live API before being wired up. Until then fail
+    # clearly rather than hand back a link that serves an html page.
     raise DirectDownloadLinkException(
-        'ERROR: Gofile requires a premium account; free/anonymous access is closed by the site.')
+        'ERROR: Gofile direct download is not supported yet — free access is unverified and no premium account is configured.')
 
 
 def sourceforge(url):

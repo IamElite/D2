@@ -354,6 +354,17 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                     await sendMessage(message, "<b>Invalid URL</b>")
                     await delete_links(message)
                     return
+                # This url is already known to serve a web page, so falling back
+                # to it can only ever download that page: aria2 saved gofile.io's
+                # 3 KB html shell and the task reported success while sending an
+                # html file named after the url segment. Report the real reason
+                # instead. The fallback stays for content_type is None (server
+                # sent no Content-Type), where a binary is still plausible.
+                if content_type and re_match(r'text/html|text/plain', content_type):
+                    await deleteMessage(process_msg)
+                    await sendMessage(message, e)
+                    await delete_links(message)
+                    return
                 link = org_link or link
             await deleteMessage(process_msg)
 
