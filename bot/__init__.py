@@ -1017,14 +1017,28 @@ _A2_PROFILE = {
              'bt-max-open-files': '500', 'file-allocation': 'falloc',
              'enable-mmap': 'true', 'bt-enable-lpd': 'true'},
 }
+# 260905-Z: the exact qBit prefs from 260905-U, the last build the user confirmed
+# was downloading. QBIT_PROFILE=safe restores them wholesale, so a regression in
+# any of the tuned knobs can be ruled out with one env change instead of a guess.
+_QBIT_SAFE = {
+    'async_io_threads': 1, 'hashing_threads': 1, 'disk_cache': 16,
+    'disk_io_type': 0, 'max_connec': 120, 'max_connec_per_torrent': 60,
+    'max_uploads': 4, 'max_uploads_per_torrent': 2, 'lsd': False,
+    'queueing_enabled': True, 'max_active_downloads': 2,
+    'max_active_torrents': 3, 'max_active_uploads': 1,
+    'ignore_slow_torrents': True, 'slow_torrent_dl_rate_threshold': 100,
+    'slow_torrent_inactive_timer': 120, 'preallocate_all': False,
+    'recheck_completed_torrents': False, 'up_limit': 256, 'dl_limit': 0,
+}
+
 _QBIT_PROFILE = {
     # max_connec stays at qBit's stock 500 even on paas: it is the one knob where
     # going below default can only cost us peers. 260905-Y.
-    'paas': {'disk_cache': 32,  'async_io_threads': 2, 'max_connec': 500,
+    'paas': {'max_active_uploads': 3, 'disk_cache': 32,  'async_io_threads': 2, 'max_connec': 500,
              'max_connec_per_torrent': 100, 'max_uploads': 8,
              'max_uploads_per_torrent': 4, 'max_active_downloads': 3,
              'max_active_torrents': 5},
-    'vps':  {'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
+    'vps':  {'max_active_uploads': 3, 'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
              'max_connec_per_torrent': 200, 'max_uploads': 40,
              'max_uploads_per_torrent': 8, 'max_active_downloads': 8,
              'max_active_torrents': 12},
@@ -1104,11 +1118,23 @@ else:
 
 # Overlay after Mongo so DB cannot restore mmap/1-hash-thread (CPU spike, slow DL)
 try:
-    # DHT/PEX stay ON. They were disabled to save CPU, but that left the tracker
-    # as the only peer source, and the CPU was being burned elsewhere anyway.
-    # qBit idle-stop (engine_lifecycle) still frees the RAM when nothing runs.
-    _qbit_dht = environ.get('QBIT_DHT', '').lower() not in ('0', 'false', 'no')
-    _qp = _QBIT_PROFILE[HOST_PROFILE]
+    # 260905-Z: back to opt-in. 260905-V flipped this on by default, but the host
+    # was recorded as UDP-dead (the old log line said so) and DHT/PEX are UDP.
+    # Set QBIT_DHT=1 to turn them back on.
+    _qbit_dht = environ.get('QBIT_DHT', '').lower() in ('1', 'true', 'yes')
+    # 260905-Z: 'safe' (the 260905-U values) is the DEFAULT. We have exactly one
+    # configuration the user confirmed was downloading and none for the tuned
+    # profiles, so the known-good one ships by default and tuning is opt-in:
+    #   QBIT_PROFILE=tuned    -> _QBIT_PROFILE[HOST_PROFILE]
+    #   QBIT_PROFILE=vps|paas -> that profile regardless of detection
+    _qbit_want = environ.get('QBIT_PROFILE', '').strip().lower()
+    _qbit_safe = _qbit_want not in ('tuned', 'vps', 'paas', 'heroku')
+    if _qbit_safe:
+        _qp = dict(_QBIT_SAFE)
+    elif _qbit_want in ('vps', 'paas', 'heroku'):
+        _qp = _QBIT_PROFILE['paas' if _qbit_want in ('paas', 'heroku') else 'vps']
+    else:
+        _qp = _QBIT_PROFILE[HOST_PROFILE]
     qb_client.app_set_preferences({
         **_qp,
         'hashing_threads': 1,
@@ -1117,7 +1143,7 @@ try:
         'dht': _qbit_dht,
         'pex': _qbit_dht,
         'queueing_enabled': True,
-        'max_active_uploads': 3,
+        'max_active_uploads': _qp.get('max_active_uploads', 3),
         'ignore_slow_torrents': True,
         'slow_torrent_dl_rate_threshold': 100,
         'slow_torrent_inactive_timer': 120,
@@ -1127,12 +1153,17 @@ try:
         # 256, i.e. 256 B/s of upload — almost certainly meant as 256 KiB/s, since
         # the Qt UI shows KiB/s while the Web API takes bytes. At 256 B/s we could
         # never repay peers, so tit-for-tat choked us into KB/s downloads.
-        'up_limit': int(environ.get('QBIT_UP_LIMIT', '0')),
-        'dl_limit': int(environ.get('QBIT_DL_LIMIT', '0')),
-        'max_connec': (_qbit_max_connec := int(environ.get('QBIT_MAX_CONNEC') or _qp['max_connec'])),
+        **({} if _qbit_safe else {
+            'up_limit': int(environ.get('QBIT_UP_LIMIT', '0')),
+            'dl_limit': int(environ.get('QBIT_DL_LIMIT', '0')),
+            'max_connec': int(environ.get('QBIT_MAX_CONNEC') or _qp['max_connec']),
+        }),
     })
-    log_info(f"qBit runtime [{HOST_PROFILE}]: cache {_qp['disk_cache']}MiB, {_qbit_max_connec} conn, "
-             f"{_qp['max_connec_per_torrent']}/torrent, DHT {'on' if _qbit_dht else 'off'}, upload uncapped")
+    _qbit_max_connec = _qp['max_connec'] if _qbit_safe else int(
+        environ.get('QBIT_MAX_CONNEC') or _qp['max_connec'])
+    log_info(f"qBit runtime [{'safe/260905-U' if _qbit_safe else HOST_PROFILE}]: cache {_qp['disk_cache']}MiB, {_qbit_max_connec} conn, "
+             f"{_qp['max_connec_per_torrent']}/torrent, DHT {'on' if _qbit_dht else 'off'}, "
+             f"up_limit {_qp.get('up_limit', 'unset')}, active dl/tor {_qp['max_active_downloads']}/{_qp['max_active_torrents']} (QBIT_PROFILE=tuned to try the {_QBIT_PROFILE[HOST_PROFILE]['max_connec']}-conn profile)")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
