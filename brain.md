@@ -2425,3 +2425,65 @@ Aur `max-concurrent-downloads` **global** hai (BT + HTTP dono) — peer-hunt me 
 **Tradeoff (saaf bata raha hoon):** upload uncapped + DHT/PEX on + 500 conn se **RAM/CPU thoda badh sakta hai**. Par CPU spike ka asli source peer-hunt churn tha (jo ab gaya), to net CPU **ghatna** chahiye. Escape hatches: `ARIA2_PROFILE=safe`, `ARIA2_TORRENT_UP`, `ARIA2_TORRENT_UP_GLOBAL`, `ARIA2_PEER_SPEED_LIMIT`, `ARIA2_MAX_PEERS`, `ARIA2_MAX_CONCURRENT`, `QBIT_DHT=0`, `QBIT_UP_LIMIT`, `QBIT_DL_LIMIT`.
 **Test harness:** `/tmp/test_overlays.py`, `/tmp/test_stale_mongo.py` (repo ke bahar).
 **Gotcha:** `Tamilupdates/KPSML-X` ki **`main` branch gutted** hai (10 files, `bot/` hi nahi) — diff ke liye **`kpsmlx` branch** chahiye.
+
+### 260905-W — VPS/Heroku auto-profile: ek hi image dono host pe sahi settings lagaye
+**Git:** `e8bf29a`  
+**Date:** 2026-09-07  \
+**Files:** `bot/__init__.py` (`_host_profile()`, `_A2_PROFILE`, `_QBIT_PROFILE`, dono overlays), `bot/helper/mirror_utils/download_utils/aria2_download.py` (strip list +3)
+
+**User:** VPS pe speed kam, aur明确要求 — *"hamara repo VPS aur Heroku dono ke liye best hona chahiye... is tarike se repo ko design karo"*.
+
+**PEHLE — user ke production data ka honest read (yeh zaroori hai):**
+```
+CPU: 0.2%   RAM: 16.9%   DL: 1.10MB/s
+Task1 aria2 : 954.85KB/s  Seeders 1  "Leechers" 17
+Task2 qBit  : 166.91KB/s  Seeders 1  Leechers 1
+```
+- **CPU 0.2%** ⇒ local koi bottleneck NAHI, bot idle hai.
+- **Task2 me `Leechers: 1` matlab sirf hum leecher hain** — us seeder ki poori upload bandwidth humein mil rahi hai aur woh **166.91KB/s** hai. Yaani **remote seeder ka uplink hi ~167KB/s hai.** Koi client setting usse tez nahi kar sakti.
+- Task1 me ek seeder 17 connections me bat raha hai.
+**Natija: is pair of torrents pe speed swarm-limited hai, config-limited nahi.** Yeh fix usse tez NAHI karega — yeh VPS ki poori capacity use karne layak banata hai.
+
+**Do corrections jo maine user ko diye:**
+1. Meri `UL: 0B/s` wali inference **galat** thi. `bot_utils.py:383-391` me `up_speed` sirf `STATUS_UPLOADING`/`STATUS_SEEDING` tasks se sum hota hai — downloading tasks ka BT upload count hi nahi hota. To `UL: 0B/s` **hamesha** dikhega; yeh display artifact hai, proof nahi ki hum seed nahi kar rahe.
+2. `aria2_status.py:119-120` me `leechers_num` actually `download.connections` return karta hai — **total peer connections**, leechers nahi. To status ka "Leechers" label aria2 tasks pe **mislabel** hai. (Fix nahi kiya — alag scope, user ne profile chuna.)
+
+**DESIGN — `_host_profile()`:** codebase ka apna existing convention use kiya (naya invention nahi): Heroku `PORT` (+`DYNO`) inject karta hai aur `BASE_URL` nahi set hota; VPS/Docker `BASE_URL` set karta hai.
+```python
+HOST_PROFILE=vps|paas   # explicit override, galat guess ke liye
+DYNO set                -> paas
+PORT and not BASE_URL   -> paas
+otherwise               -> vps
+```
+
+| knob | paas (Heroku) | vps |
+|---|---|---|
+| aria2 `max-concurrent-downloads` | 5 | 10 |
+| aria2 `bt-max-peers` / `bt-max-open-files` | 200 | 500 |
+| aria2 `file-allocation` | `none` (ephemeral FS) | `falloc` (real FS pe instant) |
+| aria2 `enable-mmap` | false | true |
+| aria2 `bt-enable-lpd` | false | true |
+| qBit `disk_cache` | 32 MiB | 128 MiB |
+| qBit `async_io_threads` | 2 | 8 |
+| qBit `max_connec` / per-torrent | 200 / 100 | 1000 / 200 |
+| qBit `max_uploads` / per-torrent | 8 / 4 | 40 / 8 |
+| qBit `max_active_downloads` / `torrents` | 3 / 5 | 8 / 12 |
+
+**Dono profiles me invariant (260905-V ke gains wapas nahi gaye):** upload uncapped (`0`), koi `bt-request-peer-speed-limit` nahi, qBit `up_limit`/`dl_limit` = 0, DHT+PEX on, `enable-http-pipelining` ko chheda nahi.
+`_a2_boost.update(_a2_perf)` jaan-boojh kar **last** me hai, taaki explicit `ARIA2_PERF=1` / `ARIA2_NO_DHT=1` opt-in profile se jeete (verify kiya: paas + `ARIA2_PERF=1` → `falloc`).
+
+**`aria2_download.py` strip list +3:** `file-allocation`, `enable-mmap`, `bt-enable-lpd` bhi pop — warna stale Mongo VPS ke `falloc`/`mmap` ko wapas `none`/`false` kar deta.
+
+**VERIFICATION (sab live / real-source):**
+- **Live aria2c 1.37.0**: 20 candidate options test kiye — **sab runtime-changeable**, sivaaye `disk-cache` aur `socket-recv-buffer-size` ke jo **accept hoke silently ignore** hote hain (readback conf value hi raha: `64M`→`33554432`, `4M`→`2097152`). Isliye woh conf me hi rakhe.
+- **Dono profiles ek single `changeGlobalOption` call me** live daemon pe apply → **PASS, all applied** (ek invalid key poori call fail kar deta, isliye yeh test zaroori tha).
+- **9 risky keys per-download bhej kar** dekha (stale-Mongo scenario) → **koi reject nahi hua**, yaani download-fail ka risk nahi.
+- **Profile detection + values**: asli `_host_profile()`, `_A2_PROFILE`, `_QBIT_PROFILE` aur dono overlay blocks `ast` se nikaal kar **exec** — 6 host combinations (Heroku/Docker/forced override) + 17 invariants → **ALL PASS**.
+- **Stale-Mongo simulation** dobara: ab **15/15** throughput keys strip, sirf `continue`, `dir`, `enable-dht`, `enable-http-pipelining` bachte hain.
+- py3.10.12 full-repo **110/110 PASS**.
+
+**NOT VERIFIED:** actual production throughput (sandbox se measure nahi hota). Aur seeders ka count — woh swarm pe depend karta hai, humare control me nahi.
+**Escape hatches:** `HOST_PROFILE`, `ARIA2_PROFILE=safe`, `ARIA2_MAX_PEERS`, `ARIA2_MAX_CONCURRENT`, `ARIA2_PERF`, `ARIA2_NO_DHT`, `QBIT_DHT=0`, `QBIT_UP_LIMIT`, `QBIT_DL_LIMIT`.
+**Boot log me yeh dikhega:** `Aria2 throughput overlay [vps]: peers 500, concurrent 10, alloc falloc, upload uncapped...` aur `qBit runtime [vps]: cache 128MiB, 1000 conn, 200/torrent...`
+**Test harness:** `/tmp/test_profile.py`, `/tmp/test_stale_mongo.py` (repo ke bahar). `test_overlays.py` retire kiya — `test_profile.py` uske saare assertions cover karta hai.
+**Pending (report kiya, fix nahi):** `UL` stat downloading tasks ka BT upload nahi dikhata; aria2 ka "Leechers" label actually `connections` hai.
