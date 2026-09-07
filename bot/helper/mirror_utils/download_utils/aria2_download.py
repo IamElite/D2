@@ -140,6 +140,17 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     await sync_to_async(ensure_aria2)
     a2c_opt = {**aria2_options}
     [a2c_opt.pop(k) for k in aria2c_global if k in aria2_options]
+    # Same stale-Mongo trap as 260905-S, this time for throughput. Mongo's
+    # settings.aria2c is seeded once from get_global_option() and never
+    # refreshed, so it still carries the old caps; none of these keys are in
+    # aria2c_global, so they would be sent per-download and override both
+    # a2c.conf and the boot overlay. Dropping them lets a2c.conf govern, and
+    # the ARIA2_* env overrides still apply through the global overlay.
+    for _stale in ('max-upload-limit', 'max-overall-upload-limit',
+                   'bt-request-peer-speed-limit', 'bt-max-peers',
+                   'bt-max-open-files', 'max-connection-per-server',
+                   'split', 'min-split-size', 'peer-id-prefix', 'peer-agent'):
+        a2c_opt.pop(_stale, None)
     # 260905-S: pipelining must stay OFF. A server that mishandles Range answers
     # with the WHOLE file, so aria2 aborts with `Invalid range header. Request:
     # a-b/N, Response: 0-(N-1)/N` (exit 8) and the task dies. `aria2_options` can

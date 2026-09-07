@@ -1013,19 +1013,28 @@ if _a2_perf:
 #   ARIA2_PEER_SPEED_LIMIT / ARIA2_MAX_PEERS / ARIA2_CONN_PER_SERVER override
 if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
     _a2_boost = {
-        'max-concurrent-downloads': environ.get('ARIA2_MAX_CONCURRENT', '5'),
+        'max-concurrent-downloads': environ.get('ARIA2_MAX_CONCURRENT', '10'),
         'max-connection-per-server': environ.get('ARIA2_CONN_PER_SERVER', '16'),
         'split': environ.get('ARIA2_SPLIT', '16'),
         'min-split-size': environ.get('ARIA2_MIN_SPLIT', '1M'),
         'bt-max-peers': environ.get('ARIA2_MAX_PEERS', '200'),
         'bt-max-open-files': environ.get('ARIA2_MAX_PEERS', '200'),
-        'bt-request-peer-speed-limit': environ.get('ARIA2_PEER_SPEED_LIMIT', '10M'),
-        'max-overall-upload-limit': environ.get('ARIA2_TORRENT_UP_GLOBAL', '1M'),
-        'max-upload-limit': environ.get('ARIA2_TORRENT_UP', '512K'),
+        'optimize-concurrent-downloads': 'true',
+        # Upload must stay uncapped. BitTorrent is tit-for-tat: a 512K/1M ceiling
+        # meant we could never repay peers, so they choked us and downloads
+        # crawled at KB/s while the CPU burned on churn.
+        'max-overall-upload-limit': environ.get('ARIA2_TORRENT_UP_GLOBAL', '0'),
+        'max-upload-limit': environ.get('ARIA2_TORRENT_UP', '0'),
     }
+    # bt-request-peer-speed-limit is deliberately left at aria2's 50K default.
+    # A 10M target is unreachable on ordinary swarms, so aria2 kept adding peers
+    # forever (the CPU spike) without ever gaining throughput. Set
+    # ARIA2_PEER_SPEED_LIMIT explicitly if you want one back.
+    if environ.get('ARIA2_PEER_SPEED_LIMIT'):
+        _a2_boost['bt-request-peer-speed-limit'] = environ['ARIA2_PEER_SPEED_LIMIT']
     try:
         aria2.set_global_options(_a2_boost)
-        log_info(f"Aria2 throughput overlay: conn/split 16, peers 200, peer-target 10M (set ARIA2_PROFILE=safe to revert)")
+        log_info(f"Aria2 throughput overlay: conn/split 16, peers 200, upload uncapped, peer-target default (set ARIA2_PROFILE=safe to revert)")
     except Exception as e:
         log_error(f"Aria2 throughput overlay skipped: {e}")
 else:
@@ -1047,33 +1056,39 @@ else:
 
 # Overlay after Mongo so DB cannot restore mmap/1-hash-thread (CPU spike, slow DL)
 try:
-    # Heroku (1GB): DHT/PEX UDP-dead = pure CPU churn; qBit idle-stop frees RAM (engine_lifecycle)
-    _qbit_dht = environ.get('QBIT_DHT', '').lower() in ('1', 'true', 'yes')
+    # DHT/PEX stay ON. They were disabled to save CPU, but that left the tracker
+    # as the only peer source, and the CPU was being burned elsewhere anyway.
+    # qBit idle-stop (engine_lifecycle) still frees the RAM when nothing runs.
+    _qbit_dht = environ.get('QBIT_DHT', '').lower() not in ('0', 'false', 'no')
     qb_client.app_set_preferences({
-        'async_io_threads': 1,
+        'async_io_threads': 4,
         'hashing_threads': 1,
-        'disk_cache': 16,
+        'disk_cache': 64,
         'disk_io_type': 0,
-        'max_connec': 120,
-        'max_connec_per_torrent': 60,
-        'max_uploads': 4,
-        'max_uploads_per_torrent': 2,
+        'max_connec': 500,
+        'max_connec_per_torrent': 100,
+        'max_uploads': 20,
+        'max_uploads_per_torrent': 4,
         'lsd': False,
         'dht': _qbit_dht,
         'pex': _qbit_dht,
         'queueing_enabled': True,
-        'max_active_downloads': 2,
-        'max_active_torrents': 3,
-        'max_active_uploads': 1,
+        'max_active_downloads': 5,
+        'max_active_torrents': 8,
+        'max_active_uploads': 3,
         'ignore_slow_torrents': True,
         'slow_torrent_dl_rate_threshold': 100,
         'slow_torrent_inactive_timer': 120,
         'preallocate_all': False,
         'recheck_completed_torrents': False,
-        'up_limit': 256,
-        'dl_limit': 0,
+        # up_limit/dl_limit are BYTES per second (0 = unlimited). This used to be
+        # 256, i.e. 256 B/s of upload — almost certainly meant as 256 KiB/s, since
+        # the Qt UI shows KiB/s while the Web API takes bytes. At 256 B/s we could
+        # never repay peers, so tit-for-tat choked us into KB/s downloads.
+        'up_limit': int(environ.get('QBIT_UP_LIMIT', '0')),
+        'dl_limit': int(environ.get('QBIT_DL_LIMIT', '0')),
     })
-    log_info(f"qBit runtime: cache 16MiB, 120 conn, DHT {'on' if _qbit_dht else 'off'} (UDP-dead host)")
+    log_info(f"qBit runtime: cache 64MiB, 500 conn, DHT {'on' if _qbit_dht else 'off'}, upload uncapped")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
