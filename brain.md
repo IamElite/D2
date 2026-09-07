@@ -60,6 +60,67 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260905-AA (built, pushed)
+**Git:** `9ae3f3c`
+
+**Problem:** the user measured **aria2 at 4-5 MB/s** and a friend's bot at
+**55 MB/s on the same torrent on the same class of VPS**. That single data point
+ends the "swarm-bound" explanation I had been repeating: if the swarm can supply
+55 MB/s, our 4-5 MB/s is a client-side problem, not a seeder problem.
+
+**Galti (mine, repeated across several turns):** I kept attributing low
+throughput to seeder counts and told the user their own screenshots proved it.
+Their arithmetic did show one task dominating the total, but I used that to close
+the question instead of asking why the same swarm served someone else 11x
+faster. The real variable was the **engine**, and I had never checked which
+engine our own commands select.
+
+**Root cause (read, not guessed):** `bot/modules/mirror_leech.py` dispatches on
+`isQbit`, which is only True for `/qbmirror` and `/qbleech`. So `/mirror` and
+`/leech` send every magnet and `.torrent` to **aria2**
+(`add_aria2c_download`, the final `elif`). aria2's BitTorrent peer management is
+far weaker than libtorrent's (qBittorrent) — that is the 4-5 vs 55 MB/s.
+`add_qb_torrent` already calls `ensure_qbit()`, so the boot-time idle-stop is not
+a problem.
+
+**Fix:**
+- `mirror_leech.py`: added `from os import environ` and a module-level
+  `_TORRENT_ENGINE = environ.get('TORRENT_ENGINE', 'qbit').strip().lower()`. The
+  qBit branch condition became
+  `(isQbit or (_TORRENT_ENGINE == 'qbit' and is_torrent_link(link))) and
+  'real-debrid' not in link`, so torrent links follow the setting while
+  everything else is routed exactly as before. `TORRENT_ENGINE=aria2` restores
+  the old behaviour; `/qbmirror` and `/qbleech` are unaffected.
+- `bot/__init__.py`: consequence handled. Routing every torrent to qBit makes
+  the safe profile's `max_active_downloads: 2` / `max_active_torrents: 3` a hard
+  ceiling, and anything past that would sit queued at 0% — the exact symptom of
+  the 260905-Z regression report. Added `QBIT_MAX_ACTIVE_DL`, which lifts
+  `max_active_downloads` and raises `max_active_torrents` to at least
+  downloads + uploads, in **either** profile, leaving all other 260905-U values
+  untouched.
+
+**Verified:**
+- `/home/user/D2-tests/torrent_routing.py` — 12-case matrix exec'ing the **real
+  `is_torrent_link`** from `bot_utils.py` against the **real dispatch condition**
+  lifted from `mirror_leech.py` (the gate re-reads the source and fails if the
+  condition drifts): magnet and `.torrent` (incl. query string) -> qBit by
+  default and -> aria2 with `TORRENT_ENGINE=aria2`; real-debrid links stay on
+  aria2 even with `isQbit`; plain HTTP and gofile links unchanged; `/qbmirror`
+  behaviour unchanged.
+- `/home/user/D2-tests/profile_overlays.py` — still asserts safe == 260905-U
+  exactly on both hosts, plus `QBIT_MAX_ACTIVE_DL=8` gives dl=8/tor=9/up=1 and
+  keeps `max_connec=120`, `up_limit=256`.
+- py3.10 full-repo py_compile 110/110.
+
+**Pinned, not changed:** `MAGNET_REGEX` is lowercase-only, so an uppercase
+`MAGNET:` scheme falls through to aria2. That is pre-existing `is_torrent_link`
+behaviour shared with `is_ytdlp_link`; the routing gate records it so a future
+regex change is deliberate.
+
+**Not verified:** the actual speed gain. Only the user's host can measure it.
+If qBit now handles all torrents, `QBIT_MAX_ACTIVE_DL` should be set to the
+number of concurrent torrent tasks they normally run.
+
 ### 260905-Z (built, pushed)
 **Git:** `f86ccb0`
 
