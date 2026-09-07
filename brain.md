@@ -60,6 +60,57 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260905-Y (built, pushed)
+**Git:** `6b68d9c`
+
+**Problem:** The user showed another bot on the same base repo (KPSML-X) pulling
+19.02 MB/s on one task with `Tasks: 5`, `CPU 59.1%`, `RAM 42.1%`, and concluded
+our code is the deficiency. Auditing our own overlay against qBittorrent's stock
+defaults found one real gap.
+
+**What their screenshot actually proves (recorded so it is not re-argued):**
+bot total `DL: 20.09MB/s` while a single task showed `19.02MB/s`, so the other
+four tasks together did 1.07 MB/s. Their fast torrent had `Seeders: 5`
+(~3.8 MB/s per seeder); our slow case had `Seeders: 1` whose whole uplink was
+166.91 KB/s. Same swarm-bound pattern, different swarm. It is not evidence of a
+code defect on its own.
+
+**Galti (mine, in 260905-W):** the `paas` profile set `max_connec: 200`, which is
+*below* qBittorrent's stock default of 500 (confirmed:
+https://github.com/qbittorrent/qBittorrent/issues/7197 — "Global maximum number
+of connections: (default is 500)"). Since `_host_profile()` picks `paas` whenever
+`PORT and not BASE_URL`, a VPS that sets `PORT` for its web server but no
+`BASE_URL` would silently get a *weaker* client than an untuned stock bot. That
+is the one knob where going under default can only cost us peers.
+
+**Also corrected:** my earlier note that upstream KPSML-X has no qBit
+`app_set_preferences` call was wrong — it has one at `bot/__init__.py:860`. But
+it is a **no-op round-trip** (`qb_client.app_preferences()` read back and written
+back, minus `listen_port` and `rss*`), so it tunes nothing. Substantively the old
+note held: the "Pro" bot is running qBit **defaults**.
+
+**Fix (`bot/__init__.py`):** `paas` `max_connec` 200 -> 500 (stock parity);
+hoisted `_qp = _QBIT_PROFILE[HOST_PROFILE]` above the `app_set_preferences` call;
+added a `QBIT_MAX_CONNEC` env override that wins over the profile; the boot log
+now prints the *effective* value via a walrus so it cannot lie when the override
+is set.
+
+**Verified:** `/home/user/D2-tests/profile_overlays.py` (harness execs the real
+source) — 6/6 host-combo detections, 18 invariants on both profiles including the
+new `max_connec >= 500`, `ARIA2_PERF` opt-in still wins over the paas profile,
+and `QBIT_MAX_CONNEC=1500` -> 1500 / unset -> 500. py3.10 full-repo py_compile
+110/110.
+
+**Already shipped earlier and still NOT verified in production:** the two
+settings that would genuinely have produced 166 KB/s — qBit `up_limit: 256`
+*bytes*/s (a 256 B/s upload cap chokes tit-for-tat, and rounds to `UL: 0B/s` in
+the footer) and `dht`/`pex` forced False — were fixed in `260905-V`, and
+`bt-request-peer-speed-limit=10M` was removed there too. If the user's running
+dyno predates that deploy, the comparison above was made against stale code.
+
+**Not verified:** real-world throughput. Boot log must be read to confirm which
+profile the host actually resolved to (`qBit runtime [vps|paas]: ...`).
+
 ### 260905-X (built, pushed)
 **Git:** `5be97d9`
 
