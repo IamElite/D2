@@ -2324,3 +2324,56 @@ Pehla attempt fixed prefix/payload regex se kiya → galat URL bana (`get_vxcdid
 - py3.10.12 full-repo **110/110 PASS**
 **NOT VERIFIED:** live dyno/VPS pe actual leech task; voe.sx (browser-less bypass namumkin, dead end). **Plugin discovery CWD pe depend karta hai** — bot `/usr/src/app` se chalta hai to theek hai, par agar kisi aur cwd se start kiya gaya to plugin load nahi hoga.
 **Test harness:** `/tmp/ljfinal.py`, `/tmp/ljtest_generic.py` (repo ke bahar; koi test file commit nahi).
+
+### 260905-U — Generator fail hone pe bot site ka HTML page download karke "success" dikha deta tha (gofile)
+**Git:** `b1cb547`  
+**Date:** 2026-09-07  \
+**Files:** `bot/modules/mirror_leech.py` (+9), `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (gofile comment + message)
+
+**User (production log):** `/l9 https://gofile.io/d/YavqGbLl` → task **successful** dikha, `Size: 3.28KB`, `Total Files: 1`, `Mode: #Leech | #Aria2`, aur file ka naam `YavqGbLl`. User: *"fix"*.
+
+**ROOT CAUSE — do hisse:**
+
+1. **`mirror_leech.py:348-357` — exception nigal kar original link pe fallback.** Yeh block `get_content_type()` ke andar hai, yaani tabhi chalta hai jab `content_type is None or re_match(r'text/html|text/plain', content_type)` (`:337`) — matlab **link pehle se ek web page hai**. Uske andar:
+```python
+except DirectDownloadLinkException as e:
+    ...
+    if "Invalid URL" in e: ... return
+    link = org_link or link      # <-- generator ki error phenk kar wahi html url aria2 ko de diya
+```
+Sirf `"Invalid URL"` message pe rukta tha; baaki har `ERROR:` message ke baad task chal padta tha.
+
+2. **`direct_link_generator.gofile()` hamesha raise karta hai.** To gofile link ke liye: generator raise → fallback → **aria2 ne GoFile ka SPA HTML shell download kiya** → file ka naam URL segment `YavqGbLl` → leech "pass".
+
+**Number se confirm kiya:** `curl -sSL https://gofile.io/d/YavqGbLl` → `http=200 size=3358` = **exactly 3.28 KB**, aur body GoFile ka `<!doctype html>` SPA shell (`<script src="/js/wt.obf.js">` wala). User ka "Size: 3.28KB" isi page ka hai. Yeh file nahi, webpage tha.
+
+**FIX (`mirror_leech.py`):** `link = org_link or link` se pehle ek guard — agar `content_type` positively HTML/plain hai to generator ki asli error user ko bhej kar `return`. Web page download karke kabhi valid media file nahi ban sakti, isliye yahan fallback ka koi matlab nahi.
+`content_type is None` (server ne Content-Type hi nahi bheja) pe fallback **barkaraar** hai — wahan binary plausible hai, aur dispatcher ka final `else` bhi `'No Direct link function found for {link}'` raise karta hai (`ERROR:` prefix ke **bina**), yaani unrecognized-domain ka rasta waisa hi chalta rahega.
+Guard jaan-boojh kar **content-type pe** hai, message wording pe nahi: `clone.py:133` `str(e).startswith('ERROR:')` use karta hai, par wording-based rule brittle hai (koi generator transient issue pe bhi `ERROR:` raise kar sakta hai jahan raw url chalta ho).
+
+**`clone.py` me yeh bug NAHI tha** — wahan `if str(e).startswith('ERROR:'): await editMessage(...); return` pehle se hai (`:132-136`). Bug sirf `mirror_leech.py` me tha.
+
+**GOFILE — purana conclusion GALAT tha (comment theek kiya).** `gofile()` ka comment kehta tha *"No free path exists"*. Yeh **malformed website-token** se naapa gaya tha, isliye valid nahi. Live site ke apne JS se jo reconstruct hua:
+- `POST api.gofile.io/accounts` (no body) → guest token. **Verified 200.**
+- `GET /contents/<code>?page&pageSize&sortField&sortDirection` + headers `Authorization: Bearer <token>`, **`X-Website-Token: generateWT(<token>)`**, `X-BL: <navigator.language>`. (Source: `js/services/contents.js:30-34` + `js/core/wt.js`.)
+- `generateWT` (`/js/wt.obf.js`, node VM me chalake `_sha256` instrument karke preimage nikala):
+  `sha256(userAgent :: navigator.language :: token :: 124218 :: 12af056dacea0b)` — aakhri field **server-side rotate** hota hai.
+- **Meri purani tests me node stub me `navigator.language` tha hi nahi** ⇒ preimage me `undefined` ⇒ wt galat ⇒ `error-notPremium`. Isliye "guest read impossible" ka koi proof nahi hai. **Yeh sawaal abhi khula hai.**
+- `wt.obf.js` ka apna comment warn karta hai: stale/retired secret pe **IP instant-ban**. Maine kai baar galat wt bheja, aur **is sandbox ka IP ban ho gaya** — `gofile.io` aur `api.gofile.io` dono `http=000` (timeout), jabki `example.com` 0.06s me 200. Isliye GoFile generator **add nahi kiya**: bina live verification ke generator add karna rule ke khilaf hai, aur secret rotate hota hai to hardcode karna bhi galat.
+
+**VERIFICATION** (asli shipped code execute karke, reimplementation nahi — `ast` se `ExceptHandler` body aur `gofile()` nikal kar `exec`):
+
+| case | content_type | result |
+|---|---|---|
+| gofile html page (reported bug) | `text/html; charset=utf-8` | **ABORT**, user ko asli error |
+| text/plain page | `text/plain` | ABORT |
+| server ne Content-Type nahi bheja | `None` | FALLBACK (barkaraar) |
+| `Invalid URL` (purana rasta) | `text/html` | INVALID-URL abort (regression nahi) |
+| `application/octet-stream` | — | FALLBACK |
+
+End-to-end: asli `gofile()` → asli handler → **ABORT**, user ko `ERROR: Gofile direct download is not supported yet — …`. 5/5 + e2e PASS.
+
+- py3.10.12 full-repo **110/110 PASS**
+**NOT VERIFIED:** live bot pe actual `/l9` task. **GoFile ka free download kaam karta hai ya nahi — UNKNOWN** (IP ban ki wajah se verify nahi ho paya). Agar aage implement karna ho to: rotating secret current `wt.obf.js` se runtime pe nikalna hoga, aur kisi **unbanned IP** se verify karna hoga.
+**Gotcha:** `direct_link_generator.py:881/899` pe `SyntaxWarning: invalid escape sequence` **pre-existing** hai (`findall('\("(.*?)"\)', …)`) — is change se related nahi.
+**Test harness:** `/tmp/test_handler.py`, `/tmp/test_gofile_e2e.py` (repo ke bahar).
