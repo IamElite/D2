@@ -60,6 +60,57 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260905-AC (built, pushed)
+**Git:** `06eaeeb`
+
+**Problem:** aggregate aria2 throughput sits around 10 MB/s with individual
+torrents at 1-4 MB/s. The user wants 100+ MB/s and states the VPS can handle it.
+
+**What I checked and what it showed (recorded so the same ground is not covered
+twice):**
+- `max-overall-download-limit` **is** in `aria2c_global` (`bot/__init__.py:980`),
+  so Mongo's `settings.aria2c` can apply it *globally* at boot (line 988), and
+  `_a2_boost` (line 1109) never overrode it — a real gap.
+- **But it is not the cause:** `a2c.conf` has never contained it in any commit
+  (`git log -S` finds it only in the initial commit's `aria2c_global` list), and
+  aria2's own default is `0`. Mongo seeds `aria2_options` from
+  `get_global_option()`, so it would have stored `'0'`. Gap closed anyway.
+- `max-download-limit` (per-torrent) was in **neither** `aria2c_global` **nor**
+  the stale-strip list, so a stale Mongo value *would* be sent per-download and
+  throttle every task individually. Now stripped.
+
+**Fix:**
+- `bot/__init__.py`: `_a2_boost` now forces `'max-overall-download-limit':
+  environ.get('ARIA2_DL_LIMIT', '0')`, so no Mongo value can cap aggregate
+  throughput regardless of what is stored.
+- `aria2_download.py`: strip list 15 -> 17 keys (`max-download-limit`,
+  `max-overall-download-limit`).
+- `bot/__init__.py`: the default `QBIT_PROFILE` moved from `safe` to **`stock`**.
+  The safe/260905-U profile caps `up_limit` at 256 **bytes**/s with DHT/PEX off,
+  which measurably produced KB/s; it was tuned for a CPU-starved dyno. Stock is
+  qBittorrent's own documented defaults and is what the reference bot is
+  effectively running. `QBIT_PROFILE=safe` still restores the old baseline.
+
+**Verified:** three gates, all executing the real source —
+`/home/user/D2-tests/torrent_routing.py` (13 cases, `/leech` still aria2),
+`profile_overlays.py` (default == stock on both hosts, `safe` == 260905-U
+exactly, tuned/vps/paas, `QBIT_MAX_ACTIVE_DL`), `stale_mongo_strip.py` (17 keys
+stripped from a faithful stale snapshot; survivors `continue`, `dir`,
+`enable-dht`, `enable-http-pipelining`). py3.10 full-repo py_compile 110/110.
+
+**Honest position on 100+ MB/s — not promised, and not withheld:**
+100 MB/s is 800 Mbps sustained, which needs the NIC, the swarm, and the disk to
+all deliver it. Two facts bear on it: the reference bot the user compares against
+peaked at **55 MB/s**, not 100+; and earlier telemetry showed this host's disk at
+**`F: 1.79TB [94.8%]`** while the reference was at 25% — a nearly full filesystem
+is a real write-throughput limit that no client setting fixes. Freeing disk space
+is a prerequisite for the top end, not an optimisation.
+
+**Still unanswered:** whether libtorrent beats aria2 *on this host*. The fair
+test now exists — same torrent via `/leech` (aria2) versus `/qbleech` (qBit on
+stock defaults) — and it has never been run. Until it is, aria2 remains the
+default for `/mirror` and `/leech`.
+
 ### 260905-AB (built, pushed)
 **Git:** `ff50eec`
 
