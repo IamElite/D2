@@ -61,7 +61,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260907-AD (built, pushed)
-**Git:** `PLACEHOLDER`  
+**Git:** `5c62c8f`  
 **Date:** 2026-09-07  
 **Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` (+493 — UNIVERSAL EMBED BYPASS section), `bot/helper/ext_utils/bot_utils.py` (+53/-4 — routing), `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (+36/-16 — `streamtape()` rewrite), `bot/modules/ytdlp.py` (+4/-2 — quality-menu hook), `requirements.txt` (yt-dlp pin), **`yt_dlp_plugins/` DELETE** (288 lines)
 
