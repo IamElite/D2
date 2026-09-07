@@ -1031,6 +1031,19 @@ _QBIT_SAFE = {
     'recheck_completed_torrents': False, 'up_limit': 256, 'dl_limit': 0,
 }
 
+# 260905-AB: qBittorrent's own stock defaults, for testing whether libtorrent is
+# really faster here than aria2. Only the values that are documented defaults are
+# listed - everything else is deliberately omitted so qBit keeps its own setting
+# rather than one I guessed at. Sources: max_connec 500 / per-torrent 100 /
+# upload slots 8 / per-torrent 4 (qBittorrent issue #7197), queueing 3/3/5, and
+# up_limit/dl_limit unlimited by default.
+_QBIT_STOCK = {
+    'max_connec': 500, 'max_connec_per_torrent': 100,
+    'max_uploads': 8, 'max_uploads_per_torrent': 4,
+    'max_active_downloads': 3, 'max_active_uploads': 3, 'max_active_torrents': 5,
+    'up_limit': 0, 'dl_limit': 0,
+}
+
 _QBIT_PROFILE = {
     # max_connec stays at qBit's stock 500 even on paas: it is the one knob where
     # going below default can only cost us peers. 260905-Y.
@@ -1128,9 +1141,11 @@ try:
     #   QBIT_PROFILE=tuned    -> _QBIT_PROFILE[HOST_PROFILE]
     #   QBIT_PROFILE=vps|paas -> that profile regardless of detection
     _qbit_want = environ.get('QBIT_PROFILE', '').strip().lower()
-    _qbit_safe = _qbit_want not in ('tuned', 'vps', 'paas', 'heroku')
+    _qbit_safe = _qbit_want not in ('tuned', 'vps', 'paas', 'heroku', 'stock')
     if _qbit_safe:
         _qp = dict(_QBIT_SAFE)
+    elif _qbit_want == 'stock':
+        _qp = dict(_QBIT_STOCK)
     elif _qbit_want in ('vps', 'paas', 'heroku'):
         _qp = _QBIT_PROFILE['paas' if _qbit_want in ('paas', 'heroku') else 'vps']
     else:
@@ -1170,8 +1185,8 @@ try:
     })
     _qbit_max_connec = _qp['max_connec'] if _qbit_safe else int(
         environ.get('QBIT_MAX_CONNEC') or _qp['max_connec'])
-    log_info(f"qBit runtime [{'safe/260905-U' if _qbit_safe else HOST_PROFILE}]: cache {_qp['disk_cache']}MiB, {_qbit_max_connec} conn, "
-             f"{_qp['max_connec_per_torrent']}/torrent, DHT {'on' if _qbit_dht else 'off'}, "
+    log_info(f"qBit runtime [{'safe/260905-U' if _qbit_safe else HOST_PROFILE}]: cache {_qp.get('disk_cache', 'stock')}MiB, {_qbit_max_connec} conn, "
+             f"{_qp.get('max_connec_per_torrent', 'stock')}/torrent, DHT {'on' if _qbit_dht else 'off'}, "
              f"up_limit {_qp.get('up_limit', 'unset')}, active dl/tor {_qp['max_active_downloads']}/{_qp['max_active_torrents']} (QBIT_PROFILE=tuned to try the {_QBIT_PROFILE[HOST_PROFILE]['max_connec']}-conn profile)")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")

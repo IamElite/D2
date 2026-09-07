@@ -25,13 +25,14 @@ from ..helper.mirror_utils.download_utils.gd_download import add_gd_download
 from ..helper.mirror_utils.download_utils.qbit_download import add_qb_torrent
 
 
-# 260905-AA: torrents go to qBittorrent by default, not aria2. On the same
-# torrent and the same class of VPS the user measured aria2 at 4-5 MB/s while a
-# friend's libtorrent client reached 55 MB/s - aria2's BitTorrent side is far
-# weaker than libtorrent's peer management, so /mirror and /leech were leaving
-# most of the swarm on the table. TORRENT_ENGINE=aria2 restores the old routing;
-# /qbmirror and /qbleech are unaffected.
-_TORRENT_ENGINE = environ.get('TORRENT_ENGINE', 'qbit').strip().lower()
+# 260905-AB: back to aria2 by default. 260905-AA flipped this to qbit on the
+# reasoning that libtorrent beats aria2 at BitTorrent, but that was never tested
+# here and it changed what /mirror and /leech do without the user asking. On the
+# host's actual qBit settings it made things worse - the safe profile caps upload
+# at 256 B/s with DHT/PEX off, so torrents sent there crawled at KB/s while aria2
+# was doing 4-5 MB/s. Routing is the user's choice again: set TORRENT_ENGINE=qbit
+# to opt in once qBit itself is configured to be fast.
+_TORRENT_ENGINE = environ.get('TORRENT_ENGINE', 'aria2').strip().lower()
 from ..helper.mirror_utils.download_utils.mega_download import add_mega_download
 from ..helper.mirror_utils.download_utils.rclone_download import add_rclone_download
 from ..helper.mirror_utils.rclone_utils.list import RcloneList
