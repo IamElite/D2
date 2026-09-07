@@ -149,7 +149,8 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     for _stale in ('max-upload-limit', 'max-overall-upload-limit',
                    'bt-request-peer-speed-limit', 'bt-max-peers',
                    'bt-max-open-files', 'max-connection-per-server',
-                   'split', 'min-split-size', 'peer-id-prefix', 'peer-agent'):
+                   'split', 'min-split-size', 'peer-id-prefix', 'peer-agent',
+                   'file-allocation', 'enable-mmap', 'bt-enable-lpd'):
         a2c_opt.pop(_stale, None)
     # 260905-S: pipelining must stay OFF. A server that mishandles Range answers
     # with the WHOLE file, so aria2 aborts with `Invalid range header. Request:
