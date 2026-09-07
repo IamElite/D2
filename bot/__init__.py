@@ -1018,7 +1018,9 @@ _A2_PROFILE = {
              'enable-mmap': 'true', 'bt-enable-lpd': 'true'},
 }
 _QBIT_PROFILE = {
-    'paas': {'disk_cache': 32,  'async_io_threads': 2, 'max_connec': 200,
+    # max_connec stays at qBit's stock 500 even on paas: it is the one knob where
+    # going below default can only cost us peers. 260905-Y.
+    'paas': {'disk_cache': 32,  'async_io_threads': 2, 'max_connec': 500,
              'max_connec_per_torrent': 100, 'max_uploads': 8,
              'max_uploads_per_torrent': 4, 'max_active_downloads': 3,
              'max_active_torrents': 5},
@@ -1106,8 +1108,9 @@ try:
     # as the only peer source, and the CPU was being burned elsewhere anyway.
     # qBit idle-stop (engine_lifecycle) still frees the RAM when nothing runs.
     _qbit_dht = environ.get('QBIT_DHT', '').lower() not in ('0', 'false', 'no')
+    _qp = _QBIT_PROFILE[HOST_PROFILE]
     qb_client.app_set_preferences({
-        **_QBIT_PROFILE[HOST_PROFILE],
+        **_qp,
         'hashing_threads': 1,
         'disk_io_type': 0,
         'lsd': False,
@@ -1126,9 +1129,9 @@ try:
         # never repay peers, so tit-for-tat choked us into KB/s downloads.
         'up_limit': int(environ.get('QBIT_UP_LIMIT', '0')),
         'dl_limit': int(environ.get('QBIT_DL_LIMIT', '0')),
+        'max_connec': (_qbit_max_connec := int(environ.get('QBIT_MAX_CONNEC') or _qp['max_connec'])),
     })
-    _qp = _QBIT_PROFILE[HOST_PROFILE]
-    log_info(f"qBit runtime [{HOST_PROFILE}]: cache {_qp['disk_cache']}MiB, {_qp['max_connec']} conn, "
+    log_info(f"qBit runtime [{HOST_PROFILE}]: cache {_qp['disk_cache']}MiB, {_qbit_max_connec} conn, "
              f"{_qp['max_connec_per_torrent']}/torrent, DHT {'on' if _qbit_dht else 'off'}, upload uncapped")
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
