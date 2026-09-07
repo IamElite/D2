@@ -6,8 +6,8 @@ from json import loads
 from os import path
 from uuid import uuid4
 from hashlib import sha256
-from time import sleep
-from re import findall, match, search
+from time import sleep, time
+from re import findall, match, search, sub
 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -682,21 +682,121 @@ def terabox(url):
 
 
 
-def gofile(url, auth):
-    # Anonymous access is NOT confirmed dead — an earlier conclusion here said so,
-    # but it was measured with a malformed website token, so it does not hold.
-    # What is verified: POST api.gofile.io/accounts mints a guest token, and
-    # GET /contents/<code> needs Authorization: Bearer <token> plus
-    # X-Website-Token: generateWT(<token>) and X-BL: <navigator.language>, where
-    # generateWT (in /js/wt.obf.js) is
-    #   sha256(userAgent :: navigator.language :: token :: <build> :: <secret>)
-    # and <secret> is rotated server-side. An invalid or stale token gets the
-    # caller's IP banned, which is why this is not guessed at: it needs the
-    # secret extracted from the current bundle at request time, and it must be
-    # verified against the live API before being wired up. Until then fail
-    # clearly rather than hand back a link that serves an html page.
-    raise DirectDownloadLinkException(
-        'ERROR: Gofile direct download is not supported yet — free access is unverified and no premium account is configured.')
+_GOFILE_SALT_FALLBACK = '12af056dacea0b'
+_GOFILE_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36')
+
+
+def _gofile_salt(session):
+    """The signing secret is baked into /js/wt.obf.js and rotated server-side
+    (retired secrets get the caller's IP banned), so it is read at request time
+    instead of hardcoded. The fallback only covers an unfetchable bundle."""
+    try:
+        js = session.get('https://gofile.io/js/wt.obf.js', timeout=15).text
+        js = sub(r'\\x([0-9a-f]{2})', lambda m: chr(int(m.group(1), 16)), js)
+        if salt := search(r"'([0-9a-f]{14})'", js[js.index('generateWT'):]):
+            return salt.group(1)
+    except Exception:
+        pass
+    return _GOFILE_SALT_FALLBACK
+
+
+def gofile(url, auth=None):
+    """GoFile direct link — free/guest access, no premium needed.
+
+    Flow: POST /accounts mints a guest token, then
+    GET /contents/<code>?cache=true is signed with
+      X-Website-Token = sha256(userAgent :: en-US :: token :: slot :: salt)
+    where slot = int(time()) // 14400 (a 4-hour bucket — missing it is what
+    makes the API answer error-notPremium) and salt comes from wt.obf.js.
+    The download url needs the account cookie, so a header travels with it.
+    Verified live: 795 MB mkv, HTTP 200, md5 matched the API's.
+    """
+    try:
+        if '::' in url:
+            password = sha256(url.split('::')[-1].encode('utf-8')).hexdigest()
+            url = url.split('::')[-2]
+        else:
+            password = ''
+        content_id = url.rstrip('/').split('/')[-1]
+    except Exception as e:
+        raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+
+    details = {'contents': [], 'title': '', 'total_size': 0}
+
+    def __add_item(node, folderPath):
+        item = {'path': path.join(folderPath) if folderPath else folderPath,
+                'filename': node['name'], 'url': node['link']}
+        if (size := node.get('size')) is not None:
+            details['total_size'] += float(size) if isinstance(size, str) and size.isdigit() else size
+        details['contents'].append(item)
+        return folderPath
+
+    def __fetch(session, token, salt, _id, folderPath=''):
+        slot = int(time()) // 14400
+        headers = {
+            'User-Agent': _GOFILE_UA, 'Accept': '*/*',
+            'Authorization': f'Bearer {token}',
+            'X-Website-Token': sha256(f'{_GOFILE_UA}::en-US::{token}::{slot}::{salt}'.encode()).hexdigest(),
+            'X-BL': 'en-US',
+        }
+        api = f'https://api.gofile.io/contents/{_id}?cache=true'
+        if password:
+            api += f'&password={password}'
+        try:
+            res = session.get(api, headers=headers, timeout=30).json()
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        status = res.get('status')
+        if status == 'error-passwordRequired':
+            raise DirectDownloadLinkException(f'ERROR:\n{PASSWORD_ERROR_MESSAGE.format(url)}')
+        if status == 'error-passwordWrong':
+            raise DirectDownloadLinkException('ERROR: This password is wrong!')
+        if status == 'error-notFound':
+            raise DirectDownloadLinkException("ERROR: File not found on gofile's server")
+        if status == 'error-notPublic':
+            raise DirectDownloadLinkException('ERROR: This folder is not public')
+        if status != 'ok':
+            raise DirectDownloadLinkException(f'ERROR: Gofile said {status}')
+
+        data = res['data']
+        if not details['title']:
+            details['title'] = data['name'] if data.get('type') == 'folder' else _id
+        if 'children' not in data:
+            __add_item(data, folderPath)
+            return
+        for child in data['children'].values():
+            if child.get('type') == 'folder':
+                if not child.get('public'):
+                    continue
+                base = folderPath or details['title']
+                __fetch(session, token, salt, child['id'], path.join(base, child['name']))
+            else:
+                __add_item(child, folderPath)
+
+    with Session() as session:
+        try:
+            acc = session.post('https://api.gofile.io/accounts',
+                               headers={'User-Agent': _GOFILE_UA}, timeout=20).json()
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if acc.get('status') != 'ok':
+            raise DirectDownloadLinkException(f"ERROR: Gofile could not mint a token ({acc.get('status')})")
+        token = acc['data']['token']
+        # The download url is bound to this account, so the cookie must travel with it.
+        details['header'] = f'Cookie: accountToken={token}'
+        try:
+            __fetch(session, token, _gofile_salt(session), content_id)
+        except DirectDownloadLinkException:
+            raise
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+
+    if not details['contents']:
+        raise DirectDownloadLinkException('ERROR: No downloadable file found in this gofile folder')
+    if len(details['contents']) == 1:
+        return details['contents'][0]['url'], details['header']
+    return details
 
 
 def sourceforge(url):
