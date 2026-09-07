@@ -45,7 +45,13 @@ tgcrypto
 uv
 uvloop==0.21.0
 xattr
-yt-dlp
+# PIN zaroori hai: yt_dlp_download.py ka universal embed-bypass yt-dlp ke
+# `globals.extractors` API pe depend karta hai, jiske baare me yt-dlp ka apna
+# source kehta hai "no backwards compatibility is guaranteed for the plugin
+# system API". register_embed_resolver() guarded hai (fail = warning, bot down
+# nahi), par pin ke bina ek routine `pip install` extractor ko silently tod
+# sakta hai. Upgrade karna ho to pehle real-bytes gate chalao.
+yt-dlp==2026.08.19
 curl-cffi>=0.10,<0.17
 setuptools
 pymediainfo

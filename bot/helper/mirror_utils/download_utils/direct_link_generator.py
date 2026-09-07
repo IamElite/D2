@@ -462,18 +462,38 @@ def antfiles(url):
 
 
 def streamtape(url):
-    splitted_url = url.split("/")
-    _id = splitted_url[4] if len(splitted_url) >= 6 else splitted_url[-1]
+    r"""StreamTape direct link.
+
+    PEHLA VERSION TOOTA HUA THA (live-verify kiya): woh
+    `//script[contains(text(),'ideoooolink')]` xpath + fixed `(&expires\S+)'`
+    regex use karta tha. Site ne variable ka naam `robotlink` kar diya hai aur
+    obfuscation ka split point HAR PAGE-LOAD pe move karta hai:
+        '//streamtape.com/get_video?id=m' + ('xcdQMGg...').substring(2).substring(1)
+        '//streamtape.com/'               + ('xcdget_video?id=m...').substring(2).substring(1)
+    Isliye fixed regex kabhi reliable nahi tha. Ab wahi GENERIC resolver chalta
+    hai jo yt_dlp_download.py ka universal embed-bypass use karta hai
+    (`streamtape_media_url` → `eval_js_concat`, koi eval() nahi) — ek hi logic,
+    do jagah (yahan requests-based, wahan yt-dlp IE-based).
+
+    Affected: dispatch ke 7 domains (streamtape.com/.co/.cc/.to/.net,
+    streamta.pe, streamtape.xyz) — sab pehle `ERROR: requeries script not found`
+    de rahe the.
+    """
     try:
         with Session() as session:
-            html = HTML(session.get(url).text)
+            session.headers.update({'user-agent': user_agent})
+            page = session.get(url, timeout=30).text
     except Exception as e:
         raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
-    if not (script := html.xpath("//script[contains(text(),'ideoooolink')]/text()")):
-        raise DirectDownloadLinkException("ERROR: requeries script not found")
-    if not (link := findall(r"(&expires\S+)'", script[0])):
-        raise DirectDownloadLinkException("ERROR: Download link not found")
-    return f"https://streamtape.com/get_video?id={_id}{link[-1]}"
+    try:
+        # LAZY import: direct_link_generator module-level pe yt_dlp_download ko
+        # import nahi karta (boot cost + dependency direction).
+        from .yt_dlp_download import streamtape_media_url
+        return streamtape_media_url(page)
+    except ValueError as e:
+        raise DirectDownloadLinkException(f"ERROR: {e}") from e
+    except Exception as e:
+        raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
 
 
 def racaty(url):

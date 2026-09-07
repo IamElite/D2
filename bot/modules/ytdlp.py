@@ -285,10 +285,12 @@ class YtSelection:
 
 
 def extract_info(link, options):
-    from ..helper.mirror_utils.download_utils.yt_dlp_download import add_impersonate, normalize_ydl_link
+    from ..helper.mirror_utils.download_utils.yt_dlp_download import (
+        add_impersonate, normalize_ydl_link, register_embed_resolver)
     link = normalize_ydl_link(link)
     options = add_impersonate(options)
     from yt_dlp import YoutubeDL  # CJ: lazy — boot pe 20MB nahi
+    register_embed_resolver()     # quality-menu path pe bhi universal embed IE chahiye
     with YoutubeDL(options) as ydl:
         result = ydl.extract_info(link, download=False)
         if result is None:

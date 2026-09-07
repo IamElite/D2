@@ -2,7 +2,7 @@
 import platform
 from base64 import b64encode
 from datetime import datetime
-from os import path as ospath
+from os import path as ospath, environ
 from pkg_resources import get_distribution, DistributionNotFound
 from aiofiles import open as aiopen
 from aiofiles.os import remove as aioremove, path as aiopath, mkdir
@@ -56,9 +56,19 @@ _YTDL_HINT = (
     "hellporno.com/", "drtuber.com/", "sunporno.com/", "sexu.com/",
     "alphaporno.com/", "pornflip.com/", "pornerbros.com/", "murrtube.com/",
     "4tube.com/", "chaturbate.com/", "stripchat.com/", "nubiles.net/",
-    # multi-server page; served by the bundled yt_dlp_plugins/extractor/letsjerk.py
-    "letsjerk.tv/",
+    # multi-server page → yt_dlp_download.py ka UNIVERSAL EMBED BYPASS handle
+    # karta hai (page → player-iframe → streamtape/byse backend). Koi alag
+    # plugin/file nahi. Nayi site = YTDL_EMBED_HOSTS env var (code change nahi).
+    "letsjerk.tv/", "letsjerk.com/",
 )
+
+# Universal embed-discovery ke default hosts. Yaani _EMBED_DISCOVERY_HOSTS
+# (yt_dlp_download.py) ka mirror — yahan isliye copy kiya kyunki bot_utils ko
+# yt_dlp_download module-level pe import NAHI kar sakti (yt_dlp_download already
+# bot_utils se import karta hai → circular). `embed_discovery_hosts()` dono ko
+# mila ke authoritative set banata hai, isliye env override ek hi jagah lagta hai.
+_EMBED_DISCOVERY_DEFAULT = {'letsjerk.tv', 'letsjerk.com'}
+
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
 STATUS_START = 0
 PAGES        = 1
@@ -482,6 +492,38 @@ def is_torrent_link(url):
     return url.lower().split("?", 1)[0].rstrip("/").endswith(".torrent")
 
 
+def embed_discovery_hosts():
+    """Universal embed-resolver ke enabled hosts (default + env override).
+    Env `YTDL_EMBED_HOSTS="site1.com,site2.com"` se nayi site bina code change
+    ke add hoti hai — uska embed-host (streamtape/byse/...) pehle se supported ho
+    to bas yeh kaafi hai."""
+    hosts = set(_EMBED_DISCOVERY_DEFAULT)
+    try:
+        # Authoritative default yt_dlp_download se — LAZY import (circular se bachao)
+        from ..mirror_utils.download_utils.yt_dlp_download import _EMBED_DISCOVERY_HOSTS
+        hosts |= set(_EMBED_DISCOVERY_HOSTS)
+    except Exception:
+        pass
+    extra = environ.get('YTDL_EMBED_HOSTS', '').strip()
+    if extra:
+        hosts |= {h.strip().lower().lstrip('.') for h in extra.split(',') if h.strip()}
+    return {h for h in hosts if h}
+
+
+def is_embed_discovery_url(url):
+    """True = yeh URL universal embed-resolver ka candidate hai (page me player
+    iframe dhundh ke embed-host backend se media nikala jaayega)."""
+    if not url or not isinstance(url, str):
+        return False
+    low = url.lower()
+    if '://' not in low:
+        return False
+    host = low.split('://', 1)[1].split('/', 1)[0].split('?', 1)[0].split('@')[-1].split(':')[0]
+    if not host:
+        return False
+    return any(host == d or host.endswith('.' + d) for d in embed_discovery_hosts())
+
+
 def is_ytdlp_link(url):
     if not url or not isinstance(url, str) or is_torrent_link(url):
         return False
@@ -489,7 +531,9 @@ def is_ytdlp_link(url):
     path = low.split("?", 1)[0].rstrip("/")
     if path.endswith((".m3u8", ".m3u", ".ts")):
         return True
-    return any(h in low for h in _YTDL_HINT)
+    if any(h in low for h in _YTDL_HINT):
+        return True
+    return is_embed_discovery_url(url)
 
 
 async def is_ytdlp_supported(url):
@@ -498,6 +542,8 @@ async def is_ytdlp_supported(url):
         return False
     low = url.lower()
     if any(h in low for h in _YTDL_HINT) or low.split("?", 1)[0].rstrip("/").endswith((".m3u8", ".m3u", ".ts")):
+        return True
+    if is_embed_discovery_url(url):
         return True
     if any(x in url for x in ("X-Amz-Signature=", "X-Amz-Algorithm=", "X-Amz-Expires=", "response-content-disposition=")):
         return False

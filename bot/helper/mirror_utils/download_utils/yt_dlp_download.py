@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-from os import path as ospath, listdir
+from os import path as ospath, listdir, environ
+from base64 import urlsafe_b64decode
 from secrets import token_hex
 from logging import getLogger
-from re import search as re_search, sub as re_sub
+from re import search as re_search, sub as re_sub, compile as re_compile, findall as re_findall
 from json import loads as json_loads
+from urllib.parse import urlparse
 
 from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lock, bot_cache
 from ...telegram_helper.message_utils import sendStatusMessage
@@ -268,6 +270,7 @@ class YoutubeDLHelper:
         if link.startswith(('rtmp', 'mms', 'rstp', 'rtmps')):
             self.opts['external_downloader'] = 'ffmpeg'
         from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy
+        register_embed_resolver()   # universal embed IE — YoutubeDL init se PEHLE
         with YoutubeDL(self.opts) as ydl:
             try:
                 result = ydl.extract_info(link, download=False)
@@ -336,6 +339,7 @@ class YoutubeDLHelper:
             except (OSError, ValueError):
                 pass
         try:
+            register_embed_resolver()   # idempotent — extractMetaData na chala ho to bhi safe
             with YoutubeDL(self.opts) as ydl:
                 try:
                     # extractMetaData() already fetched webpage+JSON for this link.
@@ -483,3 +487,488 @@ class YoutubeDLHelper:
                     self.opts[key].append(value)
             else:
                 self.opts[key] = value
+
+
+# ============================================================================
+#  UNIVERSAL EMBED BYPASS - page -> player-iframe -> embed-host backend
+# ============================================================================
+# Design: koi bhi site jo ek known video-host embed karti hai, wo yahan se
+# automatically chal jaati hai - site ka naam kahin hardcode NAHI hota.
+# Flow:  page fetch -> saare player <iframe> (absolute https, ads filtered)
+#        -> har embed pe backend-dispatch (host/path pattern) -> yt-dlp formats.
+# Multi-server (?tape=N jaise tabs) bhi generic hain: jitne player iframes/tabs
+# mile, sab try hote hain; jo fail ho us pe warning + aage badho.
+#
+# Yeh section deliberately EK file me hai (user requirement) aur deliberately
+# module-level pe `yt_dlp` import NAHI karta - InfoExtractor class factory ke
+# andar banti hai, warna boot pe 1751 extractor modules load ho jaate.
+# (measure kiya: `from yt_dlp.aes import ...` module-level = +29.8 MB RSS,
+#  69 submodules; `cryptography` ka AESGCM = +0 KB.)
+# AES ke liye `cryptography` use hota hai (requirements.txt me already hai) -
+# `yt_dlp.aes` nahi, kyunki wo poora yt_dlp kheench leta hai. Tag layout
+# identical hai (blob = ciphertext + 16-byte GCM tag) - parity live-test kiya.
+
+
+# -- S1. embed-host backend registry (naya host = 1 entry, nayi class nahi) ---
+# Naya embed host aaye to sirf yahan ek tuple add karo:
+#   (host-regex-compiled, path-regex-compiled, resolver-attribute-name)
+# Dono me se koi bhi None ho sakta hai (sirf host, ya sirf path se match).
+_ST_HOST_RE = re_compile(r'(?:^|\.)(?:streamtape\.\w+|streamta\.pe|tapecontent\.net)$')
+_BYSE_PATH_RE = re_compile(r'/[edfv]/[\w-]+/?$')
+
+_EMBED_BACKENDS = (
+    # StreamTape family: obfuscated `robotlink` assignment in the embed page.
+    ('streamtape', _ST_HOST_RE, None, '_st_formats'),
+    # Byse family: GET /api/videos/<code> -> `playback` blob -> AES-256-GCM
+    # -> HLS master playlist ya progressive MP4.
+    ('byse', None, _BYSE_PATH_RE, '_byse_formats'),
+    # voe.sx: DDoS-Guard JS challenge -> 403 (curl_cffi chrome impersonate bhi
+    # fail). Browser-less bypass namumkin, isliye koi backend nahi - embed
+    # warning ke saath skip hota hai aur baaki servers chalte rehte hain.
+)
+
+# Protocol-relative (`//host/...`) iframes is site-family pe ADS hote hain -
+# live verify kiya: `//a.magsrv.com/iframe.php?...`, `//a.letsjerk.tv/api/spots/`.
+# Player iframe hamesha ABSOLUTE `https://` hota hai. Isliye sirf absolute src
+# lete hain + yeh host-blocklist lagate hain.
+_AD_HOST_BLOCKLIST = (
+    'magsrv', 'exoclick', 'juicyads', 'popads', 'tsyndicate', 'adsterra',
+    'propellerads', 'clickadu', 'hilltopads', 'trafficjunky', 'a-ads',
+)
+
+# Jin hosts pe embed-discovery enabled hai. Default = letsjerk family.
+# `YTDL_EMBED_HOSTS="site1.com,site2.com"` se bina code change ke add karo -
+# nayi site ka embed-host pehle se supported ho to sirf yeh env var kaafi hai.
+_EMBED_DISCOVERY_HOSTS = {'letsjerk.tv', 'letsjerk.com'}
+
+# Server-tab query params jo multi-server pages use karte hain (?tape=1 etc).
+# Generic rakha hai taaki doosri sites ke ?server=2 / ?srv=3 bhi pakde jaayein.
+_SERVER_TAB_RE = re_compile(r'[?&](?:tape|server|srv|s|v|vno|embed|source)\s*=\s*\d+')
+_IFRAME_SRC_RE = re_compile(r'<iframe[^>]+?\bsrc=(["\'])(?P<src>https?://[^"\']+)\1')
+_HREF_RE = re_compile(r'href=(["\'])([^"\']+)\1')
+_JS_STR_RE = re_compile(r"""(['"])((?:\\.|(?!\1).)*)\1""")
+_JS_METH_RE = re_compile(r'[\s)]*\.\s*(substring|substr|slice)\s*\(\s*(-?\d+)\s*(?:,\s*(-?\d+)\s*)?\)')
+
+# StreamTape ka `robotlink` assignment. Split point HAR PAGE-LOAD pe move karta
+# hai (live verify kiya - do loads me do alag shapes):
+#   '//streamtape.com/get_video?id=m' + ('xcdQMGg...').substring(2).substring(1)
+#   '//streamtape.com/'               + ('xcdget_video?id=m...').substring(2).substring(1)
+# Isliye fixed prefix/payload regex kabhi reliable nahi - poora expression
+# evaluate karna padta hai. Purana `ideoooolink` naam bhi accept karte hain
+# (site ne variable rename kiya tha; direct_link_generator wala code isi pe atka).
+# Dono live forms match hone chahiye (dono real pages pe dekhe gaye):
+#   document.getElementById('robotlink').innerHTML = '<expr>'
+#   robotlink').innerHTML = '<expr>'
+# Isliye variable-name ke baad optional quotes/parens/brackets, phir .innerHTML.
+# Lookahead `\w` ensure karta hai ki `myrobotlink2` jaisa naam false-match na ho.
+_ROBOTLINK_RE = re_compile(
+    r"(?:robotlink|ideoooolink)(?!\w)[\s'\")\]]*\.innerHTML\s*=\s*(?P<expr>[^\n]+)")
+
+_HEIGHT_WHITELIST_RE = re_compile(r'\b(240|360|480|576|720|1080|1440|2160)p\b')
+
+
+def embed_enabled_hosts():
+    """Discovery ke liye enabled hosts (default + env override)."""
+    hosts = set(_EMBED_DISCOVERY_HOSTS)
+    extra = environ.get('YTDL_EMBED_HOSTS', '').strip()
+    if extra:
+        hosts |= {h.strip().lower().lstrip('.') for h in extra.split(',') if h.strip()}
+    return {h for h in hosts if h}
+
+
+def is_embed_discovery_url(url):
+    """True = yeh URL humare universal embed-resolver ka candidate hai.
+    Routing (bot_utils.is_ytdlp_link / is_ytdlp_supported) isko use karta hai."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        host = (urlparse(url).hostname or '').lower()
+    except Exception:
+        return False
+    if not host:
+        return False
+    return any(host == d or host.endswith('.' + d) for d in embed_enabled_hosts())
+
+
+def eval_js_concat(expr):
+    """JS ka chhota subset evaluate karo: string literals `+` se jude hue,
+    optional chained `.substring/.substr/.slice` calls ke saath.
+
+    `eval()`/`exec()` use NAHI hota - sirf tokenizer. Garbage input pe
+    ValueError (verified), isliye koi code-injection nahi.
+    """
+    parts, i, n = [], 0, len(expr)
+    while i < n:
+        if expr[i].isspace() or expr[i] in '+();':
+            i += 1
+            continue
+        m = _JS_STR_RE.match(expr, i)
+        if not m:
+            # Trailing garbage tolerate karo: real pages pe assignment ke baad
+            # `;</script>` jaisa HTML usi line pe ho sakta hai. Agar ab tak ek
+            # bhi string-literal mil chuka hai to wahin ruk jao. FAIL-CLOSED:
+            # kuch mila hi nahi to ValueError (pehle jaisa).
+            if parts:
+                break
+            raise ValueError(f'unexpected token {expr[i]!r} at {i}')
+        value, i = m.group(2), m.end()
+        while (method := _JS_METH_RE.match(expr, i)):
+            fn, start = method.group(1), int(method.group(2))
+            end = int(method.group(3)) if method.group(3) is not None else None
+            if fn == 'substr':
+                value = value[start:] if end is None else value[start:start + end]
+            else:
+                value = value[start:] if end is None else value[start:end]
+            i = method.end()
+        parts.append(value)
+    return ''.join(parts)
+
+
+def streamtape_media_url(page_html):
+    """StreamTape embed-page HTML -> real media URL.
+
+    PURE function (koi yt-dlp dependency nahi) - isliye yt-dlp IE se bhi chalta
+    hai aur `direct_link_generator.streamtape()` (requests-based) se bhi.
+    ValueError raise karta hai agar robotlink na mile/evaluate na ho.
+    """
+    m = _ROBOTLINK_RE.search(page_html or '')
+    if not m:
+        raise ValueError('robotlink assignment not found')
+    try:
+        media = eval_js_concat(m.group('expr').strip().rstrip(';'))
+    except ValueError as e:
+        raise ValueError(f'could not evaluate robotlink expression: {e}') from e
+    if media.startswith('//'):
+        media = 'https:' + media
+    if not media.startswith('http'):
+        raise ValueError('robotlink did not yield a usable url')
+    return media
+
+
+def base64url_decode(value):
+    return urlsafe_b64decode(value + '=' * (-len(value) % 4))
+
+
+def byse_decrypt_playback(playback, warn=None):
+    """Byse-family `playback` blob -> sources dict (AES-256-GCM).
+
+    Key schedule (site ke videoPagesBundle se nikala, decryption se prove kiya):
+        version n -> base64url(key_parts[n]) + base64url(key_parts[31 - n])  (1-based)
+    Do asli parts chhote (22-char) hote hain; 32-char entries decoys hain.
+    Index server-supplied `version` se aata hai, isliye version bump pe code
+    change ki zaroorat nahi. LIVE VERIFY: version 9 (260905-T) -> version 5
+    (aaj) - parts 5 aur 26, dono exactly 22-char. Schedule abhi bhi sahi.
+    """
+    try:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    except Exception as e:
+        if warn:
+            warn(f'cryptography unavailable ({e.__class__.__name__}) - playback decrypt skip')
+        return None
+    parts = playback.get('key_parts') or []
+    payload, iv = playback.get('payload'), playback.get('iv')
+    if not (parts and payload and iv):
+        return None
+    version = str(playback.get('version') or '')
+    chosen = parts
+    if version.isdigit():
+        n = int(version)
+        idx = [i for i in (n, 31 - n) if 1 <= i <= len(parts)]
+        if idx:
+            chosen = [parts[i - 1] for i in idx]
+    try:
+        key = b''.join(base64url_decode(p) for p in chosen if p)
+        blob = base64url_decode(payload)
+        nonce = base64url_decode(iv)
+    except Exception as e:
+        if warn:
+            warn(f'playback base64 decode failed ({e.__class__.__name__})')
+        return None
+    if len(key) not in (16, 24, 32) or len(blob) <= 16:
+        if warn:
+            warn(f'unexpected key/blob size ({len(key)}/{len(blob)})')
+        return None
+    try:
+        return json_loads(AESGCM(key).decrypt(nonce, blob, None).decode())
+    except Exception as e:
+        if warn:
+            warn(f'playback decrypt failed ({e.__class__.__name__})')
+        return None
+
+
+# -- S2. InfoExtractor factory (class LAZY banti hai - boot pe yt_dlp load nahi)
+_EMBED_IE_CLASS = None
+
+
+def _make_embed_ie():
+    global _EMBED_IE_CLASS
+    if _EMBED_IE_CLASS is not None:
+        return _EMBED_IE_CLASS
+    from yt_dlp.extractor.common import InfoExtractor
+    from yt_dlp.utils import ExtractorError, int_or_none, traverse_obj, url_or_none
+
+    class D2EmbedIE(InfoExtractor):
+        IE_NAME = 'd2embed'
+        # Broad rakha hai; asli gating `suitable()` me hoti hai (host allow-list).
+        _VALID_URL = r'https?://.+'
+        _WORKING = True
+        _AGE_LIMIT = 18
+
+        _TITLE_BRAND_RE = re_compile(r'Letsjerk|Free Full Porn HD Videos')
+        _TITLE_SEP_RE = re_compile(r'\s*[-\u2013\u2014]\s*')
+
+        @classmethod
+        def suitable(cls, url):
+            """Sirf enabled hosts pe match - warna built-in extractors (YouTube,
+            Vimeo, pornhub, ...) aur GenericIE apna kaam karte rehte hain."""
+            return is_embed_discovery_url(url) and super().suitable(url)
+
+        def _real_extract(self, url):
+            video_id = re_sub(r'\W+', '_', urlparse(url).path.strip('/'))[:80] or 'video'
+            webpage = self._download_webpage(url, video_id)
+            title = self._clean_title(self._og_search_title(webpage, default=None) or '') \
+                or self._html_search_regex(r'<title>([^<]+)', webpage, 'title', default=None) \
+                or video_id
+            thumbnail = self._og_search_thumbnail(webpage, default=None)
+
+            pages = {url: webpage}
+            formats, seen, duration = [], set(), None
+            for server_no, page_url in enumerate(self._server_pages(url, webpage), 1):
+                html = pages.get(page_url)
+                if html is None:
+                    html = self._download_webpage(
+                        page_url, video_id, note=f'Downloading server {server_no} page', fatal=False)
+                    if not html:
+                        continue
+                    pages[page_url] = html
+
+                for embed_url in self._player_embeds(html):
+                    host = (urlparse(embed_url).netloc or '').lower()
+                    note = f'server {server_no} ({host})'
+                    try:
+                        got, meta = self._resolve_embed(embed_url, video_id, note)
+                    except ExtractorError as e:
+                        self.report_warning(f'{note}: skipped - {e.msg}')
+                        continue
+                    except Exception as e:
+                        self.report_warning(f'{note}: skipped - {e.__class__.__name__}: {e}')
+                        continue
+                    duration = duration or int_or_none(traverse_obj(meta, 'duration_seconds'))
+                    thumbnail = thumbnail or url_or_none(traverse_obj(meta, 'poster_url'))
+                    for fmt in got:
+                        key = (re_sub(r'[?#].*$', '', fmt.get('url') or ''),
+                               fmt.get('height'), fmt.get('tbr'))
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        fmt.setdefault('format_note', note)
+                        formats.append(fmt)
+
+            if not formats:
+                raise ExtractorError('No working streaming server found on this page', expected=True)
+            return {
+                'id': video_id,
+                'title': title,
+                'thumbnail': thumbnail,
+                'duration': duration,
+                'age_limit': self._AGE_LIMIT,
+                'formats': formats,
+            }
+
+        def _clean_title(self, raw):
+            """Right-to-left trailing dash-segments hatao jab tak branding mile;
+            pehla non-branding segment milte hi ruk jao (title ka hissa safe).
+
+            Purana plugin regex (`\\s+-\\s+.*Letsjerk.*$`) GREEDY tha aur pehle
+            ' - ' pe cut kar deta tha -> 'Ava Addams - NEW BG Fucks Her Number 1
+            Fan - Free Full Porn HD Videos - Letsjerk.com' se sirf 'Ava Addams'
+            bachta tha (har letsjerk file ka naam adhoora tha). Regex se yeh
+            theek bhi nahi ho sakta: `[^-]*` dash-cross nahi karta, to match
+            galat jagah anchor hota hai (live debug karke dekha, start=10).
+            """
+            raw = (raw or '').strip()
+            if not raw:
+                return ''
+            parts = self._TITLE_SEP_RE.split(raw)
+            while len(parts) > 1 and self._TITLE_BRAND_RE.search(parts[-1]):
+                parts.pop()
+            parts = [p.strip() for p in parts if p.strip()]
+            return ' - '.join(parts) if len(parts) > 1 else (parts[0] if parts else raw)
+
+        def _server_pages(self, url, webpage):
+            """Har multi-server tab (?tape=N / ?server=N / ...), page order me,
+            current page pehle, koi duplicate nahi. Same-host links only."""
+            base_host = (urlparse(url).hostname or '').lower()
+            found, pages = [], []
+            for href in re_findall(_HREF_RE, webpage):
+                link = href[1].replace('&amp;', '&')
+                if not _SERVER_TAB_RE.search(link.lower()):
+                    continue
+                link_host = (urlparse(link).hostname or '').lower()
+                if link_host and link_host != base_host \
+                        and not link_host.endswith('.' + base_host):
+                    continue
+                if link not in found:
+                    found.append(link)
+            base = re_sub(r'[?#].*$', '', url).rstrip('/')
+            if not any(re_sub(r'[?#].*$', '', p).rstrip('/') == base for p in found):
+                found.insert(0, url)
+            for page_url in found:
+                if page_url not in pages:
+                    pages.append(page_url)
+            return pages
+
+        def _player_embeds(self, webpage):
+            """Player iframes only - absolute http(s) src + non-ad host."""
+            out = []
+            for m in _IFRAME_SRC_RE.finditer(webpage or ''):
+                src = m.group('src').replace('&amp;', '&')
+                host = (urlparse(src).netloc or '').lower()
+                if not host or any(x in host for x in _AD_HOST_BLOCKLIST):
+                    continue
+                if not url_or_none(src):
+                    continue
+                if src not in out:
+                    out.append(src)
+            return out
+
+        def _resolve_embed(self, embed_url, video_id, note):
+            """Backend dispatch - host/path pattern se, site ke naam se nahi."""
+            up = urlparse(embed_url)
+            host = (up.netloc or '').lower()
+            path = up.path or ''
+            for _name, host_re, path_re, resolver in _EMBED_BACKENDS:
+                if host_re is not None and not host_re.search(host):
+                    continue
+                if path_re is not None and not path_re.search(path):
+                    continue
+                return getattr(self, resolver)(embed_url, video_id, note)
+            raise ExtractorError(f'no backend for embed host {host}', expected=True)
+
+        # ---- backends ----
+        def _st_formats(self, embed_url, video_id, note):
+            page = self._download_webpage(embed_url, video_id, note=f'{note}: embed page')
+            try:
+                media_url = streamtape_media_url(page)
+            except ValueError as e:
+                raise ExtractorError(str(e))
+            fmt = {
+                'url': media_url,
+                'format_id': 'streamtape',
+                'ext': 'mp4',
+                'http_headers': {'Referer': 'https://streamtape.com/'},
+            }
+            # Ek 2-byte request real filesize + resolution de deti hai (embed page
+            # inko expose nahi karta). Failure non-fatal hai.
+            try:
+                resp = self._request_webpage(
+                    media_url, video_id, note=f'{note}: probing',
+                    headers={'Range': 'bytes=0-1', 'Referer': 'https://streamtape.com/'})
+                total = int_or_none(self._search_regex(
+                    r'/(\d+)\s*$', resp.headers.get('Content-Range') or '', None, default=None))
+                fmt['filesize'] = total or int_or_none(resp.headers.get('Content-Length'))
+                hm = _HEIGHT_WHITELIST_RE.search(urlparse(resp.url).path)
+                if hm and (height := int_or_none(hm.group(1))):
+                    fmt['height'] = height
+                resp.close()
+            except Exception as e:
+                self.report_warning(f'{note}: probe failed ({e.__class__.__name__})')
+            return [fmt], {}
+
+        def _byse_formats(self, embed_url, video_id, note):
+            up = urlparse(embed_url)
+            code = self._search_regex(r'/([A-Za-z0-9_-]+)/?$', up.path, 'video code')
+            origin = f'{up.scheme}://{up.netloc}'
+            data = self._download_json(
+                f'{origin}/api/videos/{code}', video_id, note=f'{note}: playback api',
+                headers={'Referer': embed_url})
+
+            payload = traverse_obj(data, ('playback', {dict}))
+            sources = None
+            if payload:
+                decrypted = byse_decrypt_playback(payload, warn=self.report_warning)
+                sources = traverse_obj(decrypted, 'sources') if decrypted else None
+            if sources is None:
+                sources = traverse_obj(data, 'sources')
+            if not sources:
+                raise ExtractorError('no sources in playback payload')
+
+            headers = {'Referer': origin}
+            formats = []
+            for src in sources:
+                media_url = url_or_none(traverse_obj(src, 'url'))
+                if not media_url:
+                    continue
+                mime = (traverse_obj(src, 'mime_type') or '').lower()
+                height = int_or_none(traverse_obj(src, 'height'))
+                tbr = int_or_none(traverse_obj(src, 'bitrate_kbps'))
+                filesize = int_or_none(traverse_obj(src, 'size_bytes'))
+                if 'mpegurl' in mime or media_url.split('?')[0].endswith(('.m3u8', '.m3u')):
+                    # API ka `label`/`height` JHOOT bol sakta hai - live dekha:
+                    # API ne 1080p bola, actual playlist se height 720 aayi.
+                    # Isliye real height playlist se aati hai, API label se nahi.
+                    got = self._extract_m3u8_formats(
+                        media_url, video_id, 'mp4', m3u8_id=f'byse-{height or "hls"}',
+                        headers=headers, fatal=False, note=f'{note}: hls')
+                    for f in got:
+                        f.setdefault('filesize', filesize)
+                    formats.extend(got)
+                else:
+                    formats.append({
+                        'url': media_url,
+                        'format_id': f'byse-{height or "http"}',
+                        'ext': 'mp4',
+                        'height': height,
+                        'tbr': tbr,
+                        'filesize': filesize,
+                        'http_headers': headers,
+                    })
+            if not formats:
+                raise ExtractorError('playback sources had no usable media')
+            return formats, data
+
+    _EMBED_IE_CLASS = D2EmbedIE
+    return D2EmbedIE
+
+
+# -- S3. registration (yt-dlp ke andar, GenericIE se PEHLE) --------------------
+_EMBED_REGISTERED = False
+
+
+def register_embed_resolver():
+    """Universal embed IE ko yt-dlp me inject karo. Boot-safe + idempotent.
+
+    Do zaroori baatein - DONO live-test se pakdi gayi, guess se nahi:
+      1. Pehle `gen_extractor_classes()` se extractors dict POPULATE karo. Warna
+         `extractor/extractors.py` ka `setdefault()` loop humare baad chalega aur
+         GenericIE humse PEHLE insert ho jaayega. Order matter karta hai -
+         `YoutubeDL.extract_info()` pehla `ie.suitable(url)` match use karta hai.
+         (Pehla attempt bina populate kiye = 1751 extractors ud gaye, total 2.)
+      2. Dict key = CLASS name (`D2EmbedIE`), kyunki `get_info_extractor()`
+         `f'{ie_key}IE'` lookup karta hai. Galat key -> KeyError at extract time.
+
+    Fail hone pe bot NAHI rukega - sirf warning. (brain.md 260902-BE: ek chhoti
+    si boot-time galti se poora bot down ho gaya tha, isliye yeh guard zaroori.)
+    """
+    global _EMBED_REGISTERED
+    if _EMBED_REGISTERED:
+        return True
+    try:
+        from yt_dlp.extractor import gen_extractor_classes
+        gen_extractor_classes()                       # lazy dict bharo (zaroori)
+        from yt_dlp.globals import extractors as _extractors
+        cls = _make_embed_ie()
+        key = cls.__name__                            # 'D2EmbedIE'
+        if key not in _extractors.value:
+            generic = _extractors.value.get('GenericIE')
+            new = {k: v for k, v in _extractors.value.items() if k != 'GenericIE'}
+            new[key] = cls
+            if generic is not None:
+                new['GenericIE'] = generic            # Generic hamesha LAST (fallback)
+            _extractors.value = new
+    except Exception as e:
+        LOGGER.warning(
+            f'embed-resolver register failed ({e.__class__.__name__}: {e}) - '
+            f'yt-dlp update ne globals API badla hoga; baaki ytdl kaam karega')
+    _EMBED_REGISTERED = True   # retry-spam se bachao (fail ho ya pass)
+    return _EMBED_REGISTERED

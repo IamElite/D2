@@ -60,6 +60,62 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260907-AD (built, pushed)
+**Git:** `PLACEHOLDER`  
+**Date:** 2026-09-07  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` (+493 — UNIVERSAL EMBED BYPASS section), `bot/helper/ext_utils/bot_utils.py` (+53/-4 — routing), `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (+36/-16 — `streamtape()` rewrite), `bot/modules/ytdlp.py` (+4/-2 — quality-menu hook), `requirements.txt` (yt-dlp pin), **`yt_dlp_plugins/` DELETE** (288 lines)
+
+**User:** *"letsjerk.py ka type ka bhi try hota to smart ko ytdl m add karo na ki alag file bana... hamare ytdl code bhi advc banao is type ke backend se bhi video dow ho sake... 'yt dlp plugin' aisa kuch nhi chaiye is folder ke sabhi file remove karo"* → `.ask` pe design discuss hua, phir `fix` = build.
+
+**Kya kiya (3 cheezein, ek saath):**
+1. `yt_dlp_plugins/` **poora delete** — andar sirf `extractor/letsjerk.py` tha (288 lines), aur poore repo me uska **ek hi reference** tha (`bot_utils.py:59` ka comment). Koi import nahi toota.
+2. letsjerk ka logic **`yt_dlp_download.py` ke andar** shift, aur usse **GENERIC** banaya: ab site ka naam dispatch-logic me kahin nahi hai. Flow = page fetch → saare player `<iframe>` (absolute https, ads filtered) → har embed pe **host/path-pattern se backend dispatch** → yt-dlp formats. Nayi site jo StreamTape/Byse-family embed karti hai **automatically chalegi, zero code change**; naya embed host = `_EMBED_BACKENDS` me ek tuple (nayi class nahi). `YTDL_EMBED_HOSTS="site1.com,site2.com"` env se discovery-list bina code change ke badhti hai.
+3. `direct_link_generator.py:464` ka **`streamtape()` rewrite** — purana CONFIRMED TOOTA tha (neeche).
+
+**Teen pre-existing bugs jo live-verify karke mile (guess nahi):**
+
+| Bug | Proof | Fix |
+|---|---|---|
+| **`streamtape()` direct-generator toota hua tha** | Live page pe `ideoooolink` script **exist hi nahi karta** (`robotlink` hai) → xpath empty → `ERROR: requeries script not found`. **7 domains affected** (`streamtape.com/.co/.cc/.to/.net`, `streamta.pe`, `.xyz`) | Ab wahi generic `streamtape_media_url()` + `eval_js_concat()` chalta hai (ek logic, do engine — yahan requests-based, yt-dlp side IE-based). Live: `HTTP 206`, real size **542,489,430 B** |
+| **Plugin ka title-regex greedy tha** | `\s+-\s+.*Letsjerk.*$` → `'Ava Addams - NEW BG Fucks Her Number 1 Fan - Free Full Porn HD Videos - Letsjerk.com'` se sirf **`'Ava Addams'`** bachta tha. Yaani **har letsjerk file ka naam adhoora tha.** Regex se theek bhi nahi ho sakta: `[^-]*` dash-cross nahi karta, isliye match galat jagah anchor hota hai (debug: `match.start()==10`) | `_clean_title()` — right-to-left segment-strip, pehla non-branding segment milte hi ruk jaata hai. Live: **`'Ava Addams - NEW BG Fucks Her Number 1 Fan'`** ✓, `[BrazzersExxtra]` case bhi ✓, en-dash (`MILFY – Anissa Kate – …`) bhi ✓ |
+| **`eval_js_concat` trailing-garbage pe marta tha** | `rstrip(';')` sirf *trailing* semicolons hataata hai; agar `;</script>` same line pe ho to `unexpected token '<'`. Real page pe newline hoti hai isliye plugin bachta tha — brittle | Tokenizer ab **fail-closed trailing-tolerant** hai: ek bhi literal mil chuka ho to wahin break; kuch na mila ho to `ValueError` (pehle jaisa). Test me same-line case explicitly cover |
+
+**Do design constraints jo measure karke decide kiye (dono RSS numbers sandbox-measured):**
+- `InfoExtractor` class **module level pe nahi** ban sakti — factory ke andar banti hai (`_make_embed_ie()`), warna boot pe extractor-tree load. Section me **koi module-level `yt_dlp` import nahi** (AST-verified).
+- AES ke liye **`cryptography`** use kiya, `yt_dlp.aes` **nahi**: `from yt_dlp.aes import …` module-level = **+29.8 MB RSS / 69 submodules** (poora `yt_dlp` + `YoutubeDL` khinch leta hai); `cryptography.hazmat…AESGCM` = **+0 KB** aur `requirements.txt` me **already listed**. **Parity live-test PASS**: `AESGCM` ka blob layout (`ciphertext + 16-byte tag`) exactly wahi hai jo `aes_gcm_decrypt_and_verify_bytes` leta hai.
+
+**Byse key schedule — version bump hone ke baad bhi sahi (yeh is design ki asli jeet):**
+260905-T me `version:"9"` tha (parts 9 aur 22). **Aaj live `version:"5"`** — aur schedule `parts[n] + parts[31-n]` (1-based) ne khud sahi do 22-char parts (5 aur 26) chun liye. 30 `key_parts` me se 28 decoys 32-char hain, 2 asli 22-char. Yaani **site ne version badla, code change ki zaroorat nahi padi.** Unit-gate me versions 5/9/22 teeno synthetic decrypt se verify.
+
+**Registration mechanism — do bugs live-test me pakde, dono code me comment kiye:**
+1. **Pehla attempt 1751 extractors uda deta tha** (`total: 2`). Wajah: `yt_dlp/extractor/extractors.py` `setdefault()` se populate karta hai aur **GenericIE ko deliberately last** rakhta hai. Maine populate hone se PEHLE dict replace kar diya → order toota. Fix: pehle `gen_extractor_classes()` chalao, phir insert.
+2. **`KeyError: 'D2EmbedIE'`** — dict key **CLASS name** hona chahiye, kyunki `get_info_extractor()` `f'{ie_key}IE'` lookup karta hai. Maine `'D2Embed'` rakha tha.
+Final order live-verified: `1751 → 1752`, `[…, 'Zype', 'd2embed', 'generic']`, aur `YoutubeDL._ies[-2:] == ['D2Embed','Generic']`.
+
+**Routing:** `_YTDL_HINT` me letsjerk entry rakhi (cheap fast-path) + `is_ytdlp_link()` / `is_ytdlp_supported()` me `is_embed_discovery_url()` fallback. `bot_utils` → `yt_dlp_download` **module-level import NAHI** kar sakti (ulta direction already hai → circular), isliye `embed_discovery_hosts()` me lazy import + `_EMBED_DISCOVERY_DEFAULT` mirror; dono ka union authoritative hai. Circular-import boot-crash se bachne ke liye lazy import `try/except` me hai.
+
+**VERIFIED (paanch gates, sab REAL SOURCE chalate hain — `ast` se section/function nikaal ke `exec`, copy-paste test nahi):**
+- **Gate 1** `py_compile` full repo: **py3.10.21 109/109**, **py3.11.16 109/109** (109 isliye kyunki plugin delete hua; pehle 110). Teeno changed files **SyntaxWarning-free**.
+- **Gate 2 `embed_unit.py` — 54/54.** `eval_js_concat` dono LIVE split-shapes pe (ek hi URL dete hain), `substr`/`slice`/negative-index, garbage→`ValueError`, **AST-based proof ki section me koi `eval()`/`exec()` CALL nahi**; `streamtape_media_url` (robotlink + legacy `ideoooolink` + same-line `</script>` + 3 error cases); Byse AES-GCM versions 5/9/22 + tampered-blob → `None`+warning (raise nahi); discovery gating (letsjerk ✓, youtube/vimeo/pornhub/streamtape/magnet/empty/None ✗); backend dispatch (`notstreamtape.evil` pe streamtape backend NAHI lagta = host-anchor sahi); **section me sirf EK class `D2EmbedIE`** aur dispatch-tuples me koi site-name nahi.
+- **Gate 3 `embed_register.py` — 20/20.** Saare 1751 built-ins zinda, generic LAST, d2embed usse pehle, **baaki sab ka order byte-identical**; idempotent (3× register = 1 entry); **shadowing nahi** — youtube/vimeo/dailymotion/soundcloud/example.com apne hi extractors pe jaate hain; **fail-safe: yt-dlp globals API tootne pe exception propagate NAHI hota, ek actionable warning aati hai, bot boot karega** (brain.md 260902-BE ka lesson).
+- **Gate 4 `embed_live.py` — 27/27 LIVE, REAL BYTES.** Live site se page discover → 3 server tabs → `extractor = d2embed`, 2 formats (`streamtape` fs=542,489,430 proto=https; `byse-1080-1722` **h=720** proto=m3u8_native fs=563,934,638). **API ne `label:1080p` bola par real playlist height 720** — 260905-T wala observation abhi bhi true, isliye height playlist se aati hai. **Actual download: 7,529,973 B total**, streamtape = **valid MP4 (`ftyp` box)**, byse = **valid MPEG-TS (`0x47` sync)**. `sanitize_info` → `process_ie_result` (bot ka `__download()` reuse-path) crash-free. `direct_link_generator.streamtape()` live → `HTTP 206`, real size 542,489,430 B.
+- **Gate 5 `routing.py` — 26/26.** letsjerk (`.tv`/`.com`/`?tape=2`/`www.`) → **ytdl**; env override add/remove; **13-case regression** (youtube, youtu.be, x.com, eporner, dai.ly, `.m3u8` → True; plain `.mp4`, gdrive, magnet, mega, t.me, non-url, empty → False).
+
+**Total: 127 assertions PASS, 0 FAIL** + 218 file-compiles.
+
+**`voe.sx` abhi bhi dead end** (DDoS-Guard 403, `curl_cffi` chrome impersonate bhi fail — 260905-T jaisa). Dedicated backend nahi banaya; uska `/e/<id>` path Byse-family shape se match karta hai → API 404 → **warning + skip, baaki servers chalte rehte hain** (live run me exactly yahi hua: `server 3 (voe.sx): skipped`). Net effect wahi jo chahiye tha.
+
+**Requirements:** `yt-dlp` **pin** kiya (`==2026.08.19`). Wajah: yeh code `yt_dlp.globals.extractors` pe depend karta hai, aur yt-dlp ka **apna source** kehta hai *"no backwards compatibility is guaranteed for the plugin system API"*. `register_embed_resolver()` guarded hai (fail = warning, bot down nahi), par pin ke bina ek routine `pip install` extractor ko silently tod sakta tha. Upgrade karna ho to pehle Gate 3+4 chalao.
+
+**NOT VERIFIED:** live dyno/VPS pe actual leech task (sandbox se deploy nahi hota). Boot-log me `register_embed_resolver()` ka warning na aaye — yeh deploy ke baad dekhna chahiye.
+
+**Pending (report kiya, fix NAHI kiya — scope se bahar):**
+- `direct_link_generator` ka resolved streamtape link **aria2 pe bina `Referer` ke** jaata hai. yt-dlp path pe Referer set hota hai (`http_headers`), par direct-generator path pe nahi. Yeh **pre-existing** hai (purane code me bhi nahi tha), isliye behaviour same rakha. Agar direct-link route pe streamtape 403 de to yeh wajah hogi.
+- **`performance_audit.md` ka CJ [P1] "yt-dlp lazy import → ~20MB saving" actually REVERT ho chuka hai** aur shayad kisi ne notice nahi kiya: `yt_dlp_download.py:45` pe `_IMPERSONATE_TARGET = _detect_impersonate()` **MODULE LEVEL** hai, jo andar `from yt_dlp import YoutubeDL` karke instance banata hai. Boot chain `bot/__main__.py:34` → `modules/ytdlp.py:17` → `yt_dlp_download.py:45` se yt-dlp + 1751 extractors boot pe hi load ho jaate hain. Is fix ne isse **aur nahi** bigada (naya section fully lazy hai), par CJ ka claimed saving abhi **zero** hai. Alag `/plan` chahiye.
+- `aria2_status.py` ka "Leechers" label actually `download.connections` hai; `UL: 0B/s` downloading tasks ka BT upload nahi dikhata (260905-W me bhi report tha).
+
+**Test harness:** `/home/user/D2-tests/{embed_unit,embed_register,routing,embed_live}.py` (repo ke **bahar**; koi test file commit nahi, brain.md convention).
+
 ### 260905-AC (built, pushed)
 **Git:** `06eaeeb`
 
