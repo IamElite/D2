@@ -60,6 +60,53 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260905-AB (built, pushed)
+**Git:** `ff50eec`
+
+**Problem (regression I caused in 260905-AA):** the user ran `/leech` and the task
+went to qBit, which they never asked for, and qBit then crawled at **KB/s** —
+worse than the 4-5 MB/s aria2 was giving.
+
+**Galti (mine, and it is a process failure, not a typo):** I flipped the default
+engine for `/mirror` and `/leech` on an *inference* — "a friend's libtorrent bot
+reached 55 MB/s, so libtorrent must be faster here" — without testing it and
+without asking. That changed what two existing commands do. It also ignored
+something sitting in plain sight: the default qBit profile is `_QBIT_SAFE`, which
+caps `up_limit` at **256 bytes/s** with `dht`/`pex` off and `max_connec` 120.
+Sending torrents into that could only produce KB/s. I had written those values
+myself two commits earlier. **Rule for the next agent: never change an existing
+command's behaviour to test a hypothesis. Add the switch, default it to today's
+behaviour, and let the user run the experiment.**
+
+**Fix:**
+- `mirror_leech.py`: `_TORRENT_ENGINE` default `'qbit'` -> **`'aria2'`**, restoring
+  the historical routing for `/mirror` and `/leech`. `TORRENT_ENGINE=qbit` still
+  opts in; `/qbmirror` and `/qbleech` unchanged; the real-debrid guard unchanged.
+- `bot/__init__.py`: added `_QBIT_STOCK` and `QBIT_PROFILE=stock` so the engine
+  comparison can actually be run fairly. It holds only qBittorrent's *documented*
+  defaults — `max_connec` 500, `max_connec_per_torrent` 100, `max_uploads` 8,
+  `max_uploads_per_torrent` 4, queueing 3/3/5, `up_limit`/`dl_limit` 0 — and
+  deliberately **omits** `disk_cache` and `async_io_threads` so qBit keeps its own
+  value instead of one I guessed at. The log line now uses `.get(..., 'stock')`
+  for those two.
+
+**Verified:**
+- `/home/user/D2-tests/torrent_routing.py` — 13 cases, real `is_torrent_link`
+  against the real dispatch condition, and the gate now asserts
+  `environ.get('TORRENT_ENGINE', 'aria2')` so the default cannot silently flip
+  again. `/mirror` and `/leech` on magnet, `.torrent` and `.torrent?query` all
+  route to **aria2**; `TORRENT_ENGINE=qbit` and `/qbmirror` still reach qBit;
+  real-debrid, plain HTTP and gofile routing unchanged.
+- `/home/user/D2-tests/profile_overlays.py` — safe still equals 260905-U exactly
+  on both hosts, `QBIT_PROFILE=stock` equals the documented defaults, and stock
+  leaves `disk_cache`/`async_io_threads` absent.
+- py3.10 full-repo py_compile 110/110.
+
+**Open question this does NOT answer:** which engine is genuinely faster on this
+host. The honest test is one torrent both ways — `/leech` (aria2, today's
+4-5 MB/s) versus `/qbleech` with `QBIT_PROFILE=stock` — and compare. Until that is
+measured, aria2 stays the default.
+
 ### 260905-AA (built, pushed)
 **Git:** `9ae3f3c`
 
