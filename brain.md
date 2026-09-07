@@ -2377,3 +2377,51 @@ End-to-end: asli `gofile()` → asli handler → **ABORT**, user ko `ERROR: Gofi
 **NOT VERIFIED:** live bot pe actual `/l9` task. **GoFile ka free download kaam karta hai ya nahi — UNKNOWN** (IP ban ki wajah se verify nahi ho paya). Agar aage implement karna ho to: rotating secret current `wt.obf.js` se runtime pe nikalna hoga, aur kisi **unbanned IP** se verify karna hoga.
 **Gotcha:** `direct_link_generator.py:881/899` pe `SyntaxWarning: invalid escape sequence` **pre-existing** hai (`findall('\("(.*?)"\)', …)`) — is change se related nahi.
 **Test harness:** `/tmp/test_handler.py`, `/tmp/test_gofile_e2e.py` (repo ke bahar).
+
+### 260905-V — Torrent + leech KB/s pe: CPU/RAM "optimizations" ne upload cap + peer-discovery maar di thi
+**Git:** `PENDING`  
+**Date:** 2026-09-07  \
+**Files:** `a2c.conf`, `bot/__init__.py` (aria2 overlay + qBit overlay), `bot/helper/mirror_utils/download_utils/aria2_download.py`
+
+**User:** torrent aur leech KB/s pe atke, CPU aur RAM dono high. Aur decisive evidence diya: *jis bande ka base repo copy kiya hai woh same 1GB Heroku pe **50 MB/s** le raha hai, **1% CPU / 15 MB RAM** me.* Matlab hardware limit nahi — **hamare modifications** throttle kar rahe hain. Target: minimum 20 MB/s+.
+
+**METHOD:** guess nahi kiya. Base repo `Tamilupdates/KPSML-X` ki **`kpsmlx` branch** fetch karke (`13716be`, 104 files — `main` branch gutted hai, sirf 10 files) download path ka **actual diff** nikala.
+
+**ROOT CAUSE — 4 verified throttles:**
+
+**1. `bot/__init__.py` qBit overlay — upstream ke paas yeh overlay HAI HI NAHI.** Upstream `app_set_preferences` sirf ek jagah call karta hai (Mongo/user settings), yaani qBit **apne defaults** pe chalta hai. Humara overlay force kar raha tha:
+```python
+'up_limit': 256,          # <-- qBit WebAPI me up_limit BYTES/second hai. 256 = 256 B/s !!
+'dht': False, 'pex': False, 'lsd': False,
+'max_connec': 120, 'max_connec_per_torrent': 60,
+'max_uploads': 4, 'max_uploads_per_torrent': 2,
+'max_active_downloads': 2, 'disk_cache': 16, 'async_io_threads': 1,
+```
+**`up_limit: 256` sabse bada bug hai.** Official docs se confirm kiya: `up_limit`/`dl_limit` **bytes/second**, `0` = unlimited. Qt UI KiB/s dikhata hai aur Web API bytes leta hai — yaani likhne wala "256 KiB/s" soch raha tha, laga **256 bytes/s**. BitTorrent tit-for-tat hai: 256 B/s upload ka matlab hum peers ko repay hi nahi kar sakte ⇒ **har peer choke karta hai** ⇒ download KB/s, aur choked connections manage karne me CPU jalta hai.
+
+**2. aria2 upload caps** — `max-upload-limit=512K` + `max-overall-upload-limit=1M` (dono `a2c.conf` aur `_a2_boost` overlay me). Upstream **koi upload cap set hi nahi karta**. Wahi tit-for-tat problem.
+
+**3. `bt-request-peer-speed-limit=10M`** — aria2 ka default **50K** hai. Yeh option kehta hai "jab tak aggregate speed is se neeche hai, peers dhoondhte raho". 10M normal swarms pe **kabhi achieve nahi hota**, to aria2 **hamesha** peer-hunt karta rehta hai. Yeh CPU churn ka source hai — **humare apne brain.md me likha hai**: *"15M peer-speed-limit → thin-swarm pe permanent peer-hunt churn (CPU 59.8%)"*. 15M→10M kiya gaya par **mechanism wahi raha**. Upstream yeh option set hi nahi karta.
+
+**4. `peer-id-prefix` / `peer-agent` MISSING** — upstream announce karta hai `-qB4430-` / `qBittorrent/4.4.3` ke roop me. Humare paas yeh keys thi hi nahi, yaani aria2 apni asli identity (`-aria2-`) se announce karta tha. Kai trackers/swarms unknown client ko deprioritize ya reject karte hain.
+
+**ENGINE ROUTING — important:** `_auto_engine` ka `eng` sirf **ytdl** decide karne ke liye use hota hai (`mirror_leech.py:325-330`). `add_qb_torrent` sirf tab chalta hai jab `isQbit=True` ho (`:470`), yaani `/qb…` commands. **Normal `/leech <magnet>` aur `/mirror <torrent>` aria2 pe jaate hain** (`:476`). To user ke torrents ke liye zimmedaar **aria2 ke BT settings** hain; qBit overlay `/qb` path ka latent bug hai (phir bhi fix kiya).
+Aur `max-concurrent-downloads` **global** hai (BT + HTTP dono) — peer-hunt me atke torrents HTTP leech ke slots bhi kha jaate the. Isliye **leech bhi** slow tha.
+
+**FIX:**
+- `a2c.conf`: upload caps → `0`; `bt-request-peer-speed-limit` **hata diya** (aria2 default 50K laagu); `max-concurrent-downloads` 5→10; `optimize-concurrent-downloads` false→true; `peer-id-prefix=-qB4430-` + `peer-agent=qBittorrent/4.4.3` add.
+- `bot/__init__.py` `_a2_boost`: wahi values; `bt-request-peer-speed-limit` ab **sirf** tab set hota hai jab `ARIA2_PEER_SPEED_LIMIT` explicitly diya ho.
+- `bot/__init__.py` qBit overlay: `up_limit` 256→**0** (env `QBIT_UP_LIMIT`), `dht`/`pex` default **ON** (`QBIT_DHT=0` se off), `max_connec` 120→500, `max_connec_per_torrent` 60→100, `max_uploads` 4→20, `max_uploads_per_torrent` 2→4, `max_active_downloads` 2→5, `disk_cache` 16→64, `async_io_threads` 1→4.
+- **`aria2_download.py` — `260905-S` wala trap dobara.** `max-upload-limit`, `bt-request-peer-speed-limit`, `bt-max-peers`, `peer-id-prefix` **koi bhi `aria2c_global` me NAHI hai** (verify kiya). Mongo ka `settings.aria2c` ek baar seed hota hai aur kabhi refresh nahi, to purane caps abhi bhi usme hain aur **per-download** jaate — jo `a2c.conf` aur global overlay **dono ko override** kar dete. Bilkul waise hi jaise `260905-R` production me fail hua tha. Fix: per-download options assemble hote waqt yeh 10 keys `a2c_opt` se **pop**. `ARIA2_*` env overrides global overlay ke through kaam karte rehte hain.
+
+**VERIFICATION:**
+- **Live aria2 1.37.0 RPC daemon** (production ka exact version + interface) hamare `a2c.conf` se boot: conf **bina error parse** hua, `getGlobalOption` se confirm — `max-upload-limit='0'`, `max-overall-upload-limit='0'`, `max-concurrent-downloads='10'`, `optimize-concurrent-downloads='true'`, `peer-id-prefix='-qB4430-'`, `peer-agent='qBittorrent/4.4.3'`, **`bt-request-peer-speed-limit='51200'`** (50K default, 10M churn gone). `enable-http-pipelining='false'` barkaraar (260905-S intact).
+- **Stale-Mongo simulation** (asli per-download assembly `ast` se nikaal kar `exec`): purane saare caps wala Mongo diya → **12/12 throughput keys strip**, sirf `continue`, `dir`, `enable-dht`, `enable-http-pipelining` bachte hain.
+- **End-to-end**: live daemon + overlay + surviving per-download options → actual `getOption(gid)` pe `max-upload-limit='0'`, `split='16'`, `min-split-size='1048576'`, `bt-max-peers='200'`, peer-target `51200`.
+- Overlay dicts ki shipped values `ast` se nikaal kar execute: **12/12 PASS**.
+- py3.10.12 full-repo **110/110 PASS**.
+
+**NOT VERIFIED:** **actual production throughput sandbox se measure nahi kar sakte** — bot-level behaviour yahan verify nahi hota. Yeh config-level fix hai jo verified throttles hataata hai; 20 MB/s+ milega ya nahi yeh sirf live task pe dikhega.
+**Tradeoff (saaf bata raha hoon):** upload uncapped + DHT/PEX on + 500 conn se **RAM/CPU thoda badh sakta hai**. Par CPU spike ka asli source peer-hunt churn tha (jo ab gaya), to net CPU **ghatna** chahiye. Escape hatches: `ARIA2_PROFILE=safe`, `ARIA2_TORRENT_UP`, `ARIA2_TORRENT_UP_GLOBAL`, `ARIA2_PEER_SPEED_LIMIT`, `ARIA2_MAX_PEERS`, `ARIA2_MAX_CONCURRENT`, `QBIT_DHT=0`, `QBIT_UP_LIMIT`, `QBIT_DL_LIMIT`.
+**Test harness:** `/tmp/test_overlays.py`, `/tmp/test_stale_mongo.py` (repo ke bahar).
+**Gotcha:** `Tamilupdates/KPSML-X` ki **`main` branch gutted** hai (10 files, `bot/` hi nahi) — diff ke liye **`kpsmlx` branch** chahiye.
