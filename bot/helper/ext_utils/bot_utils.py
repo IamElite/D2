@@ -683,10 +683,15 @@ def get_container_memory_breakdown():
 
 
 _cg_cpu_last = [0.0, 0.0]
+_bot_proc = Process()
+try:
+    _bot_proc.cpu_percent()
+except Exception:
+    pass
 
 
 def get_container_cpu():
-    """Container CPU% (cgroup usage delta). Pehli call pe None — wali fallback."""
+    """Container CPU% (cgroup usage delta). Fallback to bot process + children normalized to dyno vCPUs."""
     usage = None
     stat = _cg_read('/sys/fs/cgroup/cpu.stat')
     if stat:
@@ -698,29 +703,41 @@ def get_container_cpu():
         v1 = _cg_read('/sys/fs/cgroup/cpuacct/cpuacct.usage') or _cg_read('/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage')
         if v1 is not None:
             usage = float(v1) / 1e9
-    if usage is None:
-        return None
-    now = time()
-    last_t, last_u = _cg_cpu_last
-    _cg_cpu_last[0], _cg_cpu_last[1] = now, usage
-    if not last_t or now <= last_t or usage < last_u:
-        return None
-    cores = cpu_count() or 1
-    return round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
+    if usage is not None:
+        now = time()
+        last_t, last_u = _cg_cpu_last
+        _cg_cpu_last[0], _cg_cpu_last[1] = now, usage
+        if last_t and now > last_t and usage >= last_u:
+            quota = _cg_read('/sys/fs/cgroup/cpu/cpu.cfs_quota_us')
+            period = _cg_read('/sys/fs/cgroup/cpu/cpu.cfs_period_us')
+            if quota and period and int(quota) > 0 and int(period) > 0:
+                cores = int(quota) / int(period)
+            else:
+                cores = 2.0  # Heroku Standard-2X allocation
+            calc = round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
+            if calc > 0.0:
+                return calc
+
+    # Fallback to process tree (bot + aria2 + qbit) normalized to 2 dyno cores
+    try:
+        p_cpu = _bot_proc.cpu_percent()
+        for child in _bot_proc.children(recursive=True):
+            try:
+                p_cpu += child.cpu_percent()
+            except Exception:
+                pass
+        return round(min(100.0, p_cpu / 2.0), 1)
+    except Exception:
+        return 0.0
 
 
 def get_bot_stats():
-    try:
-        cpu = cpu_percent()
-        if not cpu or cpu == 0.0:
-            cpu = cpu_percent(interval=0.1)
-    except Exception:
-        cpu = 0.0
+    ccpu = get_container_cpu()
     cmem = get_container_memory()
     anon, _ = get_container_memory_breakdown()
     ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent
     d = disk_usage(config_dict['DOWNLOAD_DIR'] if ospath.exists(config_dict['DOWNLOAD_DIR']) else '/')
-    return round(float(cpu or 0.0), 1), ram, d
+    return ccpu, ram, d
 
 
 def update_user_ldata(id_, key=None, value=None):
