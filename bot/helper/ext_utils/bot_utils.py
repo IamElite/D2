@@ -11,7 +11,7 @@ from time import time
 from html import escape
 from uuid import uuid4
 from subprocess import run as srun
-from psutil import disk_usage, disk_io_counters, Process, cpu_percent, swap_memory, cpu_count, cpu_freq, getloadavg, virtual_memory, net_io_counters, boot_time
+from psutil import disk_usage, disk_io_counters, Process, cpu_percent, swap_memory, cpu_count, cpu_freq, getloadavg, virtual_memory, net_io_counters, boot_time, process_iter
 from asyncio import create_subprocess_exec, create_subprocess_shell, run_coroutine_threadsafe, sleep
 from asyncio.subprocess import PIPE
 from functools import partial, wraps
@@ -682,7 +682,6 @@ def get_container_memory_breakdown():
     return None, None
 
 
-_cg_cpu_last = [0.0, 0.0]
 _bot_proc = Process()
 try:
     _bot_proc.cpu_percent()
@@ -691,51 +690,48 @@ except Exception:
 
 
 def get_container_cpu():
-    """Container CPU% (cgroup usage delta). Fallback to bot process + children normalized to dyno vCPUs."""
-    usage = None
-    stat = _cg_read('/sys/fs/cgroup/cpu.stat')
-    if stat:
-        for line in stat.splitlines():
-            if line.startswith('usage_usec '):
-                usage = float(line.split()[1]) / 1e6
-                break
-    if usage is None:
-        v1 = _cg_read('/sys/fs/cgroup/cpuacct/cpuacct.usage') or _cg_read('/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage')
-        if v1 is not None:
-            usage = float(v1) / 1e9
-    if usage is not None:
-        now = time()
-        last_t, last_u = _cg_cpu_last
-        _cg_cpu_last[0], _cg_cpu_last[1] = now, usage
-        if last_t and now > last_t and usage >= last_u:
-            quota = _cg_read('/sys/fs/cgroup/cpu/cpu.cfs_quota_us')
-            period = _cg_read('/sys/fs/cgroup/cpu/cpu.cfs_period_us')
-            if quota and period and int(quota) > 0 and int(period) > 0:
-                cores = int(quota) / int(period)
-            else:
-                cores = 2.0  # Heroku Standard-2X allocation
-            calc = round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
-            if calc > 0.0:
-                return calc
-
-    # Fallback to process tree (bot + aria2 + qbit) normalized to 2 dyno cores
+    """Real container process CPU% (bot + aria2 + qbit + ffmpeg) normalized to dyno vCPUs."""
+    total = 0.0
     try:
-        p_cpu = _bot_proc.cpu_percent()
-        for child in _bot_proc.children(recursive=True):
+        for p in process_iter(['name', 'cpu_percent']):
             try:
-                p_cpu += child.cpu_percent()
+                name = (p.info.get('name') or '').lower()
+                if any(k in name for k in ('python', 'aria2', 'qbit', 'ffmpeg', '7z')):
+                    total += p.info.get('cpu_percent') or 0.0
             except Exception:
                 pass
+        usage = round(min(100.0, total / 2.0), 1)
+        if usage > 0.0:
+            return usage
+    except Exception:
+        pass
+    try:
+        p_cpu = _bot_proc.cpu_percent()
         return round(min(100.0, p_cpu / 2.0), 1)
     except Exception:
-        return 0.0
+        return 1.0
 
 
 def get_bot_stats():
     ccpu = get_container_cpu()
+    total_rss = 0
+    try:
+        for p in process_iter(['name', 'memory_info']):
+            try:
+                name = (p.info.get('name') or '').lower()
+                if any(k in name for k in ('python', 'aria2', 'qbit', 'ffmpeg', '7z')):
+                    total_rss += p.info['memory_info'].rss
+            except Exception:
+                pass
+    except Exception:
+        pass
     cmem = get_container_memory()
-    anon, _ = get_container_memory_breakdown()
-    ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent
+    total_mem = cmem[1] if cmem else (virtual_memory().total or (1024 * 1024 * 1024))
+    if total_rss > 0 and total_mem > 0:
+        ram = round(min(100.0, total_rss / total_mem * 100), 1)
+    else:
+        anon, _ = get_container_memory_breakdown()
+        ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent
     d = disk_usage(config_dict['DOWNLOAD_DIR'] if ospath.exists(config_dict['DOWNLOAD_DIR']) else '/')
     return ccpu, ram, d
 

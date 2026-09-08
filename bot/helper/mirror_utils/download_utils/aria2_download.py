@@ -184,10 +184,9 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         else:
             a2c_opt['pause'] = 'true'
     if _bt_link(link):
-        _bt_safe = environ.get('ARIA2_TORRENT_PROFILE', '').lower() == 'safe'
-        a2c_opt["follow-torrent"] = "true"
-        a2c_opt["bt-max-peers"] = environ.get('ARIA2_MAX_PEERS', '80' if _bt_safe else '200')
-        a2c_opt["bt-max-open-files"] = environ.get('ARIA2_MAX_PEERS', '80' if _bt_safe else '200')
+        a2c_opt["follow-torrent"] = "mem"
+        a2c_opt["bt-max-peers"] = environ.get('ARIA2_MAX_PEERS', '500')
+        a2c_opt["bt-max-open-files"] = environ.get('ARIA2_MAX_PEERS', '500')
         if environ.get('ARIA2_PEER_SPEED_LIMIT'):
             a2c_opt["bt-request-peer-speed-limit"] = environ['ARIA2_PEER_SPEED_LIMIT']
         a2c_opt["max-upload-limit"] = environ.get('ARIA2_TORRENT_UP', '0')
