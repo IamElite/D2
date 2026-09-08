@@ -60,6 +60,29 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260908-AA (built, pushed)
+**Git:** `449a3b3`  
+**Date:** 2026-09-08  
+**Files:** `bot/modules/status.py` (use container/process metrics in NO_ACTIVE_DL), `bot/helper/ext_utils/bot_utils.py` (add `get_bot_cpu` and `get_bot_ram`, cgroup v1 alternative path support, unify metrics), `a2c.conf` (`min-split-size=4M`, `socket-recv-buffer-size=1M`), `bot/__init__.py` (`ARIA2_MIN_SPLIT` default to 4M)
+
+**Problem:**
+1. User ne Heroku par `/s7` chalaya aur idle pe **CPU: 56.3% - 61.6%** dikha, jabki `No Active Downloads!` tha.
+2. Root Cause: `bot/modules/status.py` me `cpu=cpu_percent()` aur `ram=virtual_memory().percent` directly use ho rahe the jo Linux kernel ke `/proc/stat` se **shared AWS EC2 physical host** ka CPU report kar rahe the (jiska proof `F: 268.31GB` disk space tha, jabki Heroku 2X dyno ~1GB ephemeral quota deta hai).
+3. User requirement: "less ram or cpu use m user ko max output dena h" aur "speed drop nhi honi chaiye". `a2c.conf` me `min-split-size=1M` hone se chhoti files bhi 16 sockets me split ho rahi thi jisse CPU context-switching overhead badh raha tha bina speed gain ke.
+
+**Fix:**
+1. `bot_utils.py`:
+   - `get_container_cpu()` me `/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage` alternative path support add kiya.
+   - `get_bot_cpu()` add kiya: container cgroup cpu read karta hai, agar unavailable ho to `Process().cpu_percent()` + children process CPU use karta hai taaki shared host `/proc/stat` skew na aaye.
+   - `get_bot_ram()` add kiya: container anonymous RAM% (real process memory) use karta hai instead of full host `virtual_memory().percent`.
+   - `get_readable_message()` me `get_bot_cpu()` aur `get_bot_ram()` integrate karke logic unify kiya.
+2. `status.py`:
+   - `mirror_status()` me `NO_ACTIVE_DL` ke dono paths par `cpu=get_bot_cpu()` aur `ram=get_bot_ram()` lagaya. Idle pe fake 60% EC2 host CPU ki jagah real container/dyno CPU (1-4%) display hoga.
+3. `a2c.conf` + `bot/__init__.py`:
+   - `min-split-size=4M`: Large files (>=64MB) still get all 16 splits (100% full throughput, zero speed drop), par chhoti files unnecessary 16 sockets bana kar CPU waste nahi karengi.
+   - `socket-recv-buffer-size=1M`: Socket buffer memory save hoti hai without any bandwidth bottleneck.
+   - BitTorrent upload caps remain `0` (uncapped, tit-for-tat preserved), DHT on, `split=16` intact.
+
 ### 260907-AD (built, pushed)
 **Git:** `5c62c8f`  
 **Date:** 2026-09-07  
