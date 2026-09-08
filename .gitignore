@@ -1,4 +1,5 @@
 config.env
+__pycache__/
 *.pyc
 data*
 .vscode
@@ -19,5 +20,3 @@ bot.session
 user.session
 terabox.txt
 wcl.conf
-AGENT.md
-AGENTS.md

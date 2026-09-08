@@ -710,7 +710,9 @@ def get_container_cpu():
 
 
 def get_bot_stats():
-    ccpu = get_container_cpu() or 0.0
+    ccpu = get_container_cpu()
+    if ccpu is None:
+        ccpu = cpu_percent()
     cmem = get_container_memory()
     anon, _ = get_container_memory_breakdown()
     ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent
