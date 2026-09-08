@@ -60,6 +60,21 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260908-AD (built, pushed)
+**Git:** `7a8beeb`  
+**Date:** 2026-09-08  
+**Files:** `bot/helper/ext_utils/bot_utils.py` (`get_bot_stats` fallback to `cpu_percent()`), `bot/helper/themes/kpsml_minimal.py` (`NO_ACTIVE_DL` add `%` to `{ram}`)
+
+**Problem (Live log from user):**
+1. User ne task download (/l7) chalaya par CPU abhi bhi 0.0% dikh raha tha (`CPU: 0.0% | UP: 37s | DL: 19.00MB/s`).
+   Wajah: `get_container_cpu()` Heroku par `None` return karta tha, aur code me `get_container_cpu() or 0.0` likha tha jisse CPU hamesha 0.0% par lock ho gaya tha.
+2. `/s7` (No active downloads) me `RAM: 47.5` bina `%` sign ke dikh raha tha, jabki active task me `RAM: 47.5%` dikh raha tha.
+   Wajah: `kpsml_minimal.py` me `NO_ACTIVE_DL` template me `{ram}` ke aage `%` missing tha.
+
+**Fix:**
+1. `bot_utils.py`: `get_bot_stats()` me `get_container_cpu()` agar `None` ho to `cpu_percent()` par fallback kiya, taaki active tasks ke dauran real CPU calculate ho.
+2. `kpsml_minimal.py`: `NO_ACTIVE_DL` template me `RAM: {ram}%` kar diya.
+
 ### 260908-AC (built, pushed)
 **Git:** `29f13c2`  
 **Date:** 2026-09-08  
