@@ -60,8 +60,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260909-AQ (built, pending push)
-**Git:** `pending`  
+### 260909-AQ (built, pushed)
+**Git:** `0010185`  
 **Date:** 2026-09-09  
 **Files:** `qBittorrent/config/qBittorrent.conf` (uncap upload speed, announce to all trackers, 2 hash threads, LSD on), `bot/helper/mirror_utils/download_utils/qbit_download.py` (dynamic global tracker injection into added torrents)
 
