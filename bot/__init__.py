@@ -350,7 +350,7 @@ if len(USER_SESSION_STRING) != 0:
     log_info("Creating client from USER_SESSION_STRING")
     try:
         user = _start_tg(wztgClient('user', TELEGRAM_API, TELEGRAM_HASH, session_string=USER_SESSION_STRING,
-                        parse_mode=enums.ParseMode.HTML, no_updates=True, workers=24))
+                        parse_mode=enums.ParseMode.HTML, no_updates=True, workers=17))
         IS_PREMIUM_USER = user.me.is_premium
     except Exception as e:
         log_error(f"Failed making client from USER_SESSION_STRING : {e}")
@@ -1220,7 +1220,7 @@ except Exception as e:
     log_error(f"qBit boot-stop skipped: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=24,
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=17,
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 from concurrent.futures import ThreadPoolExecutor as _TPE

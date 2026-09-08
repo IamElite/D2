@@ -61,6 +61,18 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AV (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `bot/__init__.py` (`bot` client init, `user` client init)
+
+**User Request:**
+Set `workers=17` for Telegram clients.
+
+**Fix:**
+`bot/__init__.py`: Changed workers from 24 to 17 for both `bot` and `user` clients.
+
+
 ### 260909-AU (built, pushed)
 **Git:** `82e25c3`  
 **Date:** 2026-09-09  
