@@ -60,6 +60,23 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AQ (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `qBittorrent/config/qBittorrent.conf` (uncap upload speed, announce to all trackers, 2 hash threads, LSD on), `bot/helper/mirror_utils/download_utils/qbit_download.py` (dynamic global tracker injection into added torrents)
+
+**Problem:**
+qBit speed was throttled to 2.85KB/s on torrent.
+Wajah:
+1. `qBittorrent.conf` had `GlobalUPSpeedLimit=256` (upload choked to 256 B/s, causing peers to choke download per tit-for-tat).
+2. `AnnounceToAllTrackers=false` meant qBit only queried the single tier-1 tracker, missing seeds on other trackers.
+3. Added torrents in `qbit_download.py` were not receiving the dynamic `bot_cache['trackers']` list.
+
+**Fix:**
+1. `qBittorrent.conf`: Set `GlobalUPSpeedLimit=0` (uncapped upload so peers reward with max download speed), `AnnounceToAllTrackers=true`, `AnnounceToAllTiers=true`, `HashingThreadsCount=2`, `LSDEnabled=true`.
+2. `qbit_download.py`: Injected global high-speed trackers (`bot_cache['trackers']`) directly into every newly added qBit torrent via `torrents_add_trackers`.
+
+
 ### 260909-AP (built, pushed)
 **Git:** `2d7c2cd`  
 **Date:** 2026-09-09  

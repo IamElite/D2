@@ -2,7 +2,7 @@
 from time import time
 from aiofiles.os import remove as aioremove, path as aiopath
 
-from .... import download_dict, download_dict_lock, get_client, LOGGER, config_dict, non_queued_dl, queue_dict_lock
+from .... import download_dict, download_dict_lock, get_client, LOGGER, config_dict, non_queued_dl, queue_dict_lock, bot_cache
 from ..status_utils.qbit_status import QbittorrentStatus
 from ...telegram_helper.message_utils import sendMessage, deleteMessage, sendStatusMessage
 from ...ext_utils.bot_utils import bt_selection_buttons, sync_to_async
@@ -57,6 +57,12 @@ async def add_qb_torrent(link, path, listener, ratio, seed_time):
                         return
             tor_info = tor_info[0]
             ext_hash = tor_info.hash
+            if bot_cache.get('trackers'):
+                try:
+                    urls = [t.strip() for t in bot_cache['trackers'].split(',') if t.strip()]
+                    await sync_to_async(client.torrents_add_trackers, torrent_hash=ext_hash, urls=urls)
+                except Exception as e:
+                    LOGGER.warning(f"Could not add trackers to qbit torrent {ext_hash}: {e}")
         else:
             await sendMessage(listener.message, "This Torrent already added or unsupported/invalid link/file.")
             return
