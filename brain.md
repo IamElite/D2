@@ -60,8 +60,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260909-AP (built, pending push)
-**Git:** `pending`  
+### 260909-AP (built, pushed)
+**Git:** `2d7c2cd`  
 **Date:** 2026-09-09  
 **Files:** `a2c.conf` (min-split-size 1M, 10 concurrent), `bot/__init__.py` (10 tasks profile, DHT/PEX enabled by default, 2 hash threads, 4 async IO threads, 64MB cache), `bot/helper/ext_utils/engine_lifecycle.py` (keep DHT/PEX enabled on idle), `bot/helper/ext_utils/idle_housekeep.py` (ensure DHT/PEX/LSD true)
 
