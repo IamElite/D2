@@ -709,19 +709,24 @@ def get_container_cpu():
     return round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
 
 
+_bot_proc = Process()
+_bot_proc.cpu_percent()
+cpu_percent()
+
+
 def get_bot_stats():
     ccpu = get_container_cpu()
-    if ccpu is None:
+    if ccpu is None or ccpu == 0.0:
         try:
-            p = Process()
-            p_cpu = p.cpu_percent()
-            for child in p.children(recursive=True):
+            p_cpu = _bot_proc.cpu_percent()
+            for child in _bot_proc.children(recursive=True):
                 try:
                     p_cpu += child.cpu_percent()
                 except Exception:
                     pass
             cores = cpu_count() or 1
-            ccpu = round(min(100.0, p_cpu / cores), 1)
+            calc = round(min(100.0, p_cpu / cores), 1)
+            ccpu = calc if calc > 0.0 else cpu_percent()
         except Exception:
             ccpu = cpu_percent()
     cmem = get_container_memory()
