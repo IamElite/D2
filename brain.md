@@ -2969,3 +2969,12 @@ otherwise               -> vps
 - **Root-Cause:** `/leech` on magnets/torrents got stuck in KB/s due to: (1) `max-upload-limit` capped at 512K, causing BitTorrent tit-for-tat choke by seeders, (2) `bt-request-peer-speed-limit` set to 10M causing connection churn, (3) `bt-tracker=[{trackers}]` had literal brackets breaking URI parsing in `a2c.conf` and naked magnets had no dynamic trackers passed.
 - **Fix:** In `bot/__init__.py`, fixed tracker format `bt-tracker={trackers}\n` and cached in `bot_cache['trackers']`. In `aria2_download.py`, set `max-upload-limit=0` (uncapped), removed forced `bt-request-peer-speed-limit`, and dynamically injected `bot_cache['trackers']` into `a2c_opt["bt-tracker"]`.
 - **Verified:** Python syntax compiled cleanly.
+
+---
+
+### [260908-AM] HEROKU CONTAINER METRICS: Cached Process CPU & 1GB Dyno RAM Quota
+- **Root-Cause 1 (RAM 47% vs 0.7%):** `virtual_memory().total` on Heroku reports the physical AWS host's 61.78 GB RAM. Dividing bot RSS (~200MB) by 61.78GB gave 0.3%-0.7%. Reading `virtual_memory().percent` gave the AWS machine's 47.1% load from all hosted containers.
+- **Fix 1:** Capped `total_mem` to Heroku Standard-2X quota (1024 MB). Divided bot's actual process RSS by 1024 MB -> exact ~19.5% RAM.
+- **Root-Cause 2 (CPU 0.1% vs 84%):** `process_iter()` created transient `Process` instances whose `cpu_percent()` was 0.0, and `cpu_percent()` host-wide was 84%.
+- **Fix 2:** Implemented persistent `_proc_cache` tracking PIDs of `python`, `aria2`, `qbit`, `ffmpeg`, calculating accurate live CPU deltas normalized to 2.0 dyno cores.
+- **Verified:** Tested with live python process, compiled cleanly, pushed to `arnv1` (commit `0308540`).
