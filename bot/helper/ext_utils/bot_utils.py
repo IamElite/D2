@@ -414,20 +414,9 @@ def get_readable_message(downloads=None):
         buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref")
         buttons.ibutton(BotTheme('NEXT'), "status nex")
     button = buttons.build_menu(3)
-    _ccpu = get_container_cpu()
-    _cmem = get_container_memory()
-    # RAM% = anonymous (real process RAM), NOT page cache: memory.current counts
-    # reclaimable file cache which is not a leak and frees under pressure.
-    _anon, _filec = get_container_memory_breakdown()
-    if _cmem and _anon is not None:
-        _ram = round(_anon / _cmem[1] * 100, 1)
-    elif _cmem:
-        _ram = round(_cmem[0] / _cmem[1] * 100, 1)
-    else:
-        _ram = virtual_memory().percent
-    msg += BotTheme('Cpu', cpu=_ccpu if _ccpu is not None else cpu_percent())
+    msg += BotTheme('Cpu', cpu=get_bot_cpu())
     msg += BotTheme('FREE', free=get_readable_file_size(disk_usage(config_dict['DOWNLOAD_DIR']).free), free_p=round(100-disk_usage(config_dict['DOWNLOAD_DIR']).percent, 1))
-    msg += BotTheme('Ram', ram=_ram)
+    msg += BotTheme('Ram', ram=get_bot_ram())
     msg += BotTheme('uptime', uptime=get_readable_time(time() - botStartTime))
     msg += BotTheme('DL', DL=get_readable_file_size(dl_speed))
     msg += BotTheme('UL', UL=get_readable_file_size(up_speed))
@@ -705,7 +694,7 @@ def get_container_cpu():
                 usage = float(line.split()[1]) / 1e6
                 break
     if usage is None:
-        v1 = _cg_read('/sys/fs/cgroup/cpuacct/cpuacct.usage')
+        v1 = _cg_read('/sys/fs/cgroup/cpuacct/cpuacct.usage') or _cg_read('/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage')
         if v1 is not None:
             usage = float(v1) / 1e9
     if usage is None:
@@ -717,6 +706,36 @@ def get_container_cpu():
         return None
     cores = cpu_count() or 1
     return round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
+
+
+def get_bot_cpu():
+    """Container CPU%, fallback to current process + children CPU to avoid shared-host /proc/stat skew."""
+    ccpu = get_container_cpu()
+    if ccpu is not None:
+        return ccpu
+    try:
+        p = Process()
+        p_cpu = p.cpu_percent()
+        for child in p.children(recursive=True):
+            try:
+                p_cpu += child.cpu_percent()
+            except Exception:
+                pass
+        cores = cpu_count() or 1
+        return round(min(100.0, p_cpu / cores), 1)
+    except Exception:
+        return cpu_percent()
+
+
+def get_bot_ram():
+    """Container anonymous RAM% (real process memory), fallback to virtual_memory().percent."""
+    cmem = get_container_memory()
+    anon, _ = get_container_memory_breakdown()
+    if cmem and anon is not None:
+        return round(anon / cmem[1] * 100, 1)
+    elif cmem:
+        return round(cmem[0] / cmem[1] * 100, 1)
+    return virtual_memory().percent
 
 
 def update_user_ldata(id_, key=None, value=None):

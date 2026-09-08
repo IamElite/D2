@@ -1088,7 +1088,7 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
                                                 _a2_boost['max-concurrent-downloads']),
         'max-connection-per-server': environ.get('ARIA2_CONN_PER_SERVER', '16'),
         'split': environ.get('ARIA2_SPLIT', '16'),
-        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '1M'),
+        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '4M'),
         'bt-max-peers': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'bt-max-open-files': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'optimize-concurrent-downloads': 'true',
