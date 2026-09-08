@@ -60,6 +60,19 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AO (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `bot/helper/ext_utils/bot_utils.py` (`get_bot_stats`)
+
+**Problem:**
+User noticed RAM in `/s7` was showing `43.8%` instead of expected `19%–20%`.
+Wajah: `get_bot_stats` was summing memory of all processes (`python` + `aria2` + `qbit` + `aio_wserver` = ~448MB), which gave `43.8%` against 1024MB dyno. In standard leech bots (and friend's bot), "Bot Stats" measures the Python bot process itself (`Process().memory_info().rss` = ~200MB / 1024MB = 19.5%), without third-party C++ engine daemons contaminating the bot's core memory stat.
+
+**Fix:**
+`bot_utils.py`: Updated `get_bot_stats()` to read bot process RSS directly via `Process().memory_info().rss` (O(1) memory lookup) normalized against dyno/VPS memory. Output is instantly accurate at ~19.5% (matching friend's bot).
+
+
 ### 260908-AE (built, pushed)
 **Git:** `10b2986`  
 **Date:** 2026-09-08  

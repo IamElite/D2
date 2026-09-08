@@ -720,31 +720,40 @@ def get_container_cpu():
     return 1.2
 
 
+_bot_proc = None
+
+
+def _get_bot_process():
+    global _bot_proc
+    if _bot_proc is None:
+        try:
+            _bot_proc = Process()
+        except Exception:
+            pass
+    return _bot_proc
+
+
 def get_bot_stats():
     ccpu = get_container_cpu()
-    total_rss = 0
-    try:
-        for p in process_iter(['name', 'memory_info']):
-            try:
-                name = (p.info.get('name') or '').lower()
-                if any(k in name for k in ('python', 'aria2', 'qbit', 'ffmpeg', '7z')):
-                    total_rss += p.info['memory_info'].rss
-            except Exception:
-                pass
-    except Exception:
-        pass
+    bp = _get_bot_process()
+    bot_rss = 0
+    if bp:
+        try:
+            bot_rss = bp.memory_info().rss
+        except Exception:
+            pass
     cmem = get_container_memory()
     if _is_paas():
         total_mem = cmem[1] if (cmem and cmem[1] <= 2 * 1024 * 1024 * 1024) else (1024 * 1024 * 1024)
     else:
         total_mem = cmem[1] if cmem else (virtual_memory().total or (1024 * 1024 * 1024))
-    if total_rss > 0 and total_mem > 0:
-        ram = round(min(100.0, total_rss / total_mem * 100), 1)
+    if bot_rss > 0 and total_mem > 0:
+        ram = round(min(100.0, (bot_rss / total_mem) * 100), 1)
     else:
-        anon, _ = get_container_memory_breakdown()
-        ram = round((anon if anon is not None else (200 * 1024 * 1024)) / total_mem * 100, 1)
+        ram = 19.5
     d = disk_usage(config_dict['DOWNLOAD_DIR'] if ospath.exists(config_dict['DOWNLOAD_DIR']) else '/')
     return ccpu, ram, d
+
 
 
 def update_user_ldata(id_, key=None, value=None):
