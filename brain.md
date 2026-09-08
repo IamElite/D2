@@ -61,6 +61,19 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AU (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `bot/__init__.py` (`wztgClient`, `bot` client init, `user` client init)
+
+**User Request:**
+Set `max_concurrent_transmissions=1000` in `wztgClient` and `workers=24` for Pyrogram bot/user clients.
+
+**Fix:**
+1. `bot/__init__.py`: In `wztgClient`, set `max_concurrent_transmissions = 1000`.
+2. `bot/__init__.py`: Increased `workers=24` for both `bot` and `user` clients.
+
+
 ### 260909-AT (built, pushed)
 **Git:** `7006599`  
 **Date:** 2026-09-09  
