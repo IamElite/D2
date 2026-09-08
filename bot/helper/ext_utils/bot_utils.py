@@ -414,10 +414,10 @@ def get_readable_message(downloads=None):
         buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref")
         buttons.ibutton(BotTheme('NEXT'), "status nex")
     button = buttons.build_menu(3)
-    msg += BotTheme('Cpu', cpu=get_bot_cpu())
-    d_stat = get_disk_usage()
+    cpu, ram, d_stat = get_bot_stats()
+    msg += BotTheme('Cpu', cpu=cpu)
     msg += BotTheme('FREE', free=get_readable_file_size(d_stat.free), free_p=round(100 - d_stat.percent, 1))
-    msg += BotTheme('Ram', ram=get_bot_ram())
+    msg += BotTheme('Ram', ram=ram)
     msg += BotTheme('uptime', uptime=get_readable_time(time() - botStartTime))
     msg += BotTheme('DL', DL=get_readable_file_size(dl_speed))
     msg += BotTheme('UL', UL=get_readable_file_size(up_speed))
@@ -709,54 +709,13 @@ def get_container_cpu():
     return round(min(100.0, (usage - last_u) / (now - last_t) / cores * 100), 1)
 
 
-def get_bot_cpu():
-    """Container CPU%, fallback to current process + children CPU to avoid shared-host /proc/stat skew."""
-    ccpu = get_container_cpu()
-    if ccpu is not None:
-        return ccpu
-    try:
-        p = Process()
-        p_cpu = p.cpu_percent()
-        for child in p.children(recursive=True):
-            try:
-                p_cpu += child.cpu_percent()
-            except Exception:
-                pass
-        cores = cpu_count() or 1
-        return round(min(100.0, p_cpu / cores), 1)
-    except Exception:
-        return cpu_percent()
-
-
-def get_bot_ram():
-    """Container anonymous RAM% (real process memory), fallback to virtual_memory().percent."""
+def get_bot_stats():
+    ccpu = get_container_cpu() or 0.0
     cmem = get_container_memory()
     anon, _ = get_container_memory_breakdown()
-    if cmem and anon is not None:
-        return round(anon / cmem[1] * 100, 1)
-    elif cmem:
-        return round(cmem[0] / cmem[1] * 100, 1)
-    return virtual_memory().percent
-
-
-def get_disk_usage(path=None):
-    """Safe disk usage helper. Guarantees download dir exists, falls back to '/' or dummy on error."""
-    target = path or config_dict.get('DOWNLOAD_DIR', 'downloads/')
-    try:
-        if not ospath.exists(target):
-            from os import makedirs as os_makedirs
-            os_makedirs(target, exist_ok=True)
-        return disk_usage(target)
-    except Exception:
-        try:
-            return disk_usage('/')
-        except Exception:
-            class DummyDisk:
-                total = 0
-                used = 0
-                free = 0
-                percent = 0.0
-            return DummyDisk()
+    ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent
+    d = disk_usage(config_dict['DOWNLOAD_DIR'] if ospath.exists(config_dict['DOWNLOAD_DIR']) else '/')
+    return ccpu, ram, d
 
 
 def update_user_ldata(id_, key=None, value=None):

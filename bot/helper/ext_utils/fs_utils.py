@@ -104,17 +104,14 @@ async def start_cleanup():
 def clean_all():
     try:
         aria2.remove_all(True)
-    except Exception as e:
-        LOGGER.warning(f"aria2 remove_all skipped: {e}")
+    except Exception:
+        pass
     _qbit_purge_all()
     try:
         rmtree(DOWNLOAD_DIR)
     except Exception:
         pass
-    try:
-        os_makedirs(DOWNLOAD_DIR, exist_ok=True)
-    except Exception:
-        pass
+    os_makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
 def exit_clean_up(signal, frame):
@@ -224,14 +221,7 @@ def get_mime_type(file_path):
 
 
 def check_storage_threshold(size, threshold, arch=False, alloc=False):
-    try:
-        free = disk_usage(DOWNLOAD_DIR).free
-    except Exception:
-        try:
-            os_makedirs(DOWNLOAD_DIR, exist_ok=True)
-            free = disk_usage(DOWNLOAD_DIR).free
-        except Exception:
-            free = disk_usage('/').free
+    free = disk_usage(DOWNLOAD_DIR if ospath.exists(DOWNLOAD_DIR) else '/').free
     if not alloc:
         if (not arch and free - size < threshold or arch and free - (size * 2) < threshold):
             return False
