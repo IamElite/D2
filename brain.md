@@ -60,6 +60,28 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260908-AB (built, pushed)
+**Git:** `2095e63`  
+**Date:** 2026-09-08  
+**Files:** `bot/helper/ext_utils/fs_utils.py` (`clean_all` aria2 error-handling + `DOWNLOAD_DIR` recreation, `check_storage_threshold`), `bot/helper/ext_utils/bot_utils.py` (`get_disk_usage` helper), `bot/modules/status.py` (`mirror_status` safe disk usage)
+
+**Problem (Live log from batbin.me/prosodial):**
+1. `mirror_status()` crashed: `FileNotFoundError: [Errno 2] No such file or directory: '/usr/src/app/downloads/'` when calling `disk_usage(config_dict['DOWNLOAD_DIR'])`.
+   Wajah: `/restart` command chalne par `clean_all()` ne `rmtree(DOWNLOAD_DIR)` kiya par directory wapas create nahi ki (`makedirs`).
+2. `/restart` command crashed: `requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=6800): Connection refused` when calling `aria2.remove_all(True)`.
+   Wajah: `clean_all()` me `aria2.remove_all(True)` bina kisi `try...except` ke call ho raha tha. Agar restart ke dauran aria2 pehle se down ho, to poora restart handler unhandled exception se crash ho jata tha.
+
+**Fix:**
+1. `fs_utils.py`:
+   - `clean_all()` me `aria2.remove_all(True)` ko `try...except` se wrap kiya — agar aria2 down ho to warning log karke safe aage badhega (restart crash nahi hoga).
+   - `clean_all()` me `rmtree(DOWNLOAD_DIR)` ke baad turant `os_makedirs(DOWNLOAD_DIR, exist_ok=True)` lagaya taaki downloads directory hamesha exist kare.
+   - `check_storage_threshold()` me missing `DOWNLOAD_DIR` handling aur `/` fallback add kiya.
+2. `bot_utils.py`:
+   - `get_disk_usage(path=None)` helper add kiya jo target directory ka existence ensure karta hai, missing hone par create karta hai, aur kisi bhi OS error par safe fallback deta hai (kabhi FileNotFoundError raise nahi karega).
+   - `get_readable_message()` me `get_disk_usage()` use kiya.
+3. `status.py`:
+   - `mirror_status()` me `disk_usage(config_dict['DOWNLOAD_DIR'])` ki jagah safe `get_disk_usage()` use kiya.
+
 ### 260908-AA (built, pushed)
 **Git:** `449a3b3`  
 **Date:** 2026-09-08  
