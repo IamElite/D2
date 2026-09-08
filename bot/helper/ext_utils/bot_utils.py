@@ -685,8 +685,12 @@ def get_container_memory_breakdown():
 _proc_cache = {}
 
 
+def _is_paas():
+    return bool(environ.get('DYNO') or (environ.get('PORT') and not config_dict.get('BASE_URL')))
+
+
 def get_container_cpu():
-    """Live process tree CPU% (bot + aria2 + qbit + ffmpeg) normalized to dyno vCPUs."""
+    """Live process tree CPU% (bot + aria2 + qbit + ffmpeg) normalized to environment vCPUs."""
     total = 0.0
     try:
         current_pids = set()
@@ -707,7 +711,8 @@ def get_container_cpu():
         for dead_pid in list(_proc_cache.keys()):
             if dead_pid not in current_pids:
                 del _proc_cache[dead_pid]
-        usage = round(min(100.0, total / 2.0), 1)
+        cores = 2.0 if _is_paas() else float(cpu_count() or 1)
+        usage = round(min(100.0, total / cores), 1)
         if usage > 0.0:
             return usage
     except Exception:
@@ -729,11 +734,11 @@ def get_bot_stats():
     except Exception:
         pass
     cmem = get_container_memory()
-    # Heroku Standard-2X is 1024MB. If virtual_memory().total is > 2GB (reporting 62GB AWS host), cap to 1GB dyno quota.
-    total_mem = cmem[1] if cmem else virtual_memory().total
-    if not total_mem or total_mem > 2 * 1024 * 1024 * 1024:
-        total_mem = 1024 * 1024 * 1024
-    if total_rss > 0:
+    if _is_paas():
+        total_mem = cmem[1] if (cmem and cmem[1] <= 2 * 1024 * 1024 * 1024) else (1024 * 1024 * 1024)
+    else:
+        total_mem = cmem[1] if cmem else (virtual_memory().total or (1024 * 1024 * 1024))
+    if total_rss > 0 and total_mem > 0:
         ram = round(min(100.0, total_rss / total_mem * 100), 1)
     else:
         anon, _ = get_container_memory_breakdown()
