@@ -60,6 +60,23 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AR (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `qBittorrent/config/qBittorrent.conf`, `bot/__init__.py`, `a2c.conf`
+
+**Problem:**
+Download speed was fluctuating / dropping from 100+ MB/s down to 60-70 MB/s.
+Wajah:
+1. `DiskIOWriteMode=1` (disable OS cache) in `qBittorrent.conf` forced synchronous direct I/O to virtual disk. As soon as the cloud disk suffered brief I/O latency, libtorrent paused the network socket thread, causing speed to plummet to 60 MB/s before recovering (sawtooth speed pattern).
+2. Disk cache in qBit (64MB) and Aria2 (32M) was too small for 100+ MB/s, filling up in under 500ms and blocking network buffers while flushing.
+3. Socket receive buffer was only 1M.
+
+**Fix:**
+1. `qBittorrent.conf` & `bot/__init__.py`: Enabled OS page caching (`DiskIOReadMode=0`, `DiskIOWriteMode=0`), increased qBit cache to 128MB, and boosted connection speed to 100/s.
+2. `a2c.conf`: Increased `disk-cache=64M` and `socket-recv-buffer-size=2M` to prevent TCP window throttling and buffer flushes at 100+ MB/s.
+
+
 ### 260909-AQ (built, pushed)
 **Git:** `0010185`  
 **Date:** 2026-09-09  
