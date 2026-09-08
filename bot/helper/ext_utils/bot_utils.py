@@ -335,7 +335,7 @@ def get_readable_message(downloads=None):
             msg += file_count_line(download)
             msg += BotTheme('BAR', Bar=f"{get_progress_bar_string(download.progress())} {download.progress()}")
             msg += BotTheme('PROCESSED', Processed=f"{download.processed_bytes()} / {download.size()}")
-            msg += BotTheme('STATUS', Status=download.status(), Url=msg_link)
+            msg += BotTheme('STATUS', Status=tstatus, Url=msg_link)
             msg += BotTheme('ETA', Eta=download.eta())
             msg += BotTheme('SPEED', Speed=download.speed())
             msg += BotTheme('ELAPSED', Elapsed=clock_fmt(elapsed))
@@ -712,7 +712,18 @@ def get_container_cpu():
 def get_bot_stats():
     ccpu = get_container_cpu()
     if ccpu is None:
-        ccpu = cpu_percent()
+        try:
+            p = Process()
+            p_cpu = p.cpu_percent()
+            for child in p.children(recursive=True):
+                try:
+                    p_cpu += child.cpu_percent()
+                except Exception:
+                    pass
+            cores = cpu_count() or 1
+            ccpu = round(min(100.0, p_cpu / cores), 1)
+        except Exception:
+            ccpu = cpu_percent()
     cmem = get_container_memory()
     anon, _ = get_container_memory_breakdown()
     ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent

@@ -2951,3 +2951,21 @@ otherwise               -> vps
 **Boot log me yeh dikhega:** `Aria2 throughput overlay [vps]: peers 500, concurrent 10, alloc falloc, upload uncapped...` aur `qBit runtime [vps]: cache 128MiB, 1000 conn, 200/torrent...`
 **Test harness:** `/tmp/test_profile.py`, `/tmp/test_stale_mongo.py` (repo ke bahar). `test_overlays.py` retire kiya — `test_profile.py` uske saare assertions cover karta hai.
 **Pending (report kiya, fix nahi):** `UL` stat downloading tasks ka BT upload nahi dikhata; aria2 ka "Leechers" label actually `connections` hai.
+
+---
+
+### [260908-AF] SENIOR OPTIMIZATION: Zero-lag multi-tasking, high speed & glibc RAM trim
+- **Root-Cause 1 (UI/Event-Loop Lag):** Status updates triggered synchronous/repetitive RPC calls (`__update` in `QbittorrentStatus` & `Aria2Status`) on every task multiple times per refresh. With multiple tasks, this starved asyncio event loop and blocked Telegram command handling.
+- **Fix 1:** Added 1.5s cache debounce (`self.__last_update`) in `QbittorrentStatus.__update()` and `Aria2Status.__update()`. Reused `tstatus` in `bot_utils.py:get_readable_message()`.
+- **Root-Cause 2 (qBit QueueUp & Throughput Cap):** `Session\QueueingSystemEnabled=true` and `Session\MaxActiveDownloads=2` in `qBittorrent.conf` + hardcoded `queueing_enabled: True` in `bot/__init__.py:1177` forced multi-tasks into QueueUp. `AsyncIOThreadsCount=2` choked disk I/O.
+- **Fix 2:** In `qBittorrent.conf` and `bot/__init__.py`, set `queueing_enabled=False`, `AsyncIOThreadsCount=8`, `DiskCacheSize=64`, `CoalesceReadsWrites=true`, `MaxActiveDownloads=20`, `MaxActiveTorrents=20`.
+- **Root-Cause 3 (Lingering RAM):** Python heap allocator under Linux glibc retains freed buffer pages in memory arenas after large file operations.
+- **Fix 3:** Added `trim_memory()` helper calling `libc.so.6:malloc_trim(0)` inside `clean_download()`, `clean_all()`, `start_cleanup()`, and `stop_heavy()` in `engine_lifecycle.py`.
+- **Verified:** Python syntax compiled cleanly across all touched files without errors.
+
+---
+
+### [260908-AG] ARIA2 TORRENT THROUGHPUT: Uncap upload, fix trackers & remove peer hunt
+- **Root-Cause:** `/leech` on magnets/torrents got stuck in KB/s due to: (1) `max-upload-limit` capped at 512K, causing BitTorrent tit-for-tat choke by seeders, (2) `bt-request-peer-speed-limit` set to 10M causing connection churn, (3) `bt-tracker=[{trackers}]` had literal brackets breaking URI parsing in `a2c.conf` and naked magnets had no dynamic trackers passed.
+- **Fix:** In `bot/__init__.py`, fixed tracker format `bt-tracker={trackers}\n` and cached in `bot_cache['trackers']`. In `aria2_download.py`, set `max-upload-limit=0` (uncapped), removed forced `bt-request-peer-speed-limit`, and dynamically injected `bot_cache['trackers']` into `a2c_opt["bt-tracker"]`.
+- **Verified:** Python syntax compiled cleanly.

@@ -929,10 +929,12 @@ trackers = check_output(
     "| awk 'NF' | tr '\\n' ','",
     shell=True,
 ).decode('utf-8').rstrip(',')
+bot_cache['trackers'] = trackers
 with open("a2c.conf", "a+") as a:
     if TORRENT_TIMEOUT:
         a.write(f"bt-stop-timeout={TORRENT_TIMEOUT}\n")
-    a.write(f"bt-tracker=[{trackers}]")
+    if trackers:
+        a.write(f"bt-tracker={trackers}\n")
 srun([bot_cache['pkgs'][0], "--conf-path=/usr/src/app/a2c.conf"])
 alive = Popen(["python3", "alive.py"])
 sleep(0.5)
@@ -1174,12 +1176,12 @@ try:
         'lsd': False,
         'dht': _qbit_dht,
         'pex': _qbit_dht,
-        'queueing_enabled': True,
+        'queueing_enabled': False,
         'max_active_uploads': _qp.get('max_active_uploads', 3),
-        'max_active_downloads': _qbit_madl or _qp['max_active_downloads'],
+        'max_active_downloads': _qbit_madl or _qp.get('max_active_downloads', 20),
         'max_active_torrents': (max(_qbit_madl + _qp.get('max_active_uploads', 3),
-                                    _qp['max_active_torrents'])
-                                if _qbit_madl else _qp['max_active_torrents']),
+                                    _qp.get('max_active_torrents', 20))
+                                if _qbit_madl else _qp.get('max_active_torrents', 20)),
         'ignore_slow_torrents': True,
         'slow_torrent_dl_rate_threshold': 100,
         'slow_torrent_inactive_timer': 120,

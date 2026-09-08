@@ -32,15 +32,20 @@ class Aria2Status:
         self.message = self.__listener.message
         self.__files_done = 0
         self.__files_at = 0.0
+        self.__last_update = time()
 
     def __update(self):
+        now = time()
+        if now - self.__last_update < 1.5 and self.__download is not None:
+            return
         if self.__download is None:
             self.__download = get_download(self.__gid)
         else:
             self.__download = self.__download.live
-        if self.__download.followed_by_ids:
+        if self.__download and self.__download.followed_by_ids:
             self.__gid = self.__download.followed_by_ids[0]
             self.__download = get_download(self.__gid)
+        self.__last_update = now
 
     def progress(self):
         try:

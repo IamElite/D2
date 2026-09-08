@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from asyncio import sleep
+from time import time
 
 from .... import LOGGER, get_client, QbTorrents, qb_listener_lock
 from ...ext_utils.bot_utils import clock_fmt, EngineStatus, MirrorStatus, get_readable_file_size, get_readable_time, sync_to_async
@@ -21,14 +22,19 @@ class QbittorrentStatus:
         self.__listener = listener
         self.upload_details = listener.upload_details
         self.__info = get_download(self.__client, f'{self.__listener.uid}')
+        self.__last_update = time()
         self.queued = queued
         self.seeding = seeding
         self.message = listener.message
 
     def __update(self):
+        now = time()
+        if now - self.__last_update < 1.5 and self.__info is not None:
+            return
         new_info = get_download(self.__client, f'{self.__listener.uid}')
         if new_info is not None:
             self.__info = new_info
+            self.__last_update = now
 
     def progress(self):
         return f'{round(self.__info.progress*100, 2)}%'

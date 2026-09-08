@@ -8,7 +8,7 @@ from aiofiles import open as aiopen
 from aiofiles.os import remove as aioremove, path as aiopath
 from aiohttp import ClientSession as aioClientSession, ClientTimeout
 
-from .... import aria2, download_dict_lock, download_dict, LOGGER, config_dict, aria2_options, aria2c_global, non_queued_dl, queue_dict_lock
+from .... import aria2, download_dict_lock, download_dict, LOGGER, config_dict, aria2_options, aria2c_global, non_queued_dl, queue_dict_lock, bot_cache
 from ...ext_utils.bot_utils import bt_selection_buttons, cmd_exec, sync_to_async
 from ..status_utils.aria2_status import Aria2Status
 from ...telegram_helper.message_utils import sendStatusMessage, sendMessage
@@ -184,17 +184,15 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
         else:
             a2c_opt['pause'] = 'true'
     if _bt_link(link):
-        # Throughput ceiling = peer count we connect to (Heroku is outbound-leech;
-        # inbound UDP blocked). peer-speed-limit is an AGGREGATE TARGET: aria2
-        # keeps requesting peers until total speed crosses it. Old 1K = stop after
-        # 1KB/s => settled on a few peers (19MB/s cap). Env-overridable for A/B:
-        #   ARIA2_TORRENT_PROFILE=safe -> old baseline (80 / 1K / 256K)
         _bt_safe = environ.get('ARIA2_TORRENT_PROFILE', '').lower() == 'safe'
         a2c_opt["follow-torrent"] = "true"
         a2c_opt["bt-max-peers"] = environ.get('ARIA2_MAX_PEERS', '80' if _bt_safe else '200')
         a2c_opt["bt-max-open-files"] = environ.get('ARIA2_MAX_PEERS', '80' if _bt_safe else '200')
-        a2c_opt["bt-request-peer-speed-limit"] = environ.get('ARIA2_PEER_SPEED_LIMIT', '1K' if _bt_safe else '10M')
-        a2c_opt["max-upload-limit"] = '256K' if _bt_safe else environ.get('ARIA2_TORRENT_UP', '512K')
+        if environ.get('ARIA2_PEER_SPEED_LIMIT'):
+            a2c_opt["bt-request-peer-speed-limit"] = environ['ARIA2_PEER_SPEED_LIMIT']
+        a2c_opt["max-upload-limit"] = environ.get('ARIA2_TORRENT_UP', '0')
+        if bot_cache.get('trackers'):
+            a2c_opt["bt-tracker"] = bot_cache['trackers']
         a2c_opt["check-integrity"] = "false"
         a2c_opt["realtime-chunk-checksum"] = "false"
         a2c_opt["bt-hash-check-seed"] = "false"

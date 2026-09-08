@@ -62,6 +62,15 @@ async def clean_target(path):
                 pass
 
 
+def trim_memory():
+    """Trigger glibc malloc_trim(0) to surrender freed heap memory to the OS/cgroup."""
+    try:
+        from ctypes import CDLL
+        CDLL('libc.so.6').malloc_trim(0)
+    except Exception:
+        pass
+
+
 async def clean_download(path):
     if await aiopath.exists(path):
         LOGGER.info(f"Cleaning Download: {path}")
@@ -69,6 +78,7 @@ async def clean_download(path):
             await aiormtree(path)
         except Exception:
             pass
+    trim_memory()
 
 
 def _qbit_up():
@@ -99,6 +109,7 @@ async def start_cleanup():
     except Exception:
         pass
     await makedirs(DOWNLOAD_DIR, exist_ok=True)
+    trim_memory()
 
 
 def clean_all():
@@ -112,6 +123,7 @@ def clean_all():
     except Exception:
         pass
     os_makedirs(DOWNLOAD_DIR, exist_ok=True)
+    trim_memory()
 
 
 def exit_clean_up(signal, frame):

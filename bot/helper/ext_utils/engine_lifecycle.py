@@ -73,6 +73,12 @@ def stop_heavy():
             LOGGER.info("Idle: DHT/PEX off (shutdown not available)")
     except Exception as e:
         LOGGER.warning("Idle stop skipped: %s", e)
+    finally:
+        try:
+            from .fs_utils import trim_memory
+            trim_memory()
+        except Exception:
+            pass
 
 
 async def idle_stop_if_free():
