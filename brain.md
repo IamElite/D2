@@ -33,6 +33,7 @@ Alag `plan.md` **mat** banao — plan + built **yahi**.
 
 - Same repo dost 2X pe 5+ task ~30% CPU; hamare idle/kam task pe 70–80% CPU.
 - Download slow tha isliye connections badha diye; ab **max throughput** chahiye lekin **RAM use karke**, CPU idle pe waste nahi.
+- Heroku standard dynos par up to **3Gbps network capacity** milti hai. Baaki reference bots 150+ MB/s sustain karte hain bina speed drop (sawtooth fluctuation) hue. Target: 100–150+ MB/s sustained high throughput.
 - File-by-file GitHub edit mushkil → `arnv1` pe agent push.
 
 ---
@@ -59,6 +60,24 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ---
 
 ## FIX LOG
+
+### 260909-AT (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `qBittorrent/config/qBittorrent.conf`, `bot/__init__.py`, `a2c.conf`, `brain.md`
+
+**Problem:**
+Speed reached 29-31 MB/s on Nyaa swarm, but lagged behind reference bots reaching 150+ MB/s on Heroku's 3Gbps network.
+Wajah:
+1. `max_connec_per_torrent` was capped at 80 in `bot/__init__.py`, so qBit only connected to 25 peers out of 136 swarm peers.
+2. Aria2 `bt-request-peer-speed-limit` was default 50K; once 1 peer responded, aria2 stopped actively hunting faster peers from the swarm.
+3. Socket receive buffer was 2M (too small for 150+ MB/s / 1.2 Gbps line rate).
+
+**Fix:**
+1. `qBittorrent.conf` & `bot/__init__.py`: Boosted `MaxConnections=1000`, `MaxConnectionsPerTorrent=300`, `MaxUploads=50`, `MaxUploadsPerTorrent=15`, `ConnectionSpeed=150`, set socket buffers to 4MB, enabled uTP headers.
+2. `a2c.conf` & `bot/__init__.py`: Boosted `bt-max-peers=500`, `socket-recv-buffer-size=4M`, and set `bt-request-peer-speed-limit=50M` so aria2 aggressively hunts fast peers until crossing 50M.
+3. `brain.md`: Documented Heroku 3Gbps network capacity and 150+ MB/s target in main Goal section.
+
 
 ### 260909-AS (built, pushed)
 **Git:** `c31b5f9`  

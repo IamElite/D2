@@ -1012,8 +1012,8 @@ HOST_PROFILE = _host_profile()
 # changeGlobalOption. disk-cache and socket-recv-buffer-size are NOT - aria2
 # accepts them and silently keeps the a2c.conf value - so those stay in the conf.
 _A2_PROFILE = {
-    'paas': {'max-concurrent-downloads': '10', 'bt-max-peers': '300',
-             'bt-max-open-files': '300', 'file-allocation': 'none',
+    'paas': {'max-concurrent-downloads': '10', 'bt-max-peers': '500',
+             'bt-max-open-files': '500', 'file-allocation': 'none',
              'enable-mmap': 'false', 'bt-enable-lpd': 'true'},
     'vps':  {'max-concurrent-downloads': '10', 'bt-max-peers': '500',
              'bt-max-open-files': '500', 'file-allocation': 'falloc',
@@ -1047,13 +1047,13 @@ _QBIT_STOCK = {
 }
 
 _QBIT_PROFILE = {
-    'paas': {'max_active_uploads': 4, 'disk_cache': 64,  'async_io_threads': 4, 'max_connec': 500,
-             'max_connec_per_torrent': 80, 'max_uploads': 16,
-             'max_uploads_per_torrent': 4, 'max_active_downloads': 10,
+    'paas': {'max_active_uploads': 10, 'disk_cache': 128, 'async_io_threads': 4, 'max_connec': 1000,
+             'max_connec_per_torrent': 300, 'max_uploads': 50,
+             'max_uploads_per_torrent': 15, 'max_active_downloads': 10,
              'max_active_torrents': 15},
-    'vps':  {'max_active_uploads': 4, 'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
-             'max_connec_per_torrent': 200, 'max_uploads': 40,
-             'max_uploads_per_torrent': 8, 'max_active_downloads': 10,
+    'vps':  {'max_active_uploads': 10, 'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
+             'max_connec_per_torrent': 300, 'max_uploads': 50,
+             'max_uploads_per_torrent': 15, 'max_active_downloads': 10,
              'max_active_torrents': 15},
 }
 
@@ -1106,9 +1106,7 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
     # bt-request-peer-speed-limit is deliberately left at aria2's 50K default.
     # A 10M target is unreachable on ordinary swarms, so aria2 kept adding peers
     # forever (the CPU spike) without ever gaining throughput. Set
-    # ARIA2_PEER_SPEED_LIMIT explicitly if you want one back.
-    if environ.get('ARIA2_PEER_SPEED_LIMIT'):
-        _a2_boost['bt-request-peer-speed-limit'] = environ['ARIA2_PEER_SPEED_LIMIT']
+    _a2_boost['bt-request-peer-speed-limit'] = environ.get('ARIA2_PEER_SPEED_LIMIT', '50M')
     try:
         aria2.set_global_options(_a2_boost)
         log_info(f"Aria2 throughput overlay [{HOST_PROFILE}]: peers {_a2_boost['bt-max-peers']}, "
