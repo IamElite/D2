@@ -415,7 +415,8 @@ def get_readable_message(downloads=None):
         buttons.ibutton(BotTheme('NEXT'), "status nex")
     button = buttons.build_menu(3)
     msg += BotTheme('Cpu', cpu=get_bot_cpu())
-    msg += BotTheme('FREE', free=get_readable_file_size(disk_usage(config_dict['DOWNLOAD_DIR']).free), free_p=round(100-disk_usage(config_dict['DOWNLOAD_DIR']).percent, 1))
+    d_stat = get_disk_usage()
+    msg += BotTheme('FREE', free=get_readable_file_size(d_stat.free), free_p=round(100 - d_stat.percent, 1))
     msg += BotTheme('Ram', ram=get_bot_ram())
     msg += BotTheme('uptime', uptime=get_readable_time(time() - botStartTime))
     msg += BotTheme('DL', DL=get_readable_file_size(dl_speed))
@@ -736,6 +737,26 @@ def get_bot_ram():
     elif cmem:
         return round(cmem[0] / cmem[1] * 100, 1)
     return virtual_memory().percent
+
+
+def get_disk_usage(path=None):
+    """Safe disk usage helper. Guarantees download dir exists, falls back to '/' or dummy on error."""
+    target = path or config_dict.get('DOWNLOAD_DIR', 'downloads/')
+    try:
+        if not ospath.exists(target):
+            from os import makedirs as os_makedirs
+            os_makedirs(target, exist_ok=True)
+        return disk_usage(target)
+    except Exception:
+        try:
+            return disk_usage('/')
+        except Exception:
+            class DummyDisk:
+                total = 0
+                used = 0
+                free = 0
+                percent = 0.0
+            return DummyDisk()
 
 
 def update_user_ldata(id_, key=None, value=None):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from os import walk, path as ospath
+from os import walk, path as ospath, makedirs as os_makedirs
 from aiofiles.os import remove as aioremove, path as aiopath, listdir, rmdir, makedirs
 from aioshutil import rmtree as aiormtree
 from shutil import rmtree, disk_usage
@@ -102,10 +102,17 @@ async def start_cleanup():
 
 
 def clean_all():
-    aria2.remove_all(True)
+    try:
+        aria2.remove_all(True)
+    except Exception as e:
+        LOGGER.warning(f"aria2 remove_all skipped: {e}")
     _qbit_purge_all()
     try:
         rmtree(DOWNLOAD_DIR)
+    except Exception:
+        pass
+    try:
+        os_makedirs(DOWNLOAD_DIR, exist_ok=True)
     except Exception:
         pass
 
@@ -217,7 +224,14 @@ def get_mime_type(file_path):
 
 
 def check_storage_threshold(size, threshold, arch=False, alloc=False):
-    free = disk_usage(DOWNLOAD_DIR).free
+    try:
+        free = disk_usage(DOWNLOAD_DIR).free
+    except Exception:
+        try:
+            os_makedirs(DOWNLOAD_DIR, exist_ok=True)
+            free = disk_usage(DOWNLOAD_DIR).free
+        except Exception:
+            free = disk_usage('/').free
     if not alloc:
         if (not arch and free - size < threshold or arch and free - (size * 2) < threshold):
             return False
