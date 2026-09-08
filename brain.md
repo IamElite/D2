@@ -60,6 +60,19 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260908-AC (built, pushed)
+**Git:** `29f13c2`  
+**Date:** 2026-09-08  
+**Files:** `bot/helper/ext_utils/bot_utils.py` (streamline to single 7-line `get_bot_stats` helper), `bot/modules/status.py` (use `get_bot_stats`), `bot/helper/ext_utils/fs_utils.py` (streamline `clean_all` and `check_storage_threshold` 1-line check)
+
+**User:** Bloat/over-engineering cleanup. User ne bola: *"abe ye kya kya fix kar rahe jo apne ko 1 line ke code m fix m extra 50 line add nhi karna h smart code edit gen or fix karna h bc apne ko brain m ye sab likh h ap flow nhi kar rahe ho"*.
+User ke live `/s7` pe CPU: 0.0% verify ho gaya tha, par 50 lines ka unnecessary wrapper bloat tha.
+
+**Fix:**
+1. `bot_utils.py`: 50+ lines ke 3 alag bloated functions (`get_bot_cpu`, `get_bot_ram`, `get_disk_usage` with dummy classes) hata kar **sirf 7 lines ka compact `get_bot_stats()`** banaya jo seedha `(cpu, ram, d_stat)` tuple return karta hai.
+2. `status.py` & `bot_utils.py`: Ek hi clean call `cpu, ram, d_stat = get_bot_stats()`.
+3. `fs_utils.py`: `check_storage_threshold` ko 1-line inline ternary banaya (`disk_usage(DOWNLOAD_DIR if ospath.exists(DOWNLOAD_DIR) else '/').free`).
+
 ### 260908-AB (built, pushed)
 **Git:** `2095e63`  
 **Date:** 2026-09-08  
