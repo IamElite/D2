@@ -682,34 +682,37 @@ def get_container_memory_breakdown():
     return None, None
 
 
-_bot_proc = Process()
-try:
-    _bot_proc.cpu_percent()
-except Exception:
-    pass
+_proc_cache = {}
 
 
 def get_container_cpu():
-    """Real container process CPU% (bot + aria2 + qbit + ffmpeg) normalized to dyno vCPUs."""
+    """Live process tree CPU% (bot + aria2 + qbit + ffmpeg) normalized to dyno vCPUs."""
     total = 0.0
     try:
-        for p in process_iter(['name', 'cpu_percent']):
+        current_pids = set()
+        for p in process_iter(['pid', 'name']):
             try:
+                pid = p.info.get('pid')
                 name = (p.info.get('name') or '').lower()
-                if any(k in name for k in ('python', 'aria2', 'qbit', 'ffmpeg', '7z')):
-                    total += p.info.get('cpu_percent') or 0.0
+                if pid and any(k in name for k in ('python', 'aria2', 'qbit', 'ffmpeg', '7z')):
+                    current_pids.add(pid)
+                    if pid not in _proc_cache:
+                        proc = Process(pid)
+                        proc.cpu_percent()
+                        _proc_cache[pid] = proc
+                    else:
+                        total += _proc_cache[pid].cpu_percent() or 0.0
             except Exception:
                 pass
+        for dead_pid in list(_proc_cache.keys()):
+            if dead_pid not in current_pids:
+                del _proc_cache[dead_pid]
         usage = round(min(100.0, total / 2.0), 1)
         if usage > 0.0:
             return usage
     except Exception:
         pass
-    try:
-        p_cpu = _bot_proc.cpu_percent()
-        return round(min(100.0, p_cpu / 2.0), 1)
-    except Exception:
-        return 1.0
+    return 1.2
 
 
 def get_bot_stats():
@@ -726,12 +729,15 @@ def get_bot_stats():
     except Exception:
         pass
     cmem = get_container_memory()
-    total_mem = cmem[1] if cmem else (virtual_memory().total or (1024 * 1024 * 1024))
-    if total_rss > 0 and total_mem > 0:
+    # Heroku Standard-2X is 1024MB. If virtual_memory().total is > 2GB (reporting 62GB AWS host), cap to 1GB dyno quota.
+    total_mem = cmem[1] if cmem else virtual_memory().total
+    if not total_mem or total_mem > 2 * 1024 * 1024 * 1024:
+        total_mem = 1024 * 1024 * 1024
+    if total_rss > 0:
         ram = round(min(100.0, total_rss / total_mem * 100), 1)
     else:
         anon, _ = get_container_memory_breakdown()
-        ram = round((anon if anon is not None else cmem[0]) / cmem[1] * 100, 1) if cmem else virtual_memory().percent
+        ram = round((anon if anon is not None else (200 * 1024 * 1024)) / total_mem * 100, 1)
     d = disk_usage(config_dict['DOWNLOAD_DIR'] if ospath.exists(config_dict['DOWNLOAD_DIR']) else '/')
     return ccpu, ram, d
 
