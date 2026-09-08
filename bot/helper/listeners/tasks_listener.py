@@ -442,12 +442,15 @@ class MirrorLeechListener:
                         if f_size > LEECH_SPLIT_SIZE:
                             split_files.append((f_path, f_size, file_, dirpath))
                 self.file_count.set_stage('split', len(split_files))
+                self.split_total_bytes = sum(f[1] for f in split_files)
+                self.split_base_bytes = 0
+                self.split_current_outpath = None
                 for f_path, f_size, file_, dirpath in split_files:
                     if not checked:
                         checked = True
                         async with download_dict_lock:
                             download_dict[self.uid] = SplitStatus(
-                                up_name, size, gid, self)
+                                up_name, self.split_total_bytes, gid, self)
                         LOGGER.info(f"Splitting: {up_name}")
                     res = await split_file(f_path, f_size, file_, dirpath, LEECH_SPLIT_SIZE, self)
                     self.file_count.advance(file_, failed=res != 'errored' and not res)

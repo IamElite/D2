@@ -312,6 +312,7 @@ async def split_file(path, size, file_, dirpath, split_size, listener, start_tim
         while i <= parts or start_time < duration - 4:
             parted_name = f"{base_name}.part{i:03}{extension}"
             out_path = ospath.join(dirpath, parted_name)
+            listener.split_current_outpath = out_path
             cmd = [bot_cache['pkgs'][2], "-hide_banner", "-loglevel", "error", "-ss", str(start_time), "-i", path,
                    "-fs", str(split_size), "-map", "0", "-map_chapters", "-1", "-async", "1", "-strict",
                    "-2", "-c", "copy", out_path]
@@ -319,9 +320,11 @@ async def split_file(path, size, file_, dirpath, split_size, listener, start_tim
                 del cmd[10]
                 del cmd[10]
             if listener.suproc == 'cancelled' or listener.suproc is not None and listener.suproc.returncode == -9:
+                listener.split_current_outpath = None
                 return False
             listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
             code = await listener.suproc.wait()
+            listener.split_current_outpath = None
             if code == -9:
                 return False
             elif code != 0:
@@ -339,9 +342,11 @@ async def split_file(path, size, file_, dirpath, split_size, listener, start_tim
                         f"{err}. Unable to split this video, if it's size less than {MAX_SPLIT_SIZE} will be uploaded as it is. Path: {path}")
                 return "errored"
             out_size = await aiopath.getsize(out_path)
+            listener.split_base_bytes = getattr(listener, 'split_base_bytes', 0) + out_size
             if out_size > MAX_SPLIT_SIZE:
                 dif = out_size - MAX_SPLIT_SIZE
                 split_size -= dif + 5000000
+                listener.split_base_bytes = max(0, listener.split_base_bytes - out_size)
                 await aioremove(out_path)
                 return await split_file(path, size, file_, dirpath, split_size, listener, start_time, i, True, )
             lpd = (await get_media_info(out_path))[0]
@@ -354,15 +359,19 @@ async def split_file(path, size, file_, dirpath, split_size, listener, start_tim
                     f"This file has been splitted with default stream and audio, so you will only see one part with less size from orginal one because it doesn't have all streams and audios. This happens mostly with MKV videos. Path: {path}")
                 break
             elif lpd <= 3:
+                listener.split_base_bytes = max(0, listener.split_base_bytes - out_size)
                 await aioremove(out_path)
                 break
             start_time += lpd - 3
             i += 1
     else:
         out_path = ospath.join(dirpath, f"{file_}.")
+        listener.split_current_outpath = out_path
         listener.suproc = await create_subprocess_exec("split", "--numeric-suffixes=1", "--suffix-length=3",
                                                        f"--bytes={split_size}", path, out_path, stderr=PIPE)
         code = await listener.suproc.wait()
+        listener.split_current_outpath = None
+        listener.split_base_bytes = getattr(listener, 'split_base_bytes', 0) + size
         if code == -9:
             return False
         elif code != 0:

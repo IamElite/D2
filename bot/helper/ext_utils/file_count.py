@@ -52,9 +52,10 @@ class FileCountTracker:
         Hidden for single-file stages and for stages that could not count, so
         single-file tasks keep their existing status untouched.
         """
-        if not self.stage or self.total <= 1 or self.done < 1:
+        if not self.stage or self.total <= 1:
             return None
-        return self.done, self.total, self.failed, self.current_file
+        current_num = min(self.done + 1, self.total)
+        return current_num, self.total, self.failed, self.current_file
 
 
 def stage_counts(listener):

@@ -60,6 +60,25 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AS (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `bot/helper/mirror_utils/status_utils/split_status.py`, `bot/helper/listeners/tasks_listener.py`, `bot/helper/ext_utils/leech_utils.py`, `bot/helper/ext_utils/file_count.py`, `bot/helper/ext_utils/bot_utils.py`
+
+**Problem:**
+File splitting (`[Split]` with ffmpeg) was not displaying progress bar, processed bytes, speed, ETA, or multi-file counts.
+Wajah:
+1. `bot_utils.py:334` had `if tstatus not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:` which explicitly bypassed normal status rendering and fell through to bare `STATUS / SIZE / ENGINE` only.
+2. `SplitStatus` had dummy hardcoded returns (`0`, `0`, `00:00:00`).
+3. `file_count.py` hid file count until 1st file finished (`done < 1`).
+
+**Fix:**
+1. `split_status.py`: Implemented real `processed_raw()`, `speed_raw()`, `progress()`, `speed()`, `eta()`, and `files_count()` by tracking active ffmpeg split output size and base bytes.
+2. `tasks_listener.py` & `leech_utils.py`: Linked active `out_path` and `split_base_bytes` during ffmpeg / split runs.
+3. `file_count.py`: Fixed `current()` to show `(min(done + 1, total) / total)` so `File Count: ( 1 / N )` displays immediately on multi-file splits.
+4. `bot_utils.py`: Removed `STATUS_SPLITTING` from the exclusion list so full progress bar, processed size, speed, ETA, elapsed, mode, and file count render seamlessly.
+
+
 ### 260909-AR (built, pushed)
 **Git:** `8446775`  
 **Date:** 2026-09-09  

@@ -331,7 +331,7 @@ def get_readable_message(downloads=None):
         msg += BotTheme('USER',
                         Id=download.message.from_user.id)
         tstatus = download.status()
-        if tstatus not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
+        if tstatus != MirrorStatus.STATUS_SEEDING:
             msg += file_count_line(download)
             msg += BotTheme('BAR', Bar=f"{get_progress_bar_string(download.progress())} {download.progress()}")
             msg += BotTheme('PROCESSED', Processed=f"{download.processed_bytes()} / {download.size()}")
@@ -340,7 +340,8 @@ def get_readable_message(downloads=None):
             msg += BotTheme('SPEED', Speed=download.speed())
             msg += BotTheme('ELAPSED', Elapsed=clock_fmt(elapsed))
             msg += BotTheme('ENGINE', Engine=download.eng())
-            msg += BotTheme('STA_MODE', Mode=download.upload_details['mode'])
+            ud = getattr(download, 'upload_details', None)
+            msg += BotTheme('STA_MODE', Mode=ud.get('mode', '#Leech') if isinstance(ud, dict) else '#Leech')
             if hasattr(download, 'seeders_num'):
                 try:
                     msg += BotTheme('SEEDERS', Seeders=download.seeders_num())
