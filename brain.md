@@ -60,6 +60,18 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260908-AE (built, pushed)
+**Git:** `10b2986`  
+**Date:** 2026-09-08  
+**Files:** `bot/helper/listeners/qbit_listener.py` (line 159 completion check)
+
+**Problem (Live log from user):**
+qBit task (`/ql`) 100% download hone ke baad 30+ minute tak `QueueUp` state me phasa raha (`Done: 752.72MB / 750.73MB`, `Status: QueueUp | ETA: 2400:00:00 | TT: 00:30:29`), aur Telegram upload trigger nahi ho raha tha, sath hi 31% CPU aur 48% RAM background polling me waste ho rahi thi.
+Wajah: `qbit_listener.py` me `__onDownloadComplete` trigger karne ke liye sirf `tor_info.completion_on != 0` check tha. qBittorrent me jab queueing on hoti hai to completed download `queuedUP` me chala jata hai aur `completion_on` 0 rehta hai jab tak active upload slot na mile.
+
+**Fix (Ponytail Ultra 1-line):**
+`qbit_listener.py:159`: Condition me `tor_info.progress == 1 or state in ['uploading', 'stalledUP', 'queuedUP']` add kiya. Jaise hi torrent 100% download hoga, bot turant download complete maan kar Telegram upload start karega aur qBit resources free ho jayenge.
+
 ### 260908-AD (built, pushed)
 **Git:** `7a8beeb`  
 **Date:** 2026-09-08  
