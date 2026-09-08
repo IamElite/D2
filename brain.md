@@ -60,6 +60,24 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260909-AP (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-09  
+**Files:** `a2c.conf` (min-split-size 1M, 10 concurrent), `bot/__init__.py` (10 tasks profile, DHT/PEX enabled by default, 2 hash threads, 4 async IO threads, 64MB cache), `bot/helper/ext_utils/engine_lifecycle.py` (keep DHT/PEX enabled on idle), `bot/helper/ext_utils/idle_housekeep.py` (ensure DHT/PEX/LSD true)
+
+**Problem:**
+User needs support for 10 active tasks concurrently with maximum throughput while keeping resources lean so Heroku Standard-2X does not trigger memory/CPU crash/restart. Earlier commits throttled DHT/PEX to False, limited hashing to 1 thread, forced 4M min-split-size, and capped PaaS peers to 200/5 tasks, causing torrents to crawl with 2-3 seeders.
+
+**Fix:**
+1. `bot/__init__.py`:
+   - Set 10 concurrent downloads in `_A2_PROFILE['paas']` and `_QBIT_PROFILE['paas']`.
+   - Enabled `dht` and `pex` by default (`QBIT_DHT` defaults to `'1'`).
+   - Balanced threading: `hashing_threads: 2`, `async_io_threads: 4`, `disk_cache: 64` (safe for 1024MB dyno while running 10 tasks).
+   - Changed `min-split-size` back to `1M` so files get full multi-connection parallel speed.
+2. `a2c.conf`: Set `min-split-size=1M` and `max-concurrent-downloads=10`.
+3. `engine_lifecycle.py` & `idle_housekeep.py`: Kept DHT and PEX intact on idle so new torrents immediately have a live peer routing table.
+
+
 ### 260909-AO (built, pushed)
 **Git:** `3481b6b`  
 **Date:** 2026-09-09  

@@ -57,20 +57,17 @@ def stop_heavy():
         return
     try:
         from ... import get_client, environ
-        c = get_client()
-        c.app_set_preferences({"dht": False, "pex": False, "lsd": False})
-        if environ.get('QBIT_IDLE_STOP', '').lower() in ('0', 'false', 'no'):
-            LOGGER.info("Idle: DHT/PEX off (processes still running)")
-            return
         torrents = c.torrents_info()
         if torrents:
             LOGGER.info("Idle: qBit torrents active — process stays")
+            return
+        if environ.get('QBIT_IDLE_STOP', '').lower() in ('0', 'false', 'no'):
             return
         try:
             c.app_shutdown()
             LOGGER.info("Idle: qBit stopped (RAM freed) — auto-restarts on next qBit task")
         except Exception:
-            LOGGER.info("Idle: DHT/PEX off (shutdown not available)")
+            pass
     except Exception as e:
         LOGGER.warning("Idle stop skipped: %s", e)
     finally:

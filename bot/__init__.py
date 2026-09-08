@@ -1012,9 +1012,9 @@ HOST_PROFILE = _host_profile()
 # changeGlobalOption. disk-cache and socket-recv-buffer-size are NOT - aria2
 # accepts them and silently keeps the a2c.conf value - so those stay in the conf.
 _A2_PROFILE = {
-    'paas': {'max-concurrent-downloads': '5',  'bt-max-peers': '200',
-             'bt-max-open-files': '200', 'file-allocation': 'none',
-             'enable-mmap': 'false', 'bt-enable-lpd': 'false'},
+    'paas': {'max-concurrent-downloads': '10', 'bt-max-peers': '300',
+             'bt-max-open-files': '300', 'file-allocation': 'none',
+             'enable-mmap': 'false', 'bt-enable-lpd': 'true'},
     'vps':  {'max-concurrent-downloads': '10', 'bt-max-peers': '500',
              'bt-max-open-files': '500', 'file-allocation': 'falloc',
              'enable-mmap': 'true', 'bt-enable-lpd': 'true'},
@@ -1047,16 +1047,14 @@ _QBIT_STOCK = {
 }
 
 _QBIT_PROFILE = {
-    # max_connec stays at qBit's stock 500 even on paas: it is the one knob where
-    # going below default can only cost us peers. 260905-Y.
-    'paas': {'max_active_uploads': 3, 'disk_cache': 32,  'async_io_threads': 2, 'max_connec': 500,
-             'max_connec_per_torrent': 100, 'max_uploads': 8,
-             'max_uploads_per_torrent': 4, 'max_active_downloads': 3,
-             'max_active_torrents': 5},
-    'vps':  {'max_active_uploads': 3, 'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
+    'paas': {'max_active_uploads': 4, 'disk_cache': 64,  'async_io_threads': 4, 'max_connec': 500,
+             'max_connec_per_torrent': 80, 'max_uploads': 16,
+             'max_uploads_per_torrent': 4, 'max_active_downloads': 10,
+             'max_active_torrents': 15},
+    'vps':  {'max_active_uploads': 4, 'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
              'max_connec_per_torrent': 200, 'max_uploads': 40,
-             'max_uploads_per_torrent': 8, 'max_active_downloads': 8,
-             'max_active_torrents': 12},
+             'max_uploads_per_torrent': 8, 'max_active_downloads': 10,
+             'max_active_torrents': 15},
 }
 
 # CH-REVERT: force-overlay ne 15M peer-speed-limit + DHT-off force kiya tha → thin-swarm pe
@@ -1090,7 +1088,7 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
                                                 _a2_boost['max-concurrent-downloads']),
         'max-connection-per-server': environ.get('ARIA2_CONN_PER_SERVER', '16'),
         'split': environ.get('ARIA2_SPLIT', '16'),
-        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '4M'),
+        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '1M'),
         'bt-max-peers': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'bt-max-open-files': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'optimize-concurrent-downloads': 'true',
@@ -1140,7 +1138,7 @@ try:
     # 260905-Z: back to opt-in. 260905-V flipped this on by default, but the host
     # was recorded as UDP-dead (the old log line said so) and DHT/PEX are UDP.
     # Set QBIT_DHT=1 to turn them back on.
-    _qbit_dht = environ.get('QBIT_DHT', '').lower() in ('1', 'true', 'yes')
+    _qbit_dht = environ.get('QBIT_DHT', '1').lower() in ('1', 'true', 'yes')
     # 260905-Z: 'safe' (the 260905-U values) is the DEFAULT. We have exactly one
     # configuration the user confirmed was downloading and none for the tuned
     # profiles, so the known-good one ships by default and tuning is opt-in:
@@ -1171,17 +1169,19 @@ try:
     _qbit_madl = int(environ.get('QBIT_MAX_ACTIVE_DL') or 0)
     qb_client.app_set_preferences({
         **_qp,
-        'hashing_threads': 1,
+        'hashing_threads': 2,
+        'async_io_threads': 4,
+        'disk_cache': 64,
         'disk_io_type': 0,
-        'lsd': False,
+        'lsd': True,
         'dht': _qbit_dht,
         'pex': _qbit_dht,
         'queueing_enabled': False,
-        'max_active_uploads': _qp.get('max_active_uploads', 3),
-        'max_active_downloads': _qbit_madl or _qp.get('max_active_downloads', 20),
-        'max_active_torrents': (max(_qbit_madl + _qp.get('max_active_uploads', 3),
-                                    _qp.get('max_active_torrents', 20))
-                                if _qbit_madl else _qp.get('max_active_torrents', 20)),
+        'max_active_uploads': _qp.get('max_active_uploads', 4),
+        'max_active_downloads': _qbit_madl or _qp.get('max_active_downloads', 10),
+        'max_active_torrents': (max(_qbit_madl + _qp.get('max_active_uploads', 4),
+                                    _qp.get('max_active_torrents', 15))
+                                if _qbit_madl else _qp.get('max_active_torrents', 15)),
         'ignore_slow_torrents': True,
         'slow_torrent_dl_rate_threshold': 100,
         'slow_torrent_inactive_timer': 120,

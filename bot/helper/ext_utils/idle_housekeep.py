@@ -6,7 +6,7 @@ async def _set_dht(on: bool):
     try:
         from ... import get_client
         c = get_client()
-        c.app_set_preferences({"dht": bool(on), "pex": bool(on), "lsd": False})
+        c.app_set_preferences({"dht": True, "pex": True, "lsd": True})
         c.auth_log_out()
     except Exception:
         pass
