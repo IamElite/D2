@@ -165,3 +165,25 @@ def log_mem(tag='tick'):
 
 async def log_mem_async(tag='perf'):
     log_mem(tag)
+
+
+async def ram_guard(tag='guard'):
+    from ... import download_dict, download_dict_lock
+    from .bot_utils import sync_to_async, get_container_memory, get_container_memory_breakdown
+    cm = get_container_memory()
+    if not cm:
+        return
+    used, limit = cm
+    anon, fc = get_container_memory_breakdown()
+    real = anon if anon else used
+    pct = round(real / limit * 100, 1) if limit else 0.0
+    cache_p = round((fc or 0) / limit * 100, 1) if limit else 0.0
+    LOGGER.info(f"RAM[{tag}]: real={pct}% cache={cache_p}% (used {used >> 20}MB / limit {limit >> 20}MB)")
+    if pct >= 85:
+        LOGGER.warning(f"RAM[{tag}]: {pct}% real usage — high")
+    if pct >= 92:
+        LOGGER.warning(f"RAM[{tag}]: {pct}% real usage — near limit, safe cleanup if idle")
+        async with download_dict_lock:
+            if download_dict:
+                return
+        await sync_to_async(stop_heavy)

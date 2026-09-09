@@ -1252,5 +1252,11 @@ if environ.get('PERF_LOG', '').lower() in ('1', 'true', 'yes'):
         log_info("PERF_LOG on: MEM breakdown har 300s")
     except Exception as e:
         log_error(f"PERF_LOG setup failed: {e}")
+try:
+    from .helper.ext_utils.bot_utils import setInterval
+    from .helper.ext_utils.engine_lifecycle import ram_guard
+    setInterval(60, ram_guard)
+except Exception as e:
+    log_error(f"RAM guard setup failed: {e}")
 bot_name = bot.me.username
 scheduler = AsyncIOScheduler(timezone=str(get_localzone()), event_loop=bot_loop)
