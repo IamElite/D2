@@ -199,6 +199,7 @@ class YoutubeDLHelper:
                      # a dead/permanent URL fails in seconds instead of minutes.
                      'retries': 3,
                      'fragment_retries': 3,
+                     'concurrent_fragment_downloads': int(environ.get('YDLP_CONCURRENT_FRAGMENTS', '8') or 8),
                      'socket_timeout': 30,
                      'ffmpeg_location': f"/bin/{bot_cache['pkgs'][2]}",
                      'retry_sleep_functions': {'http': lambda n: min(2 * n, 10),

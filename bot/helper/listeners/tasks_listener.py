@@ -50,9 +50,9 @@ class MirrorLeechListener:
         if sameDir is None:
             sameDir = {}
         self.message = message
-        # Manual rename command value (e.g. -n/-name filename.mkv). When set, Auto Rename must not override it.
+
         self.newname = newname
-        # Original Telegram caption of the source file (used as Season/Episode fallback for Auto Rename).
+
         self.orig_caption = ""
         self.uid = message.id
         self.excep_chat = bool(str(message.chat.id) in config_dict['EXCEP_CHATS'].split())
@@ -252,8 +252,8 @@ class MirrorLeechListener:
                 if await aiopath.isfile(dl_path):
                     extract_total = await list_archive_files(dl_path, pswd)
                 else:
-                    # same predicate as the extract loop below, so total matches
-                    # what actually gets extracted (capped: one listing per archive)
+
+
                     archives = []
                     for dirpath, _, files in await sync_to_async(walk, dl_path):
                         for file_ in files:
@@ -337,14 +337,14 @@ class MirrorLeechListener:
             meta_files = []
             if await aiopath.isfile(meta_path):
                 _dt = await get_document_type(meta_path)
-                if _dt[0] or _dt[1]:  # video ya audio — kisi bhi media pe metadata
+                if _dt[0] or _dt[1]:
                     meta_files.append(meta_path)
             elif await aiopath.isdir(meta_path):
                 for dirpath, _, files in await sync_to_async(walk, meta_path):
                     for file in files:
                         video_file = ospath.join(dirpath, file)
                         _dt = await get_document_type(video_file)
-                        if _dt[0] or _dt[1]:  # video ya audio dono pe metadata
+                        if _dt[0] or _dt[1]:
                             meta_files.append(video_file)
             self.file_count.set_stage('metadata', len(meta_files))
             for video_file in meta_files:
@@ -602,35 +602,38 @@ class MirrorLeechListener:
                     buttons.ibutton(BotTheme('CHECK_PM'), f"kpsmlx {user_id} botpm", 'header')
                 if config_dict['SAFE_MODE'] and self.isSuperGroup:
                     await sendMessage(self.message, message, buttons.build_menu(2), photo=self.random_pic)
-                fmsg = '\n'
-                for index, (link, name) in enumerate(files.items(), start=1):
-                    fmsg += f"{index}. <a href='{link}'>{name}</a>\n"
-                    if len(msg.encode() + fmsg.encode()) > (4000 if len(config_dict['IMAGES']) == 0 else 1000):
-                            
-                        if config_dict['SAFE_MODE']:
-                            if self.isSuperGroup:
-                                await sendMessage(self.botpmmsg, msg + BotTheme('L_LL_MSG') + fmsg, btns, photo=self.random_pic)
-                            else:
-                                await sendMessage(self.message, message + fmsg, buttons.build_menu(2), photo=self.random_pic)
-                        else:
-                            if config_dict['SAVE_MSG'] and not saved and self.isSuperGroup:
-                                saved = True
-                                buttons.ibutton(BotTheme('SAVE_MSG'), 'save', 'footer')
-                            await sendMessage(self.message, message + fmsg, buttons.build_menu(2), photo=self.random_pic)
-                        await sleep(1.5)
-                        fmsg = ''
+                link_root = None
 
-                if fmsg != '\n':
+                async def send_links(body, first):
+                    nonlocal link_root, saved
                     if config_dict['SAFE_MODE']:
                         if self.isSuperGroup:
-                            await sendMessage(self.botpmmsg, msg + BotTheme('L_LL_MSG') + fmsg, btns, photo=self.random_pic)
+                            content = msg + BotTheme('L_LL_MSG') + body if first else body
+                            sent = await sendMessage(self.botpmmsg, content, btns, photo=self.random_pic, reply_to=link_root)
                         else:
-                            await sendMessage(self.message, message + fmsg, buttons.build_menu(2), photo=self.random_pic)
+                            content = message + body if first else body
+                            sent = await sendMessage(self.message, content, buttons.build_menu(2), photo=self.random_pic, reply_to=link_root)
                     else:
                         if config_dict['SAVE_MSG'] and not saved and self.isSuperGroup:
                             saved = True
                             buttons.ibutton(BotTheme('SAVE_MSG'), 'save', 'footer')
-                        await sendMessage(self.message, message + fmsg, buttons.build_menu(2), photo=self.random_pic)
+                        content = message + body if first else body
+                        sent = await sendMessage(self.message, content, buttons.build_menu(2), photo=self.random_pic, reply_to=link_root)
+                    if first and sent is not None:
+                        link_root = sent.id
+
+                fmsg = '\n'
+                first = True
+                for index, (link, name) in enumerate(files.items(), start=1):
+                    fmsg += f"{index}. <a href='{link}'>{name}</a>\n"
+                    if len(msg.encode() + fmsg.encode()) > (4000 if len(config_dict['IMAGES']) == 0 else 1000):
+                        await send_links(fmsg, first)
+                        await sleep(1.5)
+                        fmsg = ''
+                        first = False
+
+                if fmsg:
+                    await send_links(fmsg, first)
 
             if self.seed:
                 if self.newDir:
@@ -680,7 +683,7 @@ class MirrorLeechListener:
             message = msg
             
             btns = ButtonMaker()
-            # <Section : MIRROR LOGS>
+
             if config_dict['MIRROR_LOG_ID'] and not self.excep_chat:
                 m_btns = deepcopy(buttons)
                 if self.source_url and config_dict['SOURCE_LINK']:
@@ -695,7 +698,7 @@ class MirrorLeechListener:
                         _btns.ibutton(BotTheme('SAVE_MSG'), 'save', 'footer')
                     await editMessage(self.linkslogmsg, (msg + BotTheme('LINKS_SOURCE', On=dispTime, Source=self.source_msg) + BotTheme('L_LL_MSG') + f"\n\n<a href='{log_msg.link}'>{escape(name)}</a>\n"), _btns.build_menu(1))
             
-            # <Section : MESSAGE LOGS>
+
             if self.isPM and self.isSuperGroup:
                 message += BotTheme('M_BOT_MSG')
             buttons = extra_btns(buttons)[0]
