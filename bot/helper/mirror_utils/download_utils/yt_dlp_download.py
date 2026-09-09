@@ -376,6 +376,7 @@ class YoutubeDLHelper:
         await self.__onDownloadStart()
 
         self.opts['postprocessors'] = [{'add_chapters': True, 'add_infojson': 'if_exists', 'add_metadata': True, 'key': 'FFmpegMetadata'}]
+        self.opts['postprocessor_args'] = {'ffmpegmetadata+ffmpeg': ['-map_metadata', '0']}
 
         if qual.startswith('ba/b-'):
             audio_info = qual.split('-')
