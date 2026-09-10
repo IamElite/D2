@@ -61,6 +61,30 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260910-AF (built, pushed)
+**Git:** `e120369`  
+**Date:** 2026-09-11  
+**Files:** `bot/modules/mirror_leech.py`, `bot/helper/mirror_utils/download_utils/direct_link_generator.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`, `.gitignore`
+
+**Problem:**
+1. Direct download failed on bulk links with `Direct Link Error: No Direct link function found for <url>` for Streamtape mirrors (`tpead.net`), MultiCloud (`new2.multicloudlinks.com`), and HubCloud network portals (`new16.drivehub.cfd`, `hubdrive.tips`).
+2. Error messages contained redundant `<b>Direct Link Error:</b> <i>...</i>` prefix instead of clean direct `{e}` error messages.
+3. Streamtape parser matched decoy `ideoooolink` elements and produced obfuscated single-slash paths or `idd=` query params.
+
+**Fix:**
+1. In `mirror_leech.py`, removed `<b>Direct Link Error:</b>` prefix so exceptions output `{e}` cleanly.
+2. In `direct_link_generator.py`:
+   - Added global brand regexes: `STREAMTAPE_HOST`, `MULTICLOUD_HOST`, `HUBCLOUD_HOST`.
+   - Added `multicloud(url)` to resolve GDFlix, FilePress, and multidownload mirrors.
+   - Added `hubcloud(url)` supporting HubCloud bypass API and direct extraction with clean error reporting on Turnstile/login walls.
+   - Embedded self-contained Streamtape JS evaluator and media URL resolver with leading single-slash and query parameter normalizations.
+3. In `yt_dlp_download.py`:
+   - Updated `_ROBOTLINK_RE` to prioritize `norobotlink` and `captchalink` over decoys.
+   - Updated `streamtape_media_url` to support leading single slash and query parameter normalization.
+4. Added `temp` to `.gitignore`. Pure code rule maintained (zero comments added).
+
+
+
 ### 260910-AE (built, pushed)
 **Git:** `d2799c9`  
 **Date:** 2026-09-10  

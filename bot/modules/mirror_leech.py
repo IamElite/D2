@@ -333,7 +333,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                     return
                 if content_type and re_match(r'text/html|text/plain', content_type):
                     await deleteMessage(process_msg)
-                    await sendMessage(message, f"<b>Direct Link Error:</b> <i>{e}</i>")
+                    await sendMessage(message, f"{e}")
                     await delete_links(message)
                     return
                 link = org_link or link
@@ -341,7 +341,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                 LOGGER.error(f"Direct link generation error: {e}")
                 if content_type and re_match(r'text/html|text/plain', content_type):
                     await deleteMessage(process_msg)
-                    await sendMessage(message, f"<b>Direct Link Error:</b> <i>{e}</i>")
+                    await sendMessage(message, f"{e}")
                     await delete_links(message)
                     return
                 link = org_link or link

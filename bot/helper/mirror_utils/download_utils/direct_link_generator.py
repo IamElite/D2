@@ -108,10 +108,10 @@ debrid_link_sites = ["1dl.net", "1fichier.com", "alterupload.com", "cjoint.net",
                 "yahoo.com", "screen.yahoo.com", "news.yahoo.com", "sports.yahoo.com", "video.yahoo.com", "youporn.com"]
 
 
-# GDFlix rotates both the subdomain (new.gdflix.io, new1..new19.gdflix.net, ...) and
-# the TLD (.io/.net/.dev/.com/.icu/.cc) whenever Google flags one, so never match a
-# single host: accept the brand label under any subdomain and any TLD.
 GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
+STREAMTAPE_HOST = re.compile(r'(?:^|\.)(?:streamtape|streamta|tpead|tapead|strcloud|strtape|scloud)\.[a-z]{2,}$')
+MULTICLOUD_HOST = re.compile(r'(?:^|\.)multicloudlinks\.[a-z]{2,}$')
+HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn)\.[a-z]{2,}$')
 
 def direct_link_generator(link):
     auth = None
@@ -175,8 +175,12 @@ def direct_link_generator(link):
         return streamvid(link)
     elif any(x in domain for x in ['dood.watch', 'doodstream.com', 'dood.to', 'dood.so', 'dood.cx', 'dood.la', 'dood.ws', 'dood.sh', 'doodstream.co', 'dood.pm', 'dood.wf', 'dood.re', 'dood.video', 'dooood.com', 'dood.yt', 'doods.yt', 'dood.stream', 'doods.pro']):
         return doods(link)
-    elif any(x in domain for x in ['streamtape.com', 'streamtape.co', 'streamtape.cc', 'streamtape.to', 'streamtape.net', 'streamta.pe', 'streamtape.xyz']):
+    elif STREAMTAPE_HOST.search(domain or ''):
         return streamtape(link)
+    elif MULTICLOUD_HOST.search(domain or ''):
+        return multicloud(link)
+    elif HUBCLOUD_HOST.search(domain or ''):
+        return hubcloud(link)
     elif any(x in domain for x in ['wetransfer.com', 'we.tl']):
         return wetransfer(link)
     elif any(x in domain for x in anonfilesBaseSites):
@@ -461,39 +465,134 @@ def antfiles(url):
         raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
 
 
+_STREAMTAPE_ROBOTLINK_RE = re.compile(
+    r"(?:norobotlink|robotlink|captchalink|ideoooolink)(?!\w)[\s'\")\]]*\.innerHTML\s*=\s*(?P<expr>[^\n]+)")
+_STREAMTAPE_JS_STR_RE = re.compile(r"""(['"])((?:\\.|(?!\1).)*)\1""")
+_STREAMTAPE_JS_METH_RE = re.compile(r'[\s)]*\.\s*(substring|substr|slice)\s*\(\s*(-?\d+)\s*(?:,\s*(-?\d+)\s*)?\)')
+
+
+def _streamtape_eval_js(expr):
+    parts, i, n = [], 0, len(expr)
+    while i < n:
+        if expr[i].isspace() or expr[i] in '+();':
+            i += 1
+            continue
+        m = _STREAMTAPE_JS_STR_RE.match(expr, i)
+        if not m:
+            if parts:
+                break
+            raise ValueError(f'unexpected token {expr[i]!r} at {i}')
+        value, i = m.group(2), m.end()
+        while (method := _STREAMTAPE_JS_METH_RE.match(expr, i)):
+            fn, start = method.group(1), int(method.group(2))
+            end = int(method.group(3)) if method.group(3) is not None else None
+            if fn == 'substr':
+                value = value[start:] if end is None else value[start:start + end]
+            else:
+                value = value[start:] if end is None else value[start:end]
+            i = method.end()
+        parts.append(value)
+    return ''.join(parts)
+
+
+def streamtape_media_url(page_html):
+    m = _STREAMTAPE_ROBOTLINK_RE.search(page_html or '')
+    if not m:
+        raise ValueError('robotlink assignment not found')
+    media = _streamtape_eval_js(m.group('expr').strip().rstrip(';'))
+    if media.startswith('//'):
+        media = 'https:' + media
+    elif media.startswith('/'):
+        media = 'https:/' + media
+    media = sub(r'/get_v[a-zA-Z]*ideo\?', '/get_video?', media)
+    media = sub(r'([?&])id[a-zA-Z]*=', r'\1id=', media)
+    if not media.startswith('http'):
+        raise ValueError('robotlink did not yield a usable url')
+    return media
+
+
 def streamtape(url):
-    r"""StreamTape direct link.
-
-    PEHLA VERSION TOOTA HUA THA (live-verify kiya): woh
-    `//script[contains(text(),'ideoooolink')]` xpath + fixed `(&expires\S+)'`
-    regex use karta tha. Site ne variable ka naam `robotlink` kar diya hai aur
-    obfuscation ka split point HAR PAGE-LOAD pe move karta hai:
-        '//streamtape.com/get_video?id=m' + ('xcdQMGg...').substring(2).substring(1)
-        '//streamtape.com/'               + ('xcdget_video?id=m...').substring(2).substring(1)
-    Isliye fixed regex kabhi reliable nahi tha. Ab wahi GENERIC resolver chalta
-    hai jo yt_dlp_download.py ka universal embed-bypass use karta hai
-    (`streamtape_media_url` → `eval_js_concat`, koi eval() nahi) — ek hi logic,
-    do jagah (yahan requests-based, wahan yt-dlp IE-based).
-
-    Affected: dispatch ke 7 domains (streamtape.com/.co/.cc/.to/.net,
-    streamta.pe, streamtape.xyz) — sab pehle `ERROR: requeries script not found`
-    de rahe the.
-    """
+    parsed = urlparse(url)
     try:
         with Session() as session:
             session.headers.update({'user-agent': user_agent})
             page = session.get(url, timeout=30).text
-    except Exception as e:
-        raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
+    except Exception:
+        try:
+            from curl_cffi.requests import Session as CurlSession
+            with CurlSession(impersonate='chrome') as session:
+                page = session.get(url, timeout=30).text
+        except Exception as e:
+            raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
     try:
-        # LAZY import: direct_link_generator module-level pe yt_dlp_download ko
-        # import nahi karta (boot cost + dependency direction).
-        from .yt_dlp_download import streamtape_media_url
-        return streamtape_media_url(page)
+        durl = streamtape_media_url(page)
+        return (durl, f'Referer: {parsed.scheme}://{parsed.hostname}/')
     except ValueError as e:
         raise DirectDownloadLinkException(f"ERROR: {e}") from e
     except Exception as e:
         raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
+
+
+def multicloud(url):
+    try:
+        from curl_cffi.requests import Session as CurlSession
+    except ImportError as e:
+        raise DirectDownloadLinkException('ERROR: curl-cffi missing') from e
+    with CurlSession(impersonate='chrome') as session:
+        try:
+            res = session.get(url, timeout=30)
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if res.status_code == 403:
+            raise DirectDownloadLinkException('ERROR: MultiCloud Cloudflare challenge')
+        html = HTML(res.text)
+        gdflix_links = html.xpath("//a[contains(@href, 'gdflix')]/@href")
+        if gdflix_links:
+            return gdflix(gdflix_links[0])
+        fp_links = html.xpath("//a[contains(@href, 'filebee') or contains(@href, 'filepress')]/@href")
+        if fp_links:
+            return filepress(fp_links[0])
+        dl_links = html.xpath("//a[contains(@href, 'multidownload') or contains(@href, '/dl/')]/@href")
+        if dl_links:
+            return dl_links[0]
+        all_links = html.xpath("//a[contains(@class, 'btn')]/@href")
+        for l in all_links:
+            if l.startswith('http') and not any(k in l for k in ['login', 'signup', 'telegram', 'whatsapp', 'facebook', 'twitter']):
+                return l
+    raise DirectDownloadLinkException('ERROR: MultiCloud mirrors not found')
+
+
+def hubcloud(url):
+    try:
+        from curl_cffi.requests import Session as CurlSession
+    except ImportError as e:
+        raise DirectDownloadLinkException('ERROR: curl-cffi missing') from e
+    try:
+        with req_session() as s:
+            resp = s.get(f'http://hubcloud.cfd/bypass?url={url}', timeout=10).json()
+            if resp.get('links'):
+                links = sorted(resp['links'], key=lambda x: x.get('priority', 0), reverse=True)
+                return links[0]['url']
+    except Exception:
+        pass
+    with CurlSession(impersonate='chrome') as session:
+        try:
+            res = session.get(url, timeout=20)
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if res.status_code == 403:
+            raise DirectDownloadLinkException('ERROR: Cloudflare challenge / access blocked')
+        text = res.text
+        if 'cf-turnstile' in text or 'captcha-wall' in text:
+            raise DirectDownloadLinkException('ERROR: Cloudflare Turnstile captcha active on page')
+        html = HTML(text)
+        instant = html.xpath("//a[contains(@href, 'instant') or contains(@href, 'download')]/@href")
+        for l in instant:
+            if l.startswith('http'):
+                return l
+        if 'Please Try Login Method' in text:
+            raise DirectDownloadLinkException('ERROR: User login required to generate direct link')
+    raise DirectDownloadLinkException('ERROR: No usable download link found')
 
 
 def racaty(url):

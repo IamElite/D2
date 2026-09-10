@@ -560,14 +560,8 @@ _JS_METH_RE = re_compile(r'[\s)]*\.\s*(substring|substr|slice)\s*\(\s*(-?\d+)\s*
 #   '//streamtape.com/'               + ('xcdget_video?id=m...').substring(2).substring(1)
 # Isliye fixed prefix/payload regex kabhi reliable nahi - poora expression
 # evaluate karna padta hai. Purana `ideoooolink` naam bhi accept karte hain
-# (site ne variable rename kiya tha; direct_link_generator wala code isi pe atka).
-# Dono live forms match hone chahiye (dono real pages pe dekhe gaye):
-#   document.getElementById('robotlink').innerHTML = '<expr>'
-#   robotlink').innerHTML = '<expr>'
-# Isliye variable-name ke baad optional quotes/parens/brackets, phir .innerHTML.
-# Lookahead `\w` ensure karta hai ki `myrobotlink2` jaisa naam false-match na ho.
 _ROBOTLINK_RE = re_compile(
-    r"(?:robotlink|ideoooolink)(?!\w)[\s'\")\]]*\.innerHTML\s*=\s*(?P<expr>[^\n]+)")
+    r"(?:norobotlink|robotlink|captchalink|ideoooolink)(?!\w)[\s'\")\]]*\.innerHTML\s*=\s*(?P<expr>[^\n]+)")
 
 _HEIGHT_WHITELIST_RE = re_compile(r'\b(240|360|480|576|720|1080|1440|2160)p\b')
 
@@ -630,12 +624,6 @@ def eval_js_concat(expr):
 
 
 def streamtape_media_url(page_html):
-    """StreamTape embed-page HTML -> real media URL.
-
-    PURE function (koi yt-dlp dependency nahi) - isliye yt-dlp IE se bhi chalta
-    hai aur `direct_link_generator.streamtape()` (requests-based) se bhi.
-    ValueError raise karta hai agar robotlink na mile/evaluate na ho.
-    """
     m = _ROBOTLINK_RE.search(page_html or '')
     if not m:
         raise ValueError('robotlink assignment not found')
@@ -645,6 +633,10 @@ def streamtape_media_url(page_html):
         raise ValueError(f'could not evaluate robotlink expression: {e}') from e
     if media.startswith('//'):
         media = 'https:' + media
+    elif media.startswith('/'):
+        media = 'https:/' + media
+    media = re_sub(r'/get_v[a-zA-Z]*ideo\?', '/get_video?', media)
+    media = re_sub(r'([?&])id[a-zA-Z]*=', r'\1id=', media)
     if not media.startswith('http'):
         raise ValueError('robotlink did not yield a usable url')
     return media
