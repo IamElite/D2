@@ -61,8 +61,20 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260910-AE (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-10  
+**Files:** `bot/modules/mirror_leech.py`
+
+**Problem:**
+Error messages for Mega, qBit, and Aria2 outer exceptions in `mirror_leech.py` had verbose prefixes (`<b>Mega Error:</b>`, `<b>Download Error:</b>`).
+
+**Fix:**
+Standardized all engine exception messages in `mirror_leech.py` to send clean `{e}` directly to match the GDrive clean error format.
+
+
 ### 260910-AD (built, pushed)
-**Git:** `ff6c9cb`  
+**Git:** `0712e45`  
 **Date:** 2026-09-10  
 **Files:** `bot/helper/mirror_utils/upload_utils/gdriveTools.py`, `bot/helper/mirror_utils/download_utils/gd_download.py`, `bot/modules/mirror_leech.py`
 

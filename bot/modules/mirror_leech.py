@@ -453,14 +453,14 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             await add_mega_download(link, f'{path}/', listener, name)
         except Exception as e:
             LOGGER.error(f"Mega Download Error: {e}")
-            await sendMessage(message, f"<b>Mega Error:</b> <i>{e}</i>")
+            await sendMessage(message, f"{e}")
     elif ((isQbit or (_TORRENT_ENGINE == 'qbit' and is_torrent_link(link)))
           and 'real-debrid' not in link):
         try:
             await add_qb_torrent(link, path, listener, ratio, seed_time)
         except Exception as e:
             LOGGER.error(f"qBit Error: {e}")
-            await sendMessage(message, f"<b>qBit Error:</b> <i>{e}</i>")
+            await sendMessage(message, f"{e}")
     elif not is_telegram_link(link):
         if ussr or pssw:
             auth = f"{ussr}:{pssw}"
@@ -469,7 +469,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             await add_aria2c_download(link, path, listener, name, headers, ratio, seed_time)
         except Exception as e:
             LOGGER.error(f"Aria2 Error: {e}")
-            await sendMessage(message, f"<b>Download Error:</b> <i>{e}</i>")
+            await sendMessage(message, f"{e}")
     await delete_links(message)
 
 
