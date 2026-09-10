@@ -25,13 +25,6 @@ from ..helper.mirror_utils.download_utils.gd_download import add_gd_download
 from ..helper.mirror_utils.download_utils.qbit_download import add_qb_torrent
 
 
-# 260905-AB: back to aria2 by default. 260905-AA flipped this to qbit on the
-# reasoning that libtorrent beats aria2 at BitTorrent, but that was never tested
-# here and it changed what /mirror and /leech do without the user asking. On the
-# host's actual qBit settings it made things worse - the safe profile caps upload
-# at 256 B/s with DHT/PEX off, so torrents sent there crawled at KB/s while aria2
-# was doing 4-5 MB/s. Routing is the user's choice again: set TORRENT_ENGINE=qbit
-# to opt in once qBit itself is configured to be fast.
 _TORRENT_ENGINE = environ.get('TORRENT_ENGINE', 'aria2').strip().lower()
 from ..helper.mirror_utils.download_utils.mega_download import add_mega_download
 from ..helper.mirror_utils.download_utils.rclone_download import add_rclone_download
@@ -50,25 +43,6 @@ from ..helper.ext_utils.multi_tools import (
     collect_i_items, delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
-
-def _auto_engine(link, file_=None):
-    if file_ is not None:
-        return "tg"
-    if not link or not isinstance(link, str):
-        return "aria"
-    if is_mega_link(link):
-        return "mega"
-    if is_gdrive_link(link):
-        return "gd"
-    if is_rclone_path(link):
-        return "rc"
-    if is_telegram_link(link):
-        return "tg"
-    if is_torrent_link(link):
-        return "aria"
-    if is_ytdlp_link(link):
-        return "ytdl"
-    return "aria"
 
 @new_task
 async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=None, bulk=[], multi_tag=None):
@@ -332,14 +306,6 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         LOGGER.info(link)
         org_link = link
 
-    if file_ is None and link and isinstance(link, str) and not isQbit and not is_torrent_link(link):
-        eng = _auto_engine(link)
-        if eng == "ytdl":
-            LOGGER.info("engine=ytdl %s", link[:80])
-            from .ytdlp import _ytdl
-            _ytdl(client, message, isLeech=isLeech, sameDir=sameDir, bulk=bulk, multi_tag=multi_tag)
-            return
-
     if (not is_mega_link(link) or (is_mega_link(link) and not config_dict['MEGA_EMAIL'] and config_dict['DEBRID_LINK_API'])) \
         and not is_torrent_link(link) \
         and not isQbit \
@@ -365,15 +331,17 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                     await sendMessage(message, "<b>Invalid URL</b>")
                     await delete_links(message)
                     return
-                # This url is already known to serve a web page, so falling back
-                # to it can only ever download that page: aria2 saved gofile.io's
-                # 3 KB html shell and the task reported success while sending an
-                # html file named after the url segment. Report the real reason
-                # instead. The fallback stays for content_type is None (server
-                # sent no Content-Type), where a binary is still plausible.
                 if content_type and re_match(r'text/html|text/plain', content_type):
                     await deleteMessage(process_msg)
-                    await sendMessage(message, e)
+                    await sendMessage(message, f"<b>Direct Link Error:</b> <i>{e}</i>")
+                    await delete_links(message)
+                    return
+                link = org_link or link
+            except Exception as e:
+                LOGGER.error(f"Direct link generation error: {e}")
+                if content_type and re_match(r'text/html|text/plain', content_type):
+                    await deleteMessage(process_msg)
+                    await sendMessage(message, f"<b>Direct Link Error:</b> <i>{e}</i>")
                     await delete_links(message)
                     return
                 link = org_link or link
@@ -474,18 +442,34 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         await add_rclone_download(link, config_path, f'{path}/', name, listener)
     elif is_gdrive_link(link):
         await delete_links(message)
-        await add_gd_download(link, path, listener, name, org_link)
+        try:
+            await add_gd_download(link, path, listener, name, org_link)
+        except Exception as e:
+            LOGGER.error(f"GDrive Download Error: {e}")
+            await sendMessage(message, f"<b>Google Drive Error:</b> <i>{e}</i>")
     elif is_mega_link(link):
         await delete_links(message)
-        await add_mega_download(link, f'{path}/', listener, name)
+        try:
+            await add_mega_download(link, f'{path}/', listener, name)
+        except Exception as e:
+            LOGGER.error(f"Mega Download Error: {e}")
+            await sendMessage(message, f"<b>Mega Error:</b> <i>{e}</i>")
     elif ((isQbit or (_TORRENT_ENGINE == 'qbit' and is_torrent_link(link)))
           and 'real-debrid' not in link):
-        await add_qb_torrent(link, path, listener, ratio, seed_time)
+        try:
+            await add_qb_torrent(link, path, listener, ratio, seed_time)
+        except Exception as e:
+            LOGGER.error(f"qBit Error: {e}")
+            await sendMessage(message, f"<b>qBit Error:</b> <i>{e}</i>")
     elif not is_telegram_link(link):
         if ussr or pssw:
             auth = f"{ussr}:{pssw}"
             headers += f" authorization: Basic {b64encode(auth.encode()).decode('ascii')}"
-        await add_aria2c_download(link, path, listener, name, headers, ratio, seed_time)
+        try:
+            await add_aria2c_download(link, path, listener, name, headers, ratio, seed_time)
+        except Exception as e:
+            LOGGER.error(f"Aria2 Error: {e}")
+            await sendMessage(message, f"<b>Download Error:</b> <i>{e}</i>")
     await delete_links(message)
 
 

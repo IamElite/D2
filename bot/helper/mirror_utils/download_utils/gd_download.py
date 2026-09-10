@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from json import dumps as jdumps
 from secrets import token_hex
 from cloudscraper import create_scraper as cget
@@ -13,13 +12,20 @@ from ...ext_utils.task_manager import is_queued, limit_checker, stop_duplicate_c
 
 
 async def add_gd_download(link, path, listener, newname, org_link):
-    drive = GoogleDriveHelper()
-    name, mime_type, size, _, _ = await sync_to_async(drive.count, link)
-    # ponytail: only contribute when upstream is official, otherwise leak user's share links - delete this block if you want zero telemetry
+    try:
+        drive = GoogleDriveHelper()
+        name, mime_type, size, _, _ = await sync_to_async(drive.count, link)
+    except Exception as e:
+        LOGGER.error(f"GDrive Download Init Error: {e}")
+        await sendMessage(listener.message, f"<b>Google Drive Error:</b> <i>{e}</i>")
+        return
     if is_share_link(org_link) and config_dict.get('UPSTREAM_REPO') == "https://github.com/Tamilupdates/KPSML-X":
-        cget().request('POST', "https://wzmlcontribute.vercel.app/contribute", headers={"Content-Type": "application/json"}, data=jdumps({"name": name, "link": org_link, "size": get_readable_file_size(size)}))
+        try:
+            cget().request('POST', "https://wzmlcontribute.vercel.app/contribute", headers={"Content-Type": "application/json"}, data=jdumps({"name": name, "link": org_link, "size": get_readable_file_size(size)}))
+        except Exception:
+            pass
     if mime_type is None:
-        await sendMessage(listener.message, name)
+        await sendMessage(listener.message, f"<b>Google Drive Error:</b> <i>{name}</i>")
         return
 
     name = newname or name
@@ -47,7 +53,12 @@ async def add_gd_download(link, path, listener, newname, org_link):
     else:
         from_queue = False
 
-    drive = GoogleDriveHelper(name, path, listener)
+    try:
+        drive = GoogleDriveHelper(name, path, listener)
+    except Exception as e:
+        LOGGER.error(f"GDrive Helper Init Error: {e}")
+        await sendMessage(listener.message, f"<b>Google Drive Error:</b> <i>{e}</i>")
+        return
     async with download_dict_lock:
         download_dict[listener.uid] = GdriveStatus(
             drive, size, listener.message, gid, 'dl', listener.upload_details)

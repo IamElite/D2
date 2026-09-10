@@ -61,6 +61,21 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260910-AB (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-10  
+**Files:** `bot/modules/mirror_leech.py`, `bot/helper/mirror_utils/download_utils/gd_download.py`
+
+**Problem:**
+Auto-detect in `/leech` / `/mirror` (`_auto_engine`) was hijacking links to yt-dlp or failing silently without responding to the user when links failed (e.g. GDrive links when token/accounts missing, dead links, or unsupported generators).
+
+**Fix:**
+1. Removed `_auto_engine` completely from `mirror_leech.py`, stopping unwanted routing to `ytdl` inside `/leech`. Dedicated `/ytdlleech` and `/qbleech` commands remain for explicit usage.
+2. Added fail-safe `try...except` error reporting to all engine calls in `mirror_leech.py` (GDrive, Mega, qBit, Aria2, direct link generator) so the bot always sends an informative error message to the user instead of dying silently.
+3. Added robust error handling in `gd_download.py` so GDrive permission/service-account/count failures notify the user immediately.
+4. Clean pure-code output adhering to zero comments rule.
+
+
 ### 260910-AA (built, pushed)
 **Git:** `320e073`  
 **Date:** 2026-09-10  
