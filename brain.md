@@ -61,8 +61,22 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260910-AC (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-10  
+**Files:** `bot/helper/ext_utils/bot_utils.py`, `bot/modules/mirror_leech.py`
+
+**Problem:**
+Leftover auto-detect helpers (`is_ytdlp_link` definition and its import in `mirror_leech.py`, plus comments) remained after removing auto engine.
+
+**Fix:**
+1. Removed `is_ytdlp_link` from `bot/helper/ext_utils/bot_utils.py`.
+2. Removed unused `is_ytdlp_link` import from `bot/modules/mirror_leech.py`.
+3. Stripped inline comments and docstrings around the routing helpers to maintain pure code.
+
+
 ### 260910-AB (built, pushed)
-**Git:** `2a828e6`  
+**Git:** `c211d61`  
 **Date:** 2026-09-10  
 **Files:** `bot/modules/mirror_leech.py`, `bot/helper/mirror_utils/download_utils/gd_download.py`
 

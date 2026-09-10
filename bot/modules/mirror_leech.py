@@ -17,7 +17,7 @@ from cloudscraper import create_scraper
 
 from .. import bot, DOWNLOAD_DIR, LOGGER, config_dict, bot_name, categories_dict, user_data
 from ..helper.mirror_utils.download_utils.direct_downloader import add_direct_download
-from ..helper.ext_utils.bot_utils import is_url, is_torrent_link, is_ytdlp_link, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats
+from ..helper.ext_utils.bot_utils import is_url, is_torrent_link, is_mega_link, is_gdrive_link, get_content_type, new_task, sync_to_async, is_rclone_path, is_telegram_link, arg_parser, fetch_user_tds, fetch_user_dumps, get_stats
 from ..helper.ext_utils.exceptions import DirectDownloadLinkException
 from ..helper.ext_utils.task_manager import task_utils
 from ..helper.mirror_utils.download_utils.aria2_download import add_aria2c_download

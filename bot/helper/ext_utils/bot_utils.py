@@ -49,24 +49,14 @@ _YTDL_HINT = (
     "pornhub.com/", "xvideos.com/", "xnxx.com/", "xhamster.com/",
     "redtube.com/", "youporn.com/", "spankbang.com/", "missav.com/",
     "jable.tv/", "hanime.tv/", "nhentai.net/", "nsfw.net/",
-    # adult hosts with real yt-dlp extractors (missing before -> /l + bulk
-    # routed them to aria/HTML and failed; eporner is the reported case)
     "eporner.com/", "beeg.com/", "txxx.com/", "upornia.com/", "thisvid.com/",
     "porntrex.com/", "hqporner.com/", "motherless.com/", "rule34video.com/",
     "hellporno.com/", "drtuber.com/", "sunporno.com/", "sexu.com/",
     "alphaporno.com/", "pornflip.com/", "pornerbros.com/", "murrtube.com/",
     "4tube.com/", "chaturbate.com/", "stripchat.com/", "nubiles.net/",
-    # multi-server page → yt_dlp_download.py ka UNIVERSAL EMBED BYPASS handle
-    # karta hai (page → player-iframe → streamtape/byse backend). Koi alag
-    # plugin/file nahi. Nayi site = YTDL_EMBED_HOSTS env var (code change nahi).
     "letsjerk.tv/", "letsjerk.com/",
 )
 
-# Universal embed-discovery ke default hosts. Yaani _EMBED_DISCOVERY_HOSTS
-# (yt_dlp_download.py) ka mirror — yahan isliye copy kiya kyunki bot_utils ko
-# yt_dlp_download module-level pe import NAHI kar sakti (yt_dlp_download already
-# bot_utils se import karta hai → circular). `embed_discovery_hosts()` dono ko
-# mila ke authoritative set banata hai, isliye env override ek hi jagah lagta hai.
 _EMBED_DISCOVERY_DEFAULT = {'letsjerk.tv', 'letsjerk.com'}
 
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
@@ -502,8 +492,6 @@ def embed_discovery_hosts():
 
 
 def is_embed_discovery_url(url):
-    """True = yeh URL universal embed-resolver ka candidate hai (page me player
-    iframe dhundh ke embed-host backend se media nikala jaayega)."""
     if not url or not isinstance(url, str):
         return False
     low = url.lower()
@@ -515,20 +503,7 @@ def is_embed_discovery_url(url):
     return any(host == d or host.endswith('.' + d) for d in embed_discovery_hosts())
 
 
-def is_ytdlp_link(url):
-    if not url or not isinstance(url, str) or is_torrent_link(url):
-        return False
-    low = url.lower()
-    path = low.split("?", 1)[0].rstrip("/")
-    if path.endswith((".m3u8", ".m3u", ".ts")):
-        return True
-    if any(h in low for h in _YTDL_HINT):
-        return True
-    return is_embed_discovery_url(url)
-
-
 async def is_ytdlp_supported(url):
-    """False = direct-file/presigned URL, yt-dlp generic pe mat jao."""
     if not is_url(url) or is_torrent_link(url):
         return False
     low = url.lower()
