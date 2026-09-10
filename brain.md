@@ -62,7 +62,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260910-AA (built, pushed)
-**Git:** `ce2b0fe` (follow-up pure code cleanup)  
+**Git:** `320e073`  
 **Date:** 2026-09-10  
 **Files:** `bot/helper/ext_utils/engine_lifecycle.py` (`ram_guard`, `stop_heavy`), `requirements.txt`
 
