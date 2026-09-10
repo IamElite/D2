@@ -61,16 +61,18 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260910-AA (built, pending push)
-**Git:** `pending`  
+### 260910-AA (built, pushed)
+**Git:** `ce2b0fe` (follow-up pure code cleanup)  
 **Date:** 2026-09-10  
-**Files:** `bot/helper/ext_utils/engine_lifecycle.py` (`ram_guard`), `requirements.txt`
+**Files:** `bot/helper/ext_utils/engine_lifecycle.py` (`ram_guard`, `stop_heavy`), `requirements.txt`
 
 **Problem:**
-When real RAM reached 92%, `ram_guard` did nothing if active downloads were running (`if download_dict: return`), risking Heroku dyno OOM restart killing all tasks.
+When real RAM reached 92%, `ram_guard` did nothing if active downloads were running (`if download_dict: return`), risking Heroku dyno OOM restart killing all tasks. Also `stop_heavy()` was missing `c = get_client()` causing a NameError if executed.
 
 **Fix:**
-`engine_lifecycle.py`: Enhanced `ram_guard` to run memory reclamation (`gc.collect()` + `malloc_trim(0)`) at 85%+, and at 90%+ safely stop unused background engines (e.g. shutdown idle qBit if tasks are aria2/ytdlp/tg) or throttle active qBit cache to 48MB without killing any active running download.
+1. `engine_lifecycle.py`: Enhanced `ram_guard` to run memory reclamation (`gc.collect()` + `malloc_trim(0)`) at 85%+, and at 90%+ safely stop unused background engines (e.g. shutdown idle qBit if tasks are aria2/ytdlp/tg) or throttle active qBit cache to 48MB without killing any active running download.
+2. Fixed missing `c = get_client()` in `stop_heavy()`.
+3. Stripped all docstrings/comments (`#`, `'''`, `"""`) for pure code output.
 
 
 ### 260909-AV (built, pushed)

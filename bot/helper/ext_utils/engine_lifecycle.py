@@ -1,7 +1,3 @@
-"""qBit/aria2 stay running (needed for listeners + commands).
-
-NEVER pkill -f those binaries: the pattern can hit the bot. Idle = DHT off via API only.
-"""
 from logging import getLogger
 from os import getcwd
 from socket import create_connection
@@ -57,6 +53,7 @@ def stop_heavy():
         return
     try:
         from ... import get_client, environ
+        c = get_client()
         torrents = c.torrents_info()
         if torrents:
             LOGGER.info("Idle: qBit torrents active — process stays")
@@ -79,12 +76,6 @@ def stop_heavy():
 
 
 async def idle_stop_if_free():
-    """Idle-stop the heavy engines without touching the event loop.
-
-    stop_heavy() does several blocking qBittorrent HTTP calls, so it must never
-    run on the loop. It is also pointless while other tasks are still running,
-    which is what made bulk mode freeze: every completion paid for it.
-    """
     from ... import download_dict
     from .bot_utils import sync_to_async
     if len(download_dict) > 1:
@@ -108,7 +99,6 @@ async def idle_now():
 
 
 def qbit_port_down(timeout=3):
-    """Boot-stop verify: 8090 down hone ka wait (max timeout s) — True=down."""
     from time import sleep as _sleep
     for _ in range(timeout * 2):
         if not _port_up(8090):
@@ -118,9 +108,6 @@ def qbit_port_down(timeout=3):
 
 
 def log_mem(tag='tick'):
-    """CL/CK: process RSS + anon(real) vs page-cache cgroup RAM + live aria2
-    connection/peer counts (proof of whether aria2 actually opens the requested
-    sockets — if config says 16/200 but actives are 1-2, the swarm/host is the cap)."""
     try:
         from psutil import Process
         cur = Process()
@@ -131,7 +118,6 @@ def log_mem(tag='tick'):
             except Exception:
                 pass
         kid_s = ' '.join(f'{k}={v >> 20}MB' for k, v in sorted(kids.items()))
-        # cgroup real-vs-cache RAM
         cg = ''
         try:
             from .bot_utils import get_container_memory, get_container_memory_breakdown
@@ -144,7 +130,6 @@ def log_mem(tag='tick'):
                 cg = f" | cgroup: real={anon_p}% cache={cache_p}% (limit {tot}MB)"
         except Exception:
             pass
-        # live aria2 actives: connections + peers per GID
         a2 = ''
         try:
             from ... import aria2
