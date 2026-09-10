@@ -61,6 +61,18 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260910-AA (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-10  
+**Files:** `bot/helper/ext_utils/engine_lifecycle.py` (`ram_guard`), `requirements.txt`
+
+**Problem:**
+When real RAM reached 92%, `ram_guard` did nothing if active downloads were running (`if download_dict: return`), risking Heroku dyno OOM restart killing all tasks.
+
+**Fix:**
+`engine_lifecycle.py`: Enhanced `ram_guard` to run memory reclamation (`gc.collect()` + `malloc_trim(0)`) at 85%+, and at 90%+ safely stop unused background engines (e.g. shutdown idle qBit if tasks are aria2/ytdlp/tg) or throttle active qBit cache to 48MB without killing any active running download.
+
+
 ### 260909-AV (built, pushed)
 **Git:** `17a406f`  
 **Date:** 2026-09-09  

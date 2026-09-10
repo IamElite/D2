@@ -170,6 +170,8 @@ async def log_mem_async(tag='perf'):
 async def ram_guard(tag='guard'):
     from ... import download_dict, download_dict_lock
     from .bot_utils import sync_to_async, get_container_memory, get_container_memory_breakdown
+    from .fs_utils import trim_memory
+    import gc
     cm = get_container_memory()
     if not cm:
         return
@@ -180,10 +182,33 @@ async def ram_guard(tag='guard'):
     cache_p = round((fc or 0) / limit * 100, 1) if limit else 0.0
     LOGGER.info(f"RAM[{tag}]: real={pct}% cache={cache_p}% (used {used >> 20}MB / limit {limit >> 20}MB)")
     if pct >= 85:
-        LOGGER.warning(f"RAM[{tag}]: {pct}% real usage — high")
-    if pct >= 92:
-        LOGGER.warning(f"RAM[{tag}]: {pct}% real usage — near limit, safe cleanup if idle")
+        LOGGER.warning(f"RAM[{tag}]: {pct}% real usage — high, running memory reclaim")
+        gc.collect()
+        trim_memory()
+    if pct >= 90:
+        LOGGER.warning(f"RAM[{tag}]: {pct}% real usage — near limit, reclaiming unused engines and buffers")
         async with download_dict_lock:
-            if download_dict:
-                return
-        await sync_to_async(stop_heavy)
+            active_dls = list(download_dict.values())
+        if not active_dls:
+            await sync_to_async(stop_heavy)
+            trim_memory()
+            return
+        using_qbit = any('qbit' in (getattr(dl, 'eng', lambda: '')() or '').lower() for dl in active_dls)
+        if not using_qbit:
+            await sync_to_async(stop_heavy)
+        else:
+            try:
+                from ... import get_client
+                c = get_client()
+                c.app_set_preferences({'disk_cache': 48})
+            except Exception:
+                pass
+        using_aria2 = any('aria2' in (getattr(dl, 'eng', lambda: '')() or '').lower() for dl in active_dls)
+        if not using_aria2:
+            try:
+                from ... import aria2
+                aria2.purge_download_result()
+            except Exception:
+                pass
+        gc.collect()
+        trim_memory()
