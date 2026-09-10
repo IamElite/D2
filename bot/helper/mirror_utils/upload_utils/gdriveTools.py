@@ -69,7 +69,11 @@ class GoogleDriveHelper:
     def __authorize(self):
         credentials = None
         if config_dict['USE_SERVICE_ACCOUNTS']:
+            if not ospath.exists("accounts"):
+                raise ValueError("Service Accounts folder 'accounts' not Exists!")
             json_files = listdir("accounts")
+            if not json_files:
+                raise ValueError("Service Accounts folder 'accounts' is Empty!")
             self.__sa_number = len(json_files)
             self.__sa_index = randrange(self.__sa_number)
             LOGGER.info(
@@ -82,7 +86,7 @@ class GoogleDriveHelper:
             with open('token.pickle', 'rb') as f:
                 credentials = pload(f)
         else:
-            LOGGER.error('token.pickle not found!')
+            raise ValueError("NO TOKEN! token.pickle not Exists!")
         return build('drive', 'v3', credentials=credentials, cache_discovery=False)
 
     def __alt_authorize(self):

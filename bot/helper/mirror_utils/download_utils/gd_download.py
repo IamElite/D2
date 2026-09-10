@@ -17,7 +17,7 @@ async def add_gd_download(link, path, listener, newname, org_link):
         name, mime_type, size, _, _ = await sync_to_async(drive.count, link)
     except Exception as e:
         LOGGER.error(f"GDrive Download Init Error: {e}")
-        await sendMessage(listener.message, f"<b>Google Drive Error:</b> <i>{e}</i>")
+        await sendMessage(listener.message, f"{e}")
         return
     if is_share_link(org_link) and config_dict.get('UPSTREAM_REPO') == "https://github.com/Tamilupdates/KPSML-X":
         try:
@@ -25,7 +25,7 @@ async def add_gd_download(link, path, listener, newname, org_link):
         except Exception:
             pass
     if mime_type is None:
-        await sendMessage(listener.message, f"<b>Google Drive Error:</b> <i>{name}</i>")
+        await sendMessage(listener.message, f"{name}")
         return
 
     name = newname or name

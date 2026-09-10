@@ -61,8 +61,21 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260910-AD (built, pending push)
+**Git:** `pending`  
+**Date:** 2026-09-10  
+**Files:** `bot/helper/mirror_utils/upload_utils/gdriveTools.py`, `bot/helper/mirror_utils/download_utils/gd_download.py`, `bot/modules/mirror_leech.py`
+
+**Problem:**
+Google Drive auth failure was printing Google Cloud SDK default credentials (ADC) traceback URL instead of a clean, direct message like other bots (`NO TOKEN! token.pickle not Exists!`).
+
+**Fix:**
+1. In `gdriveTools.py` `__authorize()`, if `token.pickle` does not exist or service accounts folder is missing, explicitly raise `ValueError("NO TOKEN! token.pickle not Exists!")` or `ValueError("Service Accounts folder 'accounts' not Exists!")` instead of falling through to Google ADC discovery.
+2. In `gd_download.py` and `mirror_leech.py`, print clean `{e}` directly without complex/redundant formatting so the user immediately gets `NO TOKEN! token.pickle not Exists!`.
+
+
 ### 260910-AC (built, pushed)
-**Git:** `44947e3`  
+**Git:** `5fa9011`  
 **Date:** 2026-09-10  
 **Files:** `bot/helper/ext_utils/bot_utils.py`, `bot/modules/mirror_leech.py`
 

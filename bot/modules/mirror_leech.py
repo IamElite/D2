@@ -446,7 +446,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             await add_gd_download(link, path, listener, name, org_link)
         except Exception as e:
             LOGGER.error(f"GDrive Download Error: {e}")
-            await sendMessage(message, f"<b>Google Drive Error:</b> <i>{e}</i>")
+            await sendMessage(message, f"{e}")
     elif is_mega_link(link):
         await delete_links(message)
         try:
