@@ -61,6 +61,40 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-I (built, pushed)
+**Git:** `548b938`  
+**Date:** 2026-09-11  
+**Files:** `bot/modules/users_settings.py`, `bot/helper/ext_utils/ffmpeg.py`, `bot/helper/listeners/tasks_listener.py`
+
+**User instruction:**
+- Leech Metadata Configurator menu me Video, Audio, Subtitle ke andar 5 hardcoded/restricted options (`STREAM_SUB_KEYS`: Title, Comment, Artist, Copyright, Encoded By) show ho rahe the, wo nahi chahiye the.
+- Video, Audio, Subtitle ko direct simple ON/OFF toggle buttons banana tha.
+- Jab koi stream ON ho, toh user ke saare configured metadata tags (Title, Artist, Author, Custom Tags) us stream me add hon.
+- Global tag (jaise `Title`) container level pe hamesha set hona chahiye, chahe stream toggles OFF hon ya ON.
+
+**Fix:**
+1. `bot/modules/users_settings.py`:
+   - `STREAM_SUB_KEYS` completely removed.
+   - `Video`, `Audio`, `Subtitle` ko direct one-tap toggle buttons (`[✅ Video]` / `[❌ Video]`, etc.) banaya.
+   - `md_tgl_str` callback handler add kiya jo `user_dict['md_streams']` me toggle karta hai aur Mongo DB update karta hai.
+   - Complex nested sub-menus aur unused handlers (`md_str`, `md_skey`, `md_csbtn`) remove kiye.
+2. `bot/helper/ext_utils/ffmpeg.py`:
+   - `probe_tag_args` me `md_streams` support add kiya.
+   - Container/file level pe saare global tags (`-metadata title=...`, `artist=...`, etc.) hamesha write hote hain regardless of stream toggle state.
+   - Stream tags (`-metadata:s:<pref>:<idx>`) sirf un streams me inject hote hain jo `md_streams` me enabled hon.
+   - `edit_metadata` me `md_streams` parameter add kiya.
+3. `bot/helper/listeners/tasks_listener.py`:
+   - `edit_metadata` call me `self.user_dict.get('md_streams', [])` pass kiya.
+
+**Verification:**
+- Automated test verified:
+  - `md_streams = []`: Global tags set, streams untouched.
+  - `md_streams = ['video']`: Global tags set + video stream tags applied, audio untouched.
+  - `md_streams = ['video', 'audio', 'subtitle']`: All streams get user tags.
+  - Toggle ON/OFF state logic verified.
+- Python compilation passed cleanly.
+
+
 ### 260911-H (built, pushed)
 **Git:** `f6b5e20`  
 **Date:** 2026-09-11  
