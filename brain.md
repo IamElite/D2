@@ -61,6 +61,36 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-H (built, pushed)
+**Git:** `f6b5e20`  
+**Date:** 2026-09-11  
+**Files:** `bot/modules/mediainfo.py` (revert), `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`
+
+**User instruction (clear):**
+1. `/mi` (MediaInfo) wala code **WZ v3 jaisa hi rakho** — wahan koi dikkat nahi.
+2. **Fix sirf yt-dlp me karo** (WZ repo reference).
+3. **Purge system ka matlab:** kai uploader metadata me unwanted **promotional junk** daalte hain (e.g. `[ @SyntaxRealm ]` title/copyright/encoded_by). Wo hatana hai — sirf **actual data** dikhe.
+
+**Finding (important):** `260911-C` ka functional fallback **kabhi code me gaya hi nahi** — commit me sirf helper (`_has_container_header`) + constant aaye, media branch me usage nahi. Isliye `/mi` behavior kabhi badla hi nahi (dead code). User ka observation sahi tha.
+
+**Fix:**
+1. `mediainfo.py`: mera dead helper + `MEDIAINFO_FULL_MAX` + `environ` import hata kar **WZ v3 behaviour restore** (`limit=5` sample, jaise upstream).
+2. `yt_dlp_download.py` polish: `-map_metadata 0` -> **`-map_metadata:g -1`**
+   - `:g` = sirf **GLOBAL** metadata purge -> uploader ka promo junk (title/copyright/encoded_by) **GONE**
+   - stream-level metadata (language) **PRESERVE** <- yahi `-map_metadata -1` se behtar hai (wo language bhi uda deta)
+   - uske baad `__meta_args` se clean actual data likhta hai (title/artist/date/comment — yt-dlp info_dict se)
+
+**Verified E2E (exact code command, promo-junk source):**
+| | Result |
+|---|---|
+| BEFORE | `title=[ @SyntaxRealm ]`, `copyright=[ @SyntaxRealm ]` |
+| AFTER | `title=Actual Video Title`, `artist=@RealChannel`, `date=20260911`, `comment=Real description` |
+| promo junk | **GONE** |
+| languages (eng+hin) | **PRESERVED** |
+| faststart | ON |
+| pyflakes | 0 undefined names (sanity-check ke saath) |
+
+
 ### 260911-G (built, pushed)
 **Git:** `0780c8a`  
 **Date:** 2026-09-11  
