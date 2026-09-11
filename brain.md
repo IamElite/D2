@@ -61,6 +61,37 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-A (built, pushed)
+**Git:** `d5c7917`  
+**Date:** 2026-09-11  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`
+
+**Problem:**
+1. yt-dlp se download hui files me **metadata blank** aata tha — user complaints. Root cause: direct/generic URLs ke source container me koi tags hote hi nahi, aur pehle ka `-map_metadata 0` fix sirf **preserve** karta hai, **create nahi** kar sakta (TEST: source-no-tags + `-map_metadata 0` → blank).
+2. **Duration** Telegram pe nahi dikhta tha — MP4 me moov end me (faststart missing).
+3. User chahte the **chapters** aur **faltu attachments** (embedded fonts / cover art) hat jayein — "unnecessary MB".
+4. Galti: `-map_metadata 0` ko blank-metadata ka culprit samjha gaya tha — TEST ne prove kiya explicit `-metadata` hamesha jeetta hai, to wo override nahi karta. Asli wajah = source me data hi nahi tha.
+
+**Fix (single post-download ffmpeg pass — stream copy, `-threads 1`):**
+- Naye methods `__polish_media(path)` + `__polish_file(fpath)`; `__download` me `onDownloadComplete` se pehle call.
+- Command: `-map 0 -c copy -map_metadata 0 -metadata title=<filename base> -map_chapters -1 -map -0:t` (+ `-movflags +faststart` for mp4/m4v/mov).
+  - `-metadata title=<filename base>` → **metadata hamesha dikhega** (guaranteed injection).
+  - `-map_metadata 0` → baaki source/yt-dlp tags (artist, comment) **preserve**. Explicit `-metadata` sirf title key override karta hai.
+  - `-map_chapters -1` → chapters strip.
+  - `-map -0:t` → **attachments** strip (fonts/cover art = asli MB bachat). Subtitle **streams** (`-0:s`) preserved, sirf attachments jate hain.
+  - `+faststart` → duration/streaming Telegram pe.
+- `add_chapters: True → False` (chapters dobara add na hon; `-map_metadata 1` wipe avoid).
+- `path` ko `walk` karta hai → playlist / subfolder outtmpl sab auto-cover (koi extra state nahi).
+- tmp file + atomic `replace()`; failure pe skip + warning — **task nahi marta**, tmp cleanup hota hai.
+
+**Verified (ffmpeg tests):**
+- title inject hua + `ARTIST=ORIG_ARTIST` preserve raha + chapters 0.
+- duration preserved (00:00:02.00), stream intact (h264 High, koi re-encode nahi), faststart ON (moov first 8KB), koi leftover tmp nahi.
+- **Honest note:** chapters hatane se size me sirf ~59 bytes bachte hain (negligible) — asli MB **attachments** se bachte hain, chapters se nahi.
+
+**Cost:** ek extra stream-copy pass = sirf disk I/O (~2-5 sec / 300MB), `-threads 1` → CPU low, koi re-encode nahi.
+
+
 ### 260910-AF (built, pushed)
 **Git:** `11df076`  
 **Date:** 2026-09-11  
