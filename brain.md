@@ -61,6 +61,48 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-C (built, pushed)
+**Git:** `41adc45`  
+**Date:** 2026-09-11  
+**Files:** `bot/modules/mediainfo.py`
+
+**Problem (user ne same file ke 2 MediaInfo outputs diye):**
+- Output 1 (full local file, 342 MiB): Duration 18 min 2 s, `title=[ @SyntaxRealm ]` — **sab dikhta hai**.
+- Output 2 (`/mi` command): sirf `5.00 MiB`, `IsTruncated: Yes` — **na duration, na streams, na metadata**.
+
+Root cause `mediainfo.py` me:
+```python
+if media.file_size <= 50000000:
+    await mmsg.download(...)                              # pura download
+else:
+    async for chunk in bot.stream_media(media, limit=5):  # SIRF 5 chunks (~5 MB)
+```
+File 50 MB se badi ho to sirf ~5 MB sample → truncated → MediaInfo kuch nahi dikhata.
+**File kharaab nahi thi — `/mi` hi adhoora padh raha tha.**
+
+**Tests (ffmpeg, 14 MiB incompressible file, 5 MB sample):**
+
+| Case | moov kahan | Duration |
+|---|---|---|
+| Bina `+faststart` | 5 MB ke bahar | ❌ NONE |
+| **`+faststart` (260911-A polish)** | byte 36 (start) | ✅ 00:00:40.00 |
+| Head + Tail concat | end me | ❌ NONE (mdat beech me truncated) |
+| Sirf tail | end me | ❌ NONE |
+
+**Conclusion:** non-faststart MP4 ka koi shortcut nahi — poora file chahiye. Faststart ho to 5 MB sample hi kaafi.
+
+**Fix:**
+1. `_has_container_header(des_path)` — MP4-family (`.mp4/.m4v/.mov`) me `moov` atom sample me hai ya nahi; baaki containers (MKV adi, header hamesha start me) ke liye `True`.
+2. Sample ke baad `moov` nahi mila **aur** `file_size <= MEDIAINFO_FULL_MAX_MB` (env, default 1024) → sample hata kar **full download**.
+   - Faststart MP4 / MKV → sirf 5 MB sample (**cheap, fast**).
+   - Non-faststart MP4 → accurate info (**sirf tabhi full download jab zaroori ho**).
+   - Cap se badi file → kabhi full download nahi (disk protection).
+
+**Verified:** `pyflakes` clean (sirf pre-existing `config_dict` unused). Logic test **3/3 PASS**: faststart→sample enough, non-faststart→full-download trigger, MKV→sample enough.
+
+**Note:** is case me asli fix `260911-A` ka `+faststart` hai — wo 342 MiB file polish se **pehle** upload hui thi (fix 04:25 ke baad ka), isliye duration nahi dikha. Ab naye yt-dlp files faststart honge → `/mi` sirf 5 MB sample se hi duration dikhayega.
+
+
 ### 260911-B (built, pushed)
 **Git:** `15487ae`  
 **Date:** 2026-09-11  
