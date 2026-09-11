@@ -61,6 +61,29 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-D (built, pushed)
+**Git:** `e5ffd54`  
+**Date:** 2026-09-11  
+**Files:** `bot/helper/ext_utils/leech_utils.py`, `bot/modules/clone.py`, `bot/modules/bot_settings.py`
+
+**Problem:** repo-wide `pyflakes` audit (102 `.py` files) se **7 undefined names** mile — sab **pre-existing** (agent ke nahi). Har ek latent NameError tha:
+
+1. `leech_utils.py:47` — `json.loads` par `json` import hi nahi tha. `try/except` me hone se crash nahi, par **silently degrade** karta tha: har MP4 remux me `Remux mp4 probe skipped (name 'json' is not defined)` → **bitmap-subtitle exclusion + per-stream title folding kabhi kaam hi nahi kiya**. (Docstring me likha tha "fixed NameError" — par tha nahi.)
+2. `clone.py:70,101,103,105` — `bot_cache` import nahi → **`/clone` command NameError** (rclone `lsjson`).
+3. `clone.py:242` — `cmd_txt` undefined → multi-clone crash. Saath hi purana code `msg.index('-i')` karta tha → agar `-i` na ho to **ValueError** bhi.
+4. `bot_settings.py:709` — `HELPER_TOKENS` import nahi → NameError.
+
+**Fix (minimal, targeted):**
+1. `leech_utils.py`: `from json import loads as json_loads` + usage `json_loads(...)`. Ab MP4 remux me bitmap-sub exclusion + stream-title folding **sach me** chalega.
+2. `clone.py`: `bot_cache` import me add.
+3. `clone.py`: manual `msg`/`index` block ki jagah `cmd_txt = next_cmd_text(input_list, None, nxt)` — existing helper (pehle se imported), jo missing `-i` ko bhi safe handle karta hai (ValueError bhi gaya). `bulk` clone.py me exist hi nahi karta isliye `None` pass kiya.
+4. `bot_settings.py`: `HELPER_TOKENS` ko `..` import me add.
+
+**Verification:** pyflakes re-audit → **0 undefined names**.
+
+**LESSON (bahut zaroori):** `pyflakes` har change ke baad chalao (`py_compile` kaafi nahi — dekho `260911-B`). Aur **sanity-check zaroor karo ki tool chal raha hai** — pyflakes sandbox me persist nahi karta (pip install har baat pe chala jata hai), isliye pehli run silently fail ho gayi aur "0 issues" ka **false-negative** mila. Bina sanity-check ke galat "sab clean" report ho jata.
+
+
 ### 260911-C (built, pushed)
 **Git:** `41adc45`  
 **Date:** 2026-09-11  
