@@ -352,7 +352,7 @@ class MirrorLeechListener:
                     return
                 base_dir, file = ospath.split(video_file)
                 outfile = ospath.join(self.newDir, file)
-                new_path = await edit_metadata(self, base_dir, video_file, outfile, metadata, stream_titles)
+                new_path = await edit_metadata(self, base_dir, video_file, outfile, metadata, stream_titles, self.user_dict.get('md_streams', []))
                 self.file_count.advance(file, failed=not new_path)
                 if video_file == meta_path:
                     if self.suproc == 'cancelled':

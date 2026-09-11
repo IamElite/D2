@@ -46,7 +46,6 @@ handler_dict = {}
 META_KEYS = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
 STREAM_SECTIONS = ('Video', 'Audio', 'Subtitle')
 GENERAL_META_KEYS = [k for k in META_KEYS if k not in STREAM_SECTIONS]
-STREAM_SUB_KEYS = (('title', 'Title'), ('comment', 'Comment'), ('artist', 'Artist'), ('copyright', 'Copyright'), ('encby', 'Encoded By'))
 
 def get_custom_btns(user_dict):
     return [l for l in (user_dict.get('md_custom') or '').split('|') if l]
@@ -240,10 +239,11 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
-        text += "\n➲ <b>Stream Tags</b> — set tags shown inside the Video / Audio / Subtitle info:"
-        for sidx, sname in enumerate(STREAM_SECTIONS):
-            has_any = any(k.lower().startswith(f"{sname.lower()} ") for k in meta_dict)
-            buttons.ibutton(f"{'✅ ' if has_any else '❌ '}{sname}", f"userset {user_id} md_str {sidx}", "header2")
+        text += "\n➲ <b>Stream Tags</b> — toggle streams to apply metadata tags:"
+        md_streams = user_dict.get('md_streams', [])
+        for sname in STREAM_SECTIONS:
+            is_on = sname.lower() in [s.lower() for s in md_streams]
+            buttons.ibutton(f"{'✅ ' if is_on else '❌ '}{sname}", f"userset {user_id} md_tgl_str {sname.lower()}", "header2")
 
         for index, mkey in enumerate(GENERAL_META_KEYS):
             has_val = "✅ " if mkey in meta_dict else "❌ "
@@ -257,8 +257,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 buttons.ibutton(f"{has_val}{clabel}", f"userset {user_id} md_cbtn {index}")
 
         known = set(GENERAL_META_KEYS) | set(custom_btns)
-        extras = [k for k in meta_dict if k not in known and len(k) <= 30
-                  and not any(k.lower().startswith(s.lower() + ' ') for s in STREAM_SECTIONS)]
+        extras = [k for k in meta_dict if k not in known and len(k) <= 30]
         if extras:
             text += "\n\n<i>Old tags — tap to remove:</i>"
             for xk in extras:
@@ -928,56 +927,18 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'metadata_menu')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
-    elif data[2] == 'md_str':
+    elif data[2] == 'md_tgl_str':
         await query.answer()
-        sidx = int(data[3])
-        sname = STREAM_SECTIONS[sidx]
-        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
-        text = f"<b><u>{sname} Tags</u></b>\n\n<i>These tags apply to the {sname} stream:</i>"
-        mbuttons = ButtonMaker()
-        for sk, slabel in STREAM_SUB_KEYS:
-            cur = meta_dict.get(f"{sname} {slabel}")
-            mbuttons.ibutton(f"{'✅ ' if cur else '❌ '}{slabel}", f"userset {user_id} md_skey {sidx} {sk}")
-        labels = get_custom_btns(user_dict)
-        for cidx, clabel in enumerate(labels):
-            cur_c = meta_dict.get(f"{sname} {clabel}")
-            mbuttons.ibutton(f"{'✅ ' if cur_c else '❌ '}{clabel}", f"userset {user_id} md_csbtn {sidx} {cidx}")
-        mbuttons.ibutton("Back", f"userset {user_id} metadata")
-        await editMessage(message, text, mbuttons.build_menu(2))
-    elif data[2] == 'md_skey':
-        await query.answer()
-        sidx, sk = int(data[3]), data[4]
-        sname = STREAM_SECTIONS[sidx]
-        slabel = dict(STREAM_SUB_KEYS)[sk]
-        mkey = f"{sname} {slabel}"
-        meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
-        cur = meta_dict.get(mkey)
-        state = f"➲ Current Value: <code>{escape(trun(cur, 60))}</code>" if cur else "➲ Status: <i>Not Set</i>"
-        text = f"<b><u>Stream Tag: {mkey}</u></b>\n\n{state}\n\n<i>Tap 'Set' to enter value{' / Remove to delete it' if cur else ''}.</i>"
-        mbuttons = ButtonMaker()
-        mbuttons.ibutton(f"{'Change' if cur else 'Set'}", f"userset {user_id} md_edit s {sidx} {sname} {slabel}")
-        if cur:
-            mbuttons.ibutton("Remove", f"userset {user_id} md_rm s {sidx} {sname} {slabel}")
-        mbuttons.ibutton("Back", f"userset {user_id} md_str {sidx}")
-        await editMessage(message, text, mbuttons.build_menu(2))
-    elif data[2] == 'md_csbtn':
-        await query.answer()
-        sidx, cidx = int(data[3]), int(data[4])
-        sname = STREAM_SECTIONS[sidx]
-        labels = get_custom_btns(user_dict)
-        if cidx >= len(labels):
-            return await update_user_settings(query, 'metadata_menu')
-        label = labels[cidx]
-        mkey = f"{sname} {label}"
-        cur = parse_metadata_str(user_dict.get('metadata', '')).get(mkey)
-        state = f"➲ Current Value: <code>{escape(trun(cur, 60))}</code>" if cur else "➲ Status: <i>Not Set</i>"
-        text = f"<b><u>{mkey}</u></b>\n\n{state}"
-        mbuttons = ButtonMaker()
-        mbuttons.ibutton(f"{'Change' if cur else 'Set'}", f"userset {user_id} md_edit s {sidx} {sname} {label}")
-        if cur:
-            mbuttons.ibutton("Remove", f"userset {user_id} md_rm s {sidx} {sname} {label}")
-        mbuttons.ibutton("Back", f"userset {user_id} md_str {sidx}")
-        await editMessage(message, text, mbuttons.build_menu(2))
+        sname = data[3].lower()
+        md_streams = list(user_dict.get('md_streams', []))
+        if sname in [s.lower() for s in md_streams]:
+            md_streams = [s for s in md_streams if s.lower() != sname]
+        else:
+            md_streams.append(sname)
+        update_user_ldata(user_id, 'md_streams', md_streams)
+        await update_user_settings(query, 'metadata_menu')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
     elif data[2] == 'md_xkey':
         await query.answer()
         mkey = ' '.join(data[3:])

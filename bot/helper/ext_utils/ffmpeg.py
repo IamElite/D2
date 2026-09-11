@@ -29,11 +29,7 @@ def parse_meta_overlay(metadata: str, basenameX: str = '') -> dict:
     return overlay
 
 
-async def probe_tag_args(path, overlay=None):
-    """Keep original tags then overlay user keys.
-
-    ffmpeg -c copy on MP4 drops stream Title unless -metadata:s:v:N is set.
-    """
+async def probe_tag_args(path, overlay=None, md_streams=None):
     overlay = overlay or {}
     out, _, _ = await cmd_exec([
         'ffprobe', '-v', 'quiet', '-print_format', 'json',
@@ -46,7 +42,6 @@ async def probe_tag_args(path, overlay=None):
     args = []
     purge_streams = bool(overlay.get('__purge_stream_titles__'))
     custom_st = (overlay.get('__stream_title_v__'), overlay.get('__stream_title_a__'))
-    # compound per-stream keys: "Video Comment:x" / "Audio Artist:y" / "Subtitle Encoded By:z"
     stream_meta = {}
     for uk, uv in overlay.items():
         if uk.startswith('__') or not uv:
@@ -55,7 +50,6 @@ async def probe_tag_args(path, overlay=None):
             if uk.startswith(sname + ' '):
                 stream_meta.setdefault(sname, {})[uk[len(sname) + 1:]] = uv
                 break
-    # user-metadata set = auto-purge (uploader ke custom tags GONE, sirf user ke)
     has_user_meta = any(not k.startswith('__') and v for k, v in overlay.items())
     orig_fmt = dict((data.get('format') or {}).get('tags') or {})
     fmt = dict(orig_fmt)
@@ -69,42 +63,28 @@ async def probe_tag_args(path, overlay=None):
     for uk, fk in key_map.items():
         if overlay.get(uk):
             fmt[fk] = overlay[uk]
-    # unknown/custom keys pass-through raw (custom-tag buttons) — _TAG_SKIP emit-loop me filter hota
     for uk, uv in overlay.items():
-        # compound stream-keys global tag NAHI — wo stream-level jate (stream_meta)
         if uk.startswith('__') or uk in key_map or uk.split(' ', 1)[0] in ('video', 'audio', 'subtitle'):
             continue
         if uv:
             fmt[uk] = uv
     if has_user_meta:
-        # per-tag delete (-map_metadata -1 ki jagah — wo attachment mimetype/filename bhi uda deta)
         ukeys = {key_map.get(uk, uk).lower() for uk in overlay if not uk.startswith('__') and overlay.get(uk)}
         for k in list(orig_fmt):
             kl = str(k).lower()
             if kl in _TAG_SKIP or kl in ukeys or kl.replace('_', ' ') in ukeys:
                 continue
-            args.extend(['-metadata', f'{k}='])   # empty-value = delete
-            fmt.pop(k, None)                      # emit-loop dobara na likhe
+            args.extend(['-metadata', f'{k}='])
+            fmt.pop(k, None)
     for k, v in fmt.items():
         if str(k).lower() in _TAG_SKIP or v is None or v == '':
             continue
         args.extend(['-metadata', f'{k}={v}'])
+    active_streams = [s.lower() for s in (md_streams or [])]
     vi = ai = si = 0
     for st in data.get('streams') or []:
         tags = dict(st.get('tags') or {})
         ctype = st.get('codec_type')
-        extra = overlay.get(ctype) or overlay.get('title')
-        if purge_streams:
-            # purane stream-titles purge (customize-title demand) — naya chahiye to neeche set hota
-            tags.pop('title', None)
-            if custom_st[0] and ctype == 'video':
-                tags['title'] = custom_st[0]
-            if custom_st[1] and ctype == 'audio':
-                tags['title'] = custom_st[1]
-        elif extra:
-            tags['title'] = extra
-        for stk, stv in stream_meta.get(ctype, {}).items():
-            tags[stk] = stv
         if ctype == 'video':
             pref, idx = 'v', vi
             vi += 1
@@ -116,8 +96,19 @@ async def probe_tag_args(path, overlay=None):
             si += 1
         else:
             continue
+        if purge_streams:
+            tags.pop('title', None)
+            if custom_st[0] and ctype == 'video':
+                tags['title'] = custom_st[0]
+            if custom_st[1] and ctype == 'audio':
+                tags['title'] = custom_st[1]
+        if ctype in active_streams:
+            for k, v in fmt.items():
+                if str(k).lower() not in _TAG_SKIP and v:
+                    tags[k] = v
+        for stk, stv in stream_meta.get(ctype, {}).items():
+            tags[stk] = stv
         if purge_streams and 'title' not in tags:
-            # explicit delete zaroori — arg-missing = purana title INHERIT ho jata
             args.extend([f'-metadata:s:{pref}:{idx}', 'title='])
         for k, v in tags.items():
             if str(k).lower() in _TAG_SKIP or v is None or v == '':
@@ -142,16 +133,14 @@ async def media_muxer(path):
     return None
 
 
-async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, metadata: str = '', stream_titles: str = ''):
+async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, metadata: str = '', stream_titles: str = '', md_streams: list = None):
     file_name = os_path.basename(media_file)
     basename = os_path.splitext(file_name)[0]
     basenameX = re_sub(r'www\S+', '', basename)
     basenameX = re_sub(r'(^\s*-\s*|(\s*-\s*){2,})', '', basenameX)
 
     overlay = parse_meta_overlay(metadata, basenameX)
-    # koi bhi media-format pe smart apply (mp4/mkv/webm/avi/mov/ts...) — ext-gate hata (user demand)
     if stream_titles:
-        # format: 'purge' ya 'purge|v:Custom Video|a:Custom Audio'  (kisi bhi format pe)
         overlay['__purge_stream_titles__'] = True
         for part in stream_titles.split('|')[1:]:
             if ':' in part:
@@ -162,7 +151,6 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
                 elif k in ('a', 'audio'):
                     overlay['__stream_title_a__'] = v.strip()
     if not os_path.splitext(outfile)[1]:
-        # ext-less file — probe-se media confirm, phir default .mkv (user-spec)
         mux = await media_muxer(media_file)
         if not mux:
             LOGGER.info(f'Metadata skipped (not media): {media_file}')
@@ -170,9 +158,10 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
         outfile += '.mkv'
     inplace = os_path.abspath(outfile) == os_path.abspath(media_file)
     if inplace:
-        # same-file pe ffmpeg reject karta — original-ext tmp me likh ke atomic swap
         outfile += '.meta' + os_path.splitext(media_file)[1].lower()
-    tag_args = await probe_tag_args(media_file, overlay)
+    if md_streams is None and listener and hasattr(listener, 'user_dict'):
+        md_streams = listener.user_dict.get('md_streams', [])
+    tag_args = await probe_tag_args(media_file, overlay, md_streams)
     cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
     # MP4-family: mdta keys mode — custom/unknown keys bhi RAW likhe jate (mediainfo me dikhte),
