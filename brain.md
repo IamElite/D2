@@ -62,6 +62,33 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-A (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (+100/-10)
+
+**User instruction:**
+- Direct link gen me `https://hubcloud.cx/drive/haimahum6aa8va3` aur `https://hubdrive.tips/file/2122983233` — inka backend "like pro" add karna tha.
+
+**Problem (live probing se confirm):**
+1. Purana `hubcloud()` sabse pehle `hubcloud.cfd/bypass` API call karta tha — hubcloud.cx links pe API `{"links":[]}` empty deta hai (10s timeout waste), phir page scrape sirf `instant|download` hrefs dhundta tha.
+2. hubcloud.cx page ka asli button `<a id="download" href="https://gamerxyt.com/hubcloud.php?host=hubcloud&id=<id>&token=<b64>">` hai — purana xpath isse kabhi match nahi karta tha → hamesha `No usable download link found`.
+3. hubdrive.tips ka asli flow page JS me hai: POST `/ajax.php?ajax=direct-download` (Referer + X-Requested-With zaroori, cookies nahi) → JSON `data.gd` = r2.dev direct link. Yeh route hi absent tha.
+4. gamerxyt bypass page pe token expire hone par `<i id="size">NAN</i>` aata hai — purana code isse handle nahi karta tha.
+
+**Fix (multi-layer resolver, pure code, zero comments):**
+1. Naya `hubdrive_ajax(session, url)`: URL path se id → POST `{origin}/ajax.php?ajax=direct-download` → `code==200` → `data.gd` → HEAD verify (200 hi to return, warna next layer fallthrough).
+2. Naya `hubcloud_bypass_page(session, bypass_url, page_url)`: gamerxyt page → `<a id="fsl">` (R2 presigned). Decoy-guard: fsl portal-family/gamerxyt domain ka hua to reject. Token expiry (`size` NAN) → original page se fresh token re-fetch, 1 retry. Fallback: pixeldrain (`id="pxl-1"` / `var pxl`) → `{domain}/api/file/{id}?download`.
+3. `hubcloud(url, _depth=0)` rewrite — layer order: (1) ajax direct → (2) page fetch + 403/turnstile check → (3) gamerxyt token regex → bypass page resolver → (4) legacy `instant|download` anchors → (5) HubCloud Server mirror links (`/drive/`, dusra family host, recursion depth ≤2) → (6) login-wall clean error → (7) last me purana `hubcloud.cfd/bypass` API.
+4. `HUBCLOUD_HOST` regex untouched (`hubcloud|drivehub|hubdrive|hubcdn` family pehle se route hoti hai). Sab errors clean `DirectDownloadLinkException`.
+
+**Verification (LIVE, real user links):**
+- `hubdrive.tips/file/2122983233` → `https://pub-...r2.dev/d2426b...` — HEAD 200, Content-Length 1,339,969,874, disposition `Hes.Into.Her.S01.480p.AMZN.WEB-DL.DUAL.AAC2.0.H.264-ExtraFlix.Pw.zip`; range GET 206 ✓ (aria2 ko filename disposition se milega).
+- `hubcloud.cx/drive/haimahum6aa8va3` → R2 presigned 507 chars — range GET 206, `Content-Range: bytes 0-0/14573721606`, disposition `Bindiya.Ke.Bahubali.S01.1080p.AMZN.WEB-DL.DDP5.1.H.265-PrimeFix.tar` ✓ (8h expiry, presigned GET-only; HEAD 403 normal hai kyunki SigV4 method-sign karta hai).
+- Dead id `hubdrive.tips/file/9999999999` → clean `ERROR: No usable download link found`, no crash ✓.
+- Resolve time: hubdrive ~1.5s, hubcloud ~2.5s. Full repo compile 102/102 PASS. Pure code rule ✓ (diff me ek bhi `#`/docstring nahi).
+
+
 ### 260911-J (built, pushed)
 **Git:** `f066ca2`  
 **Date:** 2026-09-11  

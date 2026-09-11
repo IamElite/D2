@@ -562,11 +562,118 @@ def multicloud(url):
     raise DirectDownloadLinkException('ERROR: MultiCloud mirrors not found')
 
 
-def hubcloud(url):
+def hubdrive_ajax(session, url):
+    parsed = urlparse(url)
+    file_id = parsed.path.rstrip('/').rsplit('/', 1)[-1]
+    if not file_id:
+        return None
+    origin = f'{parsed.scheme}://{parsed.hostname}'
+    try:
+        res = session.post(
+            f'{origin}/ajax.php?ajax=direct-download',
+            data={'id': file_id},
+            headers={'Referer': url, 'X-Requested-With': 'XMLHttpRequest'},
+            timeout=25,
+        )
+        payload = res.json()
+    except Exception:
+        return None
+    if str(payload.get('code', '')) != '200':
+        return None
+    data = payload.get('data') or {}
+    gd = data.get('gd')
+    if isinstance(gd, str) and gd.startswith('http'):
+        try:
+            head = session.head(gd, timeout=15)
+            if head.status_code != 200:
+                return None
+        except Exception:
+            pass
+        return gd
+    return None
+
+
+def hubcloud_bypass_page(session, bypass_url, page_url):
+    attempt = 0
+    while attempt < 2:
+        attempt += 1
+        try:
+            text = session.get(bypass_url, headers={'Referer': page_url}, timeout=25).text
+        except Exception:
+            return None
+        html = HTML(text)
+        size = html.xpath("//i[@id='size']/text()")
+        expired = bool(size) and 'NAN' in (size[0] or '').upper()
+        fsl = html.xpath("//a[@id='fsl']/@href")
+        if fsl and not expired:
+            link = fsl[0].strip().replace('&amp;', '&')
+            link_host = urlparse(link).hostname or ''
+            if link.startswith('http') and not HUBCLOUD_HOST.search(link_host) and 'gamerxyt' not in link_host:
+                return link
+        if expired:
+            try:
+                fresh = session.get(page_url, timeout=25).text
+            except Exception:
+                return None
+            m = search(r'https?://gamerxyt\.com/hubcloud\.php\?[^"\'\s<>]+', fresh)
+            if not m:
+                return None
+            new_url = m.group(0).replace('&amp;', '&')
+            if new_url == bypass_url:
+                return None
+            bypass_url = new_url
+            continue
+        pxl = html.xpath("//a[@id='pxl-1']/@href") or findall(
+            r'var\s+pxl\s*=\s*["\'](https?://pixeldrain\.[a-z]+/u/[A-Za-z0-9]+)["\']', text)
+        if pxl:
+            m = search(r'(https?://pixeldrain\.[a-z]+)/u/([A-Za-z0-9]+)', pxl[0].strip().replace('&amp;', '&'))
+            if m:
+                return f'{m.group(1)}/api/file/{m.group(2)}?download'
+        return None
+    return None
+
+
+def hubcloud(url, _depth=0):
     try:
         from curl_cffi.requests import Session as CurlSession
     except ImportError as e:
         raise DirectDownloadLinkException('ERROR: curl-cffi missing') from e
+    parsed = urlparse(url)
+    with CurlSession(impersonate='chrome') as session:
+        direct = hubdrive_ajax(session, url)
+        if direct:
+            return direct
+        try:
+            res = session.get(url, timeout=25)
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if res.status_code == 403:
+            raise DirectDownloadLinkException('ERROR: Cloudflare challenge / access blocked')
+        text = res.text
+        if 'cf-turnstile' in text or 'captcha-wall' in text:
+            raise DirectDownloadLinkException('ERROR: Cloudflare Turnstile captcha active on page')
+        bypass_m = search(r'https?://gamerxyt\.com/hubcloud\.php\?[^"\'\s<>]+', text)
+        if bypass_m:
+            link = hubcloud_bypass_page(session, bypass_m.group(0).replace('&amp;', '&'), url)
+            if link:
+                return link
+        html = HTML(text)
+        instant = html.xpath("//a[contains(@href, 'instant') or contains(@href, 'download')]/@href")
+        for l in instant:
+            if l.startswith('http'):
+                return l
+        if _depth < 2:
+            mirrors = html.xpath("//a[contains(@href, '/drive/')]/@href")
+            for m in mirrors:
+                target = urljoin(url, m)
+                target_host = urlparse(target).hostname or ''
+                if target_host != (parsed.hostname or '') and HUBCLOUD_HOST.search(target_host):
+                    try:
+                        return hubcloud(target, _depth + 1)
+                    except DirectDownloadLinkException:
+                        continue
+        if 'Please Try Login Method' in text:
+            raise DirectDownloadLinkException('ERROR: User login required to generate direct link')
     try:
         with req_session() as s:
             resp = s.get(f'http://hubcloud.cfd/bypass?url={url}', timeout=10).json()
@@ -575,23 +682,6 @@ def hubcloud(url):
                 return links[0]['url']
     except Exception:
         pass
-    with CurlSession(impersonate='chrome') as session:
-        try:
-            res = session.get(url, timeout=20)
-        except Exception as e:
-            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
-        if res.status_code == 403:
-            raise DirectDownloadLinkException('ERROR: Cloudflare challenge / access blocked')
-        text = res.text
-        if 'cf-turnstile' in text or 'captcha-wall' in text:
-            raise DirectDownloadLinkException('ERROR: Cloudflare Turnstile captcha active on page')
-        html = HTML(text)
-        instant = html.xpath("//a[contains(@href, 'instant') or contains(@href, 'download')]/@href")
-        for l in instant:
-            if l.startswith('http'):
-                return l
-        if 'Please Try Login Method' in text:
-            raise DirectDownloadLinkException('ERROR: User login required to generate direct link')
     raise DirectDownloadLinkException('ERROR: No usable download link found')
 
 
