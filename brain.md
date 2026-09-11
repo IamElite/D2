@@ -26,6 +26,7 @@ Alag `plan.md` **mat** banao — plan + built **yahi**.
    - `/ask` ya `.ask` = **sirf baat-cheet** — code/cheez par discussion, sawal-jawab. **Plan nahi banana, brain.md me kuch nahi likhna, code nahi chhedna.**
    - `/plan` ya `.plan` = build/fix se **pehle** PLANS me `P-YYMMDD-X` likho (mode: plan), code nahi.
    - `/build` = code edit/fix/new + FIX LOG block + push.
+8. **PURE CODE RULE (VERY IMPORTANT):** Code likhte ya modify karte waqt **comments (`#`, `'''`, `"""`) kabhi mat add karo** — hamesha clean, pure code output hona chahiye.
 
 ---
 
