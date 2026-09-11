@@ -61,6 +61,36 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-E (built, pushed)
+**Git:** `HASH_PLACEHOLDER`  
+**Date:** 2026-09-11  
+**Files:** `tools/static_check.sh`, `tools/github-workflow-static-check.yml`
+
+**Problem:** aaj verification do baar chuki:
+1. `260911-A` me `os.getsize` galat import -> **prod crash** (`py_compile` ne nahi pakda).
+2. Audit ke waqt `pyflakes` uninstalled tha -> "0 issues" ka **false-negative**.
+
+Manual verification pe bharosa nahi chal sakta - har push pe **automatic** check chahiye.
+
+**Fix:** `tools/static_check.sh` (runnable script):
+- Python `3.10` target (prod logs me 3.10.12).
+- `find bot -name '*.py' | xargs python3 -m pyflakes`.
+- **Sirf crash-risk classes pe fail:** `undefined name`, `invalid syntax`, `SyntaxError`.
+- Unused imports / style warnings pe fail **NAHI** (noise se bachao - warna log dekhna band kar doge).
+- Khud pyflakes install kar leta hai agar missing ho (sandbox/CI dono me chalta hai).
+
+**CI enable kaise karein:** `tools/github-workflow-static-check.yml` ready hai - bas `.github/workflows/static-check.yml` me copy kar do.
+- **NOTE:** ye file `.github/workflows/` me isliye push NAHI hui kyunki PAT me **`workflow` scope nahi** (`remote rejected: refusing to allow a Personal Access Token to create or update workflow`). GitHub UI se paste kar do (browser session me scope hota hai), ya `workflow`-scope wala token do.
+
+**Verified (4 tests - exit code bhi check kiya, warna CI false-green ho jata):**
+1. YAML parse OK, `python-version: 3.10`
+2. Clean tree -> **exit 0** (koi false alarm nahi)
+3. Fake `undefined name` daala -> **exit 1** + pakda (prove kiya ki no-op nahi hai)
+4. Temp test-file remove, tree clean
+
+**Benefit:** `os.getsize` jaisa bug ab **push pe hi fail** hoga - prod crash se pehle.
+
+
 ### 260911-D (built, pushed)
 **Git:** `e5ffd54`  
 **Date:** 2026-09-11  
