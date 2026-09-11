@@ -62,7 +62,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260911-E (built, pushed)
-**Git:** `HASH_PLACEHOLDER`  
+**Git:** `ef95895`  
 **Date:** 2026-09-11  
 **Files:** `tools/static_check.sh`, `tools/github-workflow-static-check.yml`
 
