@@ -63,7 +63,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260912-A (built, pushed)
-**Git:** `PENDING`  
+**Git:** `ad64783`  
 **Date:** 2026-09-12  
 **Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py` (+100/-10)
 
