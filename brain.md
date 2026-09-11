@@ -61,6 +61,30 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-B (built, pushed)
+**Git:** `15487ae`  
+**Date:** 2026-09-11  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`, `bot/__init__.py`
+**OLD:** `260911-A` (usi kaam ka crash-fix)
+
+**Problem (bot BOOT pe crash — 260911-A ki galti):**
+1. `ImportError: cannot import name 'getsize' from 'os'` — **`os.getsize` exist hi nahi karta**, sirf `os.path.getsize`. Production (Python 3.10) me `bot/modules/ytdlp.py` import fail → poora bot **crash loop**.
+2. **`py_compile` ne nahi pakda** — wo sirf syntax check karta hai, imports execute nahi karta. Isliye local "OK compiles" galat green signal tha.
+3. RAM guard kabhi chala hi nahi: `bot/__init__.py` me wiring `bot_name = bot.me.username` se **pehle** thi → `cannot import name 'bot_name' from partially initialized module 'bot'` (circular import). try/except ne sirf log kiya.
+4. Edit ke dauraan file end me ek stray corrupt line `MBED_REGISTERED` add ho gayi thi → undefined name.
+
+**Fix:**
+1. `getsize` ko `os` import se hata kar `ospath.getsize(...)` use kiya.
+2. RAM guard block ko `bot/__init__.py` ke **END** me move kiya (`bot_name` + `scheduler` ke baad) → circular import khatam, guard ab chalega.
+3. Stray `MBED_REGISTERED` line remove ki.
+
+**Verification:**
+- `python3 -m pyflakes <file>` → **CLEAN** (undefined names zero). Pehle sirf pre-existing warnings (curl_cffi/DownloadError unused).
+- Functional test (walk + skip logic): video → polished (title injected, chapters 0); `.json` / `.jpg` → skipped intact; koi leftover tmp nahi.
+
+**LESSON (zaroori):** `py_compile` import errors **nahi** pakadta. Har code change ke baad **`pyflakes`** (ya runtime import test) chalana zaroori hai — warna aisa crash prod me hi milega.
+
+
 ### 260911-A (built, pushed)
 **Git:** `d5c7917`  
 **Date:** 2026-09-11  
