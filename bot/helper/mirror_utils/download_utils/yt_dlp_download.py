@@ -367,18 +367,36 @@ class YoutubeDLHelper:
         except ValueError:
             self.__onDownloadError("Download Stopped by User!")
 
+    def __meta_args(self, info, fallback):
+        pairs = (
+            ('title', info.get('title') or fallback),
+            ('artist', info.get('artist') or info.get('uploader') or info.get('channel') or ''),
+            ('album_artist', info.get('album_artist') or ''),
+            ('album', info.get('album') or ''),
+            ('genre', info.get('genre') or ''),
+            ('date', info.get('upload_date') or ''),
+            ('comment', (info.get('description') or '')[:1000]),
+        )
+        args = []
+        for key, val in pairs:
+            val = str(val).strip()
+            if val:
+                args += ['-metadata', f'{key}={val}']
+        return args
+
     def __polish_file(self, fpath):
         ext = ospath.splitext(fpath)[1].lower()
         if ext in ('', '.json', '.description', '.jpg', '.jpeg', '.png', '.webp', '.gif',
                    '.txt', '.srt', '.vtt', '.ass', '.ssa', '.part', '.ytdl', '.nfo'):
             return
-        title = ospath.splitext(ospath.basename(fpath))[0]
         tmp = f'{fpath}.polish{ext}'
+        info = {} if self.is_playlist else (self.__extracted_info or {})
         cmd = [f"/bin/{bot_cache['pkgs'][2]}", '-nostdin', '-threads', '1', '-y', '-hide_banner',
-               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata', '0',
-               '-metadata', f'title={title}', '-map_chapters', '-1', '-map', '-0:t']
+               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata', '0']
+        cmd += self.__meta_args(info, ospath.splitext(ospath.basename(fpath))[0])
+        cmd += ['-map_chapters', '-1', '-map', '-0:t']
         if ext in ('.mp4', '.m4v', '.mov'):
-            cmd += ['-movflags', '+faststart']
+            cmd += ['-movflags', '+faststart+use_metadata_tags']
         cmd.append(tmp)
         try:
             _, err, code = async_to_sync(cmd_exec, cmd)
