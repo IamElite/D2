@@ -4,7 +4,7 @@ from re import search as re_search
 from shlex import split as ssplit
 from aiofiles import open as aiopen
 from aiofiles.os import remove as aioremove, path as aiopath, mkdir
-from os import path as ospath, getcwd, environ
+from os import path as ospath, getcwd
 
 from pyrogram.handlers import MessageHandler 
 from pyrogram.filters import command
@@ -15,18 +15,6 @@ from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.message_utils import editMessage, sendMessage
 from ..helper.ext_utils.bot_utils import cmd_exec
 from ..helper.ext_utils.telegraph_helper import telegraph
-
-MEDIAINFO_FULL_MAX = int(environ.get('MEDIAINFO_FULL_MAX_MB', '1024') or 1024) * 1048576
-
-
-def _has_container_header(des_path):
-    if ospath.splitext(des_path)[1].lower() not in ('.mp4', '.m4v', '.mov'):
-        return True
-    try:
-        with open(des_path, 'rb') as f:
-            return b'moov' in f.read()
-    except Exception:
-        return True
 
 
 async def gen_mediainfo(message, link=None, media=None, mmsg=None):

@@ -410,7 +410,7 @@ class YoutubeDLHelper:
         tmp = f'{fpath}.polish{ext}'
         info = {} if self.is_playlist else (self.__extracted_info or {})
         cmd = [_ffmpeg_bin(), '-nostdin', '-threads', '1', '-y', '-hide_banner',
-               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata', '0']
+               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata:g', '-1']
         cmd += self.__meta_args(info, ospath.splitext(ospath.basename(fpath))[0])
         cmd += ['-map_chapters', '-1', '-map', '-0:t']
         if ext in ('.mp4', '.m4v', '.mov'):
