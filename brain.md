@@ -61,6 +61,36 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-F (built, pushed)
+**Git:** `07c61a9`  
+**Date:** 2026-09-11  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`
+
+**Problem (user complaint): "baki bots me metadata dikhta hai, hamare yt-dlp me nahi".**
+Root cause: `260911-A` ka polish sirf **`title` = filename** daalta tha - bahut kamzor. Doosre bots yt-dlp ke info_dict se **rich metadata** (title, artist/uploader, description/comment, date) daalte hain.
+Saath hi: universal `METADATA` setting (`tasks_listener.py:355`) sirf tab chalti hai jab config `METADATA` non-empty ho (`if self.isLeech and metadata:`) - isliye default me kuch nahi dikhta.
+
+**Fix:**
+1. Naya `__meta_args(info, fallback)` - yt-dlp ke `self.__extracted_info` se metadata banata hai:
+   - `title` = info title (fallback: filename)
+   - `artist` = artist/uploader/channel
+   - `album_artist`, `album`, `genre`
+   - `date` = upload_date
+   - `comment` = description (**1000 chars tak** - bloat se bachao)
+   - Empty/None values **skip** (koi khali tag nahi likhta)
+   - Playlist me per-entry info nahi hota -> `{}` -> fallback filename (safe)
+2. MP4/MOV ke liye `-movflags +faststart+use_metadata_tags` (pehle sirf `+faststart` tha). `use_metadata_tags` se custom keys bhi MediaInfo me dikhte hain.
+
+**Verified (ffmpeg, 14 MiB incompressible file):**
+- title/artist/comment/date sab likhe gaye
+- faststart ON (moov first 8KB)
+- **5 MB truncated sample (`/mi` jaisa) me bhi duration + title dono dikhe** <- isse `/mi` ab badi file pe bhi metadata dikhayega
+- pyflakes: **0 undefined names** (sanity-check ke saath - tool chal raha hai confirm kiya)
+- `__meta_args`: rich / empty / None / playlist - **4/4 PASS**
+
+**Impact:** ab yt-dlp files me **default me hi** proper metadata hoga (universal `METADATA` enable karne ki zaroorat nahi), aur `/mi` bhi faststart ki wajah se 5 MB sample se duration+metadata dikhayega.
+
+
 ### 260911-E (built, pushed)
 **Git:** `ef95895`  
 **Date:** 2026-09-11  
