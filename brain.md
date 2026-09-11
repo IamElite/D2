@@ -61,6 +61,35 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260911-G (built, pushed)
+**Git:** `0780c8a`  
+**Date:** 2026-09-11  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`
+
+**Context:** user ne kaha "download ke baad metadata hai, **telegram upload ke waqt ud jata hai**" + reference diya: **WZML v3** check karo (wo delete nahi karta).
+
+**Findings (3):**
+1. **WZML-X (master) reference:** unka config sirf `{'add_chapters': True, 'add_infojson': 'if_exists', 'add_metadata': True, 'key': 'FFmpegMetadata'}` — **koi `postprocessor_args` nahi**, koi `-map_metadata` injection nahi. Plain yt-dlp default.
+2. **Upload path metadata UDATA NAHI HAI — 4-step chain test se PROVEN:**
+   | Step | Result |
+   |---|---|
+   | 1. polish (download) | title/artist/comment present |
+   | 2. `remux_container` (upload) | survive |
+   | 3. `repair_moov` (upload) | survive |
+   | 4. `/mi` 5 MB sample | duration + title dono dikhe |
+   Saath hi: universal `METADATA` sirf `if self.isLeech and metadata:` (`tasks_listener.py:329`) pe chalta hai — isliye default me `edit_metadata` run hi nahi hota (user ko enable karne pe hi metadata dikha).
+3. **ASLI RISK (silent failure):** repo me ffmpeg path ki **3 alag conventions**:
+   - `ffmpeg.py:176`, `leech_utils.py:39,76` -> `bot_cache['pkgs'][2]` (bina /bin)
+   - `yt_dlp_download.py` -> `/bin/{bot_cache['pkgs'][2]}`
+   Agar binary sirf PATH me ho to baari kaam karega par **polish chupchap skip** ho jata hai (sirf warning log) -> **NO metadata**. Ye bilkul "metadata missing" jaisa dikhta hai.
+
+**Fix:** `_ffmpeg_bin()` — candidates try karta hai (`/bin/{pkgs[2]}` -> `pkgs[2]` -> `ffmpeg`), pehla working **cache** kar leta hai. Polish ab silent-skip nahi hoga.
+
+**Verified:** pyflakes **0 undefined names** (sanity-check ke saath), compile OK, fallback logic test OK.
+
+**ACTION (user ke liye):** `/mi` output baar-baar **identical** (5.00 MiB, IsTruncated) aa raha tha -> bot **purana code** chala raha hai. `260911-A..G` push ho chuke hain, **restart/update** zaroori hai.
+
+
 ### 260911-F (built, pushed)
 **Git:** `07c61a9`  
 **Date:** 2026-09-11  
