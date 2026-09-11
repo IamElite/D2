@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from os import path as ospath, listdir, environ, walk, getsize, replace, remove
+from os import path as ospath, listdir, environ, walk, replace, remove
 from base64 import urlsafe_b64decode
 from secrets import token_hex
 from logging import getLogger
@@ -382,7 +382,7 @@ class YoutubeDLHelper:
         cmd.append(tmp)
         try:
             _, err, code = async_to_sync(cmd_exec, cmd)
-            if code == 0 and ospath.exists(tmp) and getsize(tmp) > 0:
+            if code == 0 and ospath.exists(tmp) and ospath.getsize(tmp) > 0:
                 replace(tmp, fpath)
                 return
             LOGGER.warning(f'Media polish skipped for {ospath.basename(fpath)}: {str(err)[-200:]}')
