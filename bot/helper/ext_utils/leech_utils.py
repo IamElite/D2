@@ -1,4 +1,5 @@
 from hashlib import md5
+from json import loads as json_loads
 from time import strftime, gmtime, time
 from re import IGNORECASE, sub as re_sub, search as re_search
 from shlex import split as ssplit
@@ -43,7 +44,7 @@ async def remux_container(inp_path, out_path):
             out, _, _ = await cmd_exec(['ffprobe', '-v', 'error', '-print_format', 'json',
                                         '-show_streams', inp_path])
             bitmap = {'hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle', 'arib_caption'}
-            for st in (json.loads(out or '{}').get('streams') or []):
+            for st in (json_loads(out or '{}').get('streams') or []):
                 ct, cn = st.get('codec_type'), st.get('codec_name')
                 if ct == 'subtitle' and cn in bitmap:
                     cmd += ['-map', f"-0:{st.get('index')}"]

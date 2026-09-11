@@ -7,7 +7,7 @@ from aiofiles.os import path as aiopath
 from cloudscraper import create_scraper as cget
 from json import loads, dumps as jdumps
 
-from .. import LOGGER, download_dict, download_dict_lock, categories_dict, config_dict, bot
+from .. import LOGGER, download_dict, download_dict_lock, categories_dict, config_dict, bot, bot_cache
 from ..helper.ext_utils.multi_tools import (
     delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
@@ -229,9 +229,7 @@ async def clone(client, message):
             await delete_own(message)
             return
         nxt = multi - 1
-        msg = [s.strip() for s in input_list]
-        index = msg.index('-i')
-        msg[index+1] = f"{nxt}"
+        cmd_txt = next_cmd_text(input_list, None, nxt)
         origin = await client.get_messages(chat_id=message.chat.id, message_ids=message.reply_to_message_id + 1)
         if not multi_still_on(multi_tag):
             await delete_own(message)
