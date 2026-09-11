@@ -318,7 +318,7 @@ if len(EXCEP_CHATS) == 0:
 def wztgClient(*args, **kwargs):
     kwargs.setdefault('sleep_threshold', 60)
     if 'max_concurrent_transmissions' in signature(tgClient.__init__).parameters:
-        kwargs['max_concurrent_transmissions'] = 1000
+        kwargs['max_concurrent_transmissions'] = 30
     return tgClient(*args, **kwargs)
 
 
@@ -350,7 +350,7 @@ if len(USER_SESSION_STRING) != 0:
     log_info("Creating client from USER_SESSION_STRING")
     try:
         user = _start_tg(wztgClient('user', TELEGRAM_API, TELEGRAM_HASH, session_string=USER_SESSION_STRING,
-                        parse_mode=enums.ParseMode.HTML, no_updates=True, workers=17))
+                        parse_mode=enums.ParseMode.HTML, no_updates=True, workers=10))
         IS_PREMIUM_USER = user.me.is_premium
     except Exception as e:
         log_error(f"Failed making client from USER_SESSION_STRING : {e}")
@@ -445,7 +445,7 @@ BOT_MAX_TASKS = int(BOT_MAX_TASKS) if BOT_MAX_TASKS.isdigit() else ''
 
 STATUS_UPDATE_INTERVAL = environ.get('STATUS_UPDATE_INTERVAL', '')
 if len(STATUS_UPDATE_INTERVAL) == 0:
-    STATUS_UPDATE_INTERVAL = 6
+    STATUS_UPDATE_INTERVAL = 5
 else:
     STATUS_UPDATE_INTERVAL = int(STATUS_UPDATE_INTERVAL)
 
@@ -1012,8 +1012,8 @@ HOST_PROFILE = _host_profile()
 # changeGlobalOption. disk-cache and socket-recv-buffer-size are NOT - aria2
 # accepts them and silently keeps the a2c.conf value - so those stay in the conf.
 _A2_PROFILE = {
-    'paas': {'max-concurrent-downloads': '10', 'bt-max-peers': '500',
-             'bt-max-open-files': '500', 'file-allocation': 'none',
+    'paas': {'max-concurrent-downloads': '4',  'bt-max-peers': '300',
+             'bt-max-open-files': '300', 'file-allocation': 'none',
              'enable-mmap': 'false', 'bt-enable-lpd': 'true'},
     'vps':  {'max-concurrent-downloads': '10', 'bt-max-peers': '500',
              'bt-max-open-files': '500', 'file-allocation': 'falloc',
@@ -1047,10 +1047,10 @@ _QBIT_STOCK = {
 }
 
 _QBIT_PROFILE = {
-    'paas': {'max_active_uploads': 10, 'disk_cache': 128, 'async_io_threads': 4, 'max_connec': 1000,
-             'max_connec_per_torrent': 300, 'max_uploads': 50,
-             'max_uploads_per_torrent': 15, 'max_active_downloads': 10,
-             'max_active_torrents': 15},
+    'paas': {'max_active_uploads': 3, 'disk_cache': 64,  'async_io_threads': 4, 'max_connec': 400,
+             'max_connec_per_torrent': 100, 'max_uploads': 16,
+             'max_uploads_per_torrent': 4, 'max_active_downloads': 4,
+             'max_active_torrents': 6},
     'vps':  {'max_active_uploads': 10, 'disk_cache': 128, 'async_io_threads': 8, 'max_connec': 1000,
              'max_connec_per_torrent': 300, 'max_uploads': 50,
              'max_uploads_per_torrent': 15, 'max_active_downloads': 10,
@@ -1088,7 +1088,7 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
                                                 _a2_boost['max-concurrent-downloads']),
         'max-connection-per-server': environ.get('ARIA2_CONN_PER_SERVER', '16'),
         'split': environ.get('ARIA2_SPLIT', '16'),
-        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '1M'),
+        'min-split-size': environ.get('ARIA2_MIN_SPLIT', '4M'),
         'bt-max-peers': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'bt-max-open-files': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'optimize-concurrent-downloads': 'true',
@@ -1105,8 +1105,9 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
     _a2_boost.update(_a2_perf)   # explicit ARIA2_PERF / ARIA2_NO_DHT opt-ins win
     # bt-request-peer-speed-limit is deliberately left at aria2's 50K default.
     # A 10M target is unreachable on ordinary swarms, so aria2 kept adding peers
-    # forever (the CPU spike) without ever gaining throughput. Set
-    _a2_boost['bt-request-peer-speed-limit'] = environ.get('ARIA2_PEER_SPEED_LIMIT', '50M')
+    # forever (the CPU spike) without ever gaining throughput.
+    if environ.get('ARIA2_PEER_SPEED_LIMIT'):
+        _a2_boost['bt-request-peer-speed-limit'] = environ['ARIA2_PEER_SPEED_LIMIT']
     try:
         aria2.set_global_options(_a2_boost)
         log_info(f"Aria2 throughput overlay [{HOST_PROFILE}]: peers {_a2_boost['bt-max-peers']}, "
@@ -1169,21 +1170,21 @@ try:
         **_qp,
         'hashing_threads': 2,
         'async_io_threads': 4,
-        'disk_cache': 128,
+        'disk_cache': _qp.get('disk_cache', 64),
         'disk_io_type': 0,
         'disk_io_read_mode': 0,
         'disk_io_write_mode': 0,
         'coalesce_reads_writes': True,
-        'connection_speed': 100,
+        'connection_speed': 80,
         'lsd': True,
         'dht': _qbit_dht,
         'pex': _qbit_dht,
         'queueing_enabled': False,
-        'max_active_uploads': _qp.get('max_active_uploads', 4),
-        'max_active_downloads': _qbit_madl or _qp.get('max_active_downloads', 10),
-        'max_active_torrents': (max(_qbit_madl + _qp.get('max_active_uploads', 4),
-                                    _qp.get('max_active_torrents', 15))
-                                if _qbit_madl else _qp.get('max_active_torrents', 15)),
+        'max_active_uploads': _qp.get('max_active_uploads', 3),
+        'max_active_downloads': _qbit_madl or _qp.get('max_active_downloads', 4),
+        'max_active_torrents': (max(_qbit_madl + _qp.get('max_active_uploads', 3),
+                                    _qp.get('max_active_torrents', 6))
+                                if _qbit_madl else _qp.get('max_active_torrents', 6)),
         'ignore_slow_torrents': True,
         'slow_torrent_dl_rate_threshold': 100,
         'slow_torrent_inactive_timer': 120,
@@ -1220,11 +1221,11 @@ except Exception as e:
     log_error(f"qBit boot-stop skipped: {e}")
 
 log_info("Creating client from BOT_TOKEN")
-bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=17,
+bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOKEN, workers=10,
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 from concurrent.futures import ThreadPoolExecutor as _TPE
-bot_loop.set_default_executor(_TPE(max_workers=24, thread_name_prefix="sync"))  # sync_to_async thread-explosion guard
+bot_loop.set_default_executor(_TPE(max_workers=12, thread_name_prefix="sync"))  # sync_to_async thread-explosion guard
 
 # CI: in-bot web server (aiohttp) — gunicorn replacement.
 # Gate wahi hai jo bot_settings ke runtime path pe hai: PORT set ho (Heroku) ya

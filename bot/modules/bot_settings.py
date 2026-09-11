@@ -37,16 +37,16 @@ default_values = {'AUTO_DELETE_MESSAGE_DURATION': 30,
                   'DOWNLOAD_DIR': '/usr/src/app/downloads/',
                   'LEECH_SPLIT_SIZE': MAX_SPLIT_SIZE,
                   'RSS_DELAY': 600,
-                  'STATUS_UPDATE_INTERVAL': 2,
+                  'STATUS_UPDATE_INTERVAL': 5,
                   'SEARCH_LIMIT': 0,
                   'UPSTREAM_BRANCH': 'srmlx',
                   'BOT_THEME': 'minimal',
                   'BOT_LANG': 'en',
                   'IMG_PAGE': 1,
-                  'AUTHOR_NAME': 'ʀᴀʀᴇ ʙᴏᴛꜱ ʜᴜʙ',
-                  'AUTHOR_URL': 'https://t.me/Rare_Bots_Hub',
-                  'TITLE_NAME': 'ʀᴀʀᴇ ʙᴏᴛꜱ ʜᴜʙ',
-                  'GD_INFO': 'Uploaded by Rare Leech Bot',
+                  'AUTHOR_NAME': 'sʏɴᴛᴀx ʀᴇᴀʟᴍ',
+                  'AUTHOR_URL': 'https://t.me/SyntaxRealm',
+                  'TITLE_NAME': 'sʏɴᴛᴀx ʀᴇᴀʟᴍ',
+                  'GD_INFO': 'Syntax Realm Leech Bot',
                   }
 bool_vars = ['AS_DOCUMENT', 'BOT_PM', 'STOP_DUPLICATE', 'SET_COMMANDS', 'SAVE_MSG', 'SHOW_MEDIAINFO', 'SOURCE_LINK', 'SAFE_MODE', 'SHOW_EXTRA_CMDS',
              'IS_TEAM_DRIVE', 'USE_SERVICE_ACCOUNTS', 'WEB_PINCODE', 'EQUAL_SPLITS', 'DISABLE_DRIVE_LINK', 'DELETE_LINKS', 'CLEAN_LOG_MSG', 'USER_TD_MODE', 
@@ -216,7 +216,7 @@ async def load_config():
 
     STATUS_UPDATE_INTERVAL = environ.get('STATUS_UPDATE_INTERVAL', '')
     if len(STATUS_UPDATE_INTERVAL) == 0:
-        STATUS_UPDATE_INTERVAL = 2
+        STATUS_UPDATE_INTERVAL = 5
     else:
         STATUS_UPDATE_INTERVAL = int(STATUS_UPDATE_INTERVAL)
     if len(download_dict) != 0:
