@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from os import path as ospath, listdir, environ
+from os import path as ospath, listdir, environ, walk, getsize, replace, remove
 from base64 import urlsafe_b64decode
 from secrets import token_hex
 from logging import getLogger
@@ -11,7 +11,7 @@ from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lo
 from ...telegram_helper.message_utils import sendStatusMessage
 from ..status_utils.yt_dlp_download_status import YtDlpDownloadStatus
 from ..status_utils.queue_status import QueueStatus
-from ...ext_utils.bot_utils import sync_to_async, async_to_sync, as_bytes, get_readable_file_size
+from ...ext_utils.bot_utils import sync_to_async, async_to_sync, as_bytes, get_readable_file_size, cmd_exec
 from ...ext_utils.task_manager import is_queued, stop_duplicate_check, limit_checker
 
 LOGGER = getLogger(__name__)
@@ -362,9 +362,44 @@ class YoutubeDLHelper:
                 return
             if self.__is_cancelled:
                 raise ValueError
+            self.__polish_media(path)
             async_to_sync(self.__listener.onDownloadComplete)
         except ValueError:
             self.__onDownloadError("Download Stopped by User!")
+
+    def __polish_file(self, fpath):
+        ext = ospath.splitext(fpath)[1].lower()
+        if ext in ('', '.json', '.description', '.jpg', '.jpeg', '.png', '.webp', '.gif',
+                   '.txt', '.srt', '.vtt', '.ass', '.ssa', '.part', '.ytdl', '.nfo'):
+            return
+        title = ospath.splitext(ospath.basename(fpath))[0]
+        tmp = f'{fpath}.polish{ext}'
+        cmd = [f"/bin/{bot_cache['pkgs'][2]}", '-nostdin', '-threads', '1', '-y', '-hide_banner',
+               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata', '0',
+               '-metadata', f'title={title}', '-map_chapters', '-1', '-map', '-0:t']
+        if ext in ('.mp4', '.m4v', '.mov'):
+            cmd += ['-movflags', '+faststart']
+        cmd.append(tmp)
+        try:
+            _, err, code = async_to_sync(cmd_exec, cmd)
+            if code == 0 and ospath.exists(tmp) and getsize(tmp) > 0:
+                replace(tmp, fpath)
+                return
+            LOGGER.warning(f'Media polish skipped for {ospath.basename(fpath)}: {str(err)[-200:]}')
+        except Exception as e:
+            LOGGER.warning(f'Media polish failed for {ospath.basename(fpath)}: {e}')
+        if ospath.exists(tmp):
+            try:
+                remove(tmp)
+            except Exception:
+                pass
+
+    def __polish_media(self, path):
+        if not ospath.isdir(path):
+            return
+        for cur, _, files in walk(path):
+            for f in files:
+                self.__polish_file(ospath.join(cur, f))
 
     async def add_download(self, link, path, name, qual, playlist, options):
         link = normalize_ydl_link(link)
@@ -375,7 +410,7 @@ class YoutubeDLHelper:
         self.__gid = token_hex(5)
         await self.__onDownloadStart()
 
-        self.opts['postprocessors'] = [{'add_chapters': True, 'add_infojson': 'if_exists', 'add_metadata': True, 'key': 'FFmpegMetadata'}]
+        self.opts['postprocessors'] = [{'add_chapters': False, 'add_infojson': 'if_exists', 'add_metadata': True, 'key': 'FFmpegMetadata'}]
         self.opts['postprocessor_args'] = {
             'ffmpegmetadata+ffmpeg': ['-threads', '1', '-map_metadata', '0'],
             'thumbnailsconvertor+ffmpeg': ['-threads', '1'],
