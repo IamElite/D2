@@ -16,6 +16,24 @@ from ...ext_utils.task_manager import is_queued, stop_duplicate_check, limit_che
 
 LOGGER = getLogger(__name__)
 
+_FFMPEG_BIN = None
+
+
+def _ffmpeg_bin():
+    global _FFMPEG_BIN
+    if _FFMPEG_BIN:
+        return _FFMPEG_BIN
+    for cand in (f"/bin/{bot_cache['pkgs'][2]}", bot_cache['pkgs'][2], 'ffmpeg'):
+        try:
+            _, _, code = async_to_sync(cmd_exec, [cand, '-version'])
+            if code == 0:
+                _FFMPEG_BIN = cand
+                return cand
+        except Exception:
+            continue
+    _FFMPEG_BIN = 'ffmpeg'
+    return _FFMPEG_BIN
+
 
 class _NullYdlLog:
     """Silent logger for import-time YoutubeDL (suppresses the py3.10
@@ -391,7 +409,7 @@ class YoutubeDLHelper:
             return
         tmp = f'{fpath}.polish{ext}'
         info = {} if self.is_playlist else (self.__extracted_info or {})
-        cmd = [f"/bin/{bot_cache['pkgs'][2]}", '-nostdin', '-threads', '1', '-y', '-hide_banner',
+        cmd = [_ffmpeg_bin(), '-nostdin', '-threads', '1', '-y', '-hide_banner',
                '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata', '0']
         cmd += self.__meta_args(info, ospath.splitext(ospath.basename(fpath))[0])
         cmd += ['-map_chapters', '-1', '-map', '-0:t']
