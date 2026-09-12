@@ -62,6 +62,38 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-B (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py` (+63/-33)
+
+**User instruction:**
+- `.ask` diagnosis: `/search7 dress up darling season 2` → bot reply "No API link or search PLUGINS added for this function". User ne free wala (qBit plugins) choose kiya → "Fix like senior developer" = /build.
+
+**Problem (live diagnosis, sandbox me real qBit 5.1 chala ke verify kiya):**
+1. Public search API (`torrent-api-py-nx0x.onrender.com`) **poora dead** — root + `/api/v1/sites` dono 404 (Render service gayab, sleep nahi) → boot pe `SITES=None`.
+2. `SEARCH_PLUGINS` bhi khaali → `/search` sirf error message dikhata, koi backend hi nahi.
+3. **Plugin NAME-based install silently broken:** qbittorrent-api `search_install_plugin(['torlock'])` (name) qBit 5.1 pe kuch nahi karta — installed list khaali rehti hai. **Sirf full raw-URL install kaam karta hai.** Matlab purane tarah `SEARCH_PLUGINS="['1337x']"` type value set karne se bhi kuch install nahi hota tha.
+4. **Runtime pe `ensure_qbit()` missing:** idle-stop feature (260831-C) qBit process band kar deta hai, par `__plugin_buttons()` aur `__search()` plugin branch `get_client()` direct call karte the → idle ke baad search stuck ("Searching for..." pe atka) ya silent crash.
+5. Plugin search ka status poll `while True` **bina sleep** → CPU spin (2X dyno pe waste).
+6. `initiate_search_tools()` boot `gather()` me hai (`__main__.py`, bina `return_exceptions`) → koi bhi qBit exception **poora bot boot maar sakta tha**.
+
+**Fix (senior, layered):**
+1. `DEFAULT_SEARCH_PLUGINS` constant — 6 official engines **raw URLs** se (limetorrents, piratebay, torlock, torrentproject, torrentscsv, eztv). Jab na working `SEARCH_API_LINK` ho na `SEARCH_PLUGINS` set ho → boot pe defaults auto-install + `config_dict['SEARCH_PLUGINS']` runtime update (taaki `/search` branches/buttons sahi chalein). Out-of-box search ab hamesha available.
+2. `initiate_search_tools()` restructure: pehle SITES fetch (API), phir plugin decision (SITES None + plugins khaali → defaults). Poora qBit section try/except me → boot crash-proof.
+3. `__search()` plugin branch: `ensure_qbit()` before `get_client()`; poora search try/except → fail pe user ko clean `ERROR: {e}` (stuck nahi); poll loop me `await sleep(1)`; `search_delete`/`auth_log_out` guarded (result delivery kabhi block nahi hoti).
+4. `__plugin_buttons()`: `ensure_qbit()` + try/except.
+5. `from asyncio import sleep` import add.
+
+**Verification (LIVE — real qBit 5.1 + qbittorrent-api sandbox me, datacenter IP):**
+- Install: 6/6 engines URL-based install OK; name-based = broken confirm (yehi root-cause proof).
+- Engine matrix — query `dress up darling season 2`: limetorrents **76** ✓, torrentproject **3** ✓ | query `inception 2010`: piratebay **100** ✓, torlock **400** ✓, torrentscsv **25** ✓ | solidtorrents 0/0 = dead → **exclude** kiya; eztv TV-only (anime/movie pe 0 expected).
+- Fixed code ka exact flow (`search_start → sleep(1) poll → search_results(limit=300) → search_delete → auth_log_out`) `plugins='all'` pe end-to-end chalaya: **total=79**, top `My Dress Up Darling S02E07 [343S]` + Season 2 BD Remux etc ✓.
+- `py_compile` PASS, pure code rule ✓ (zero comments), sirf 1 file changed.
+
+**Note:** Community 1337x/nyaasi engines Cloudflare ki wajah se broken (2025 reports). Naya engine chahiye to `/botsettings` → `SEARCH_PLUGINS` me **raw URL** list daalna (naam nahi!).
+
+
 ### 260912-A (built, pushed)
 **Git:** `ad64783`  
 **Date:** 2026-09-12  

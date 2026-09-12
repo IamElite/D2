@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from asyncio import sleep
+
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
 from aiohttp import ClientSession
@@ -16,28 +18,15 @@ from ..helper.telegram_helper.button_build import ButtonMaker
 PLUGINS = []
 SITES = None
 TELEGRAPH_LIMIT = 300
+QB_ENGINE_BASE = 'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/'
+DEFAULT_SEARCH_PLUGINS = str([f'{QB_ENGINE_BASE}{n}.py' for n in (
+    'limetorrents', 'piratebay', 'torlock', 'torrentproject', 'torrentscsv', 'eztv')])
 
 
 async def initiate_search_tools():
     from ..helper.ext_utils.engine_lifecycle import ensure_qbit
-    await sync_to_async(ensure_qbit)
-    qbclient = await sync_to_async(get_client)
-    qb_plugins = await sync_to_async(qbclient.search_plugins)
-    if SEARCH_PLUGINS := config_dict['SEARCH_PLUGINS']:
-        globals()['PLUGINS'] = []
-        src_plugins = eval(SEARCH_PLUGINS)
-        if qb_plugins:
-            names = [plugin['name'] for plugin in qb_plugins]
-            await sync_to_async(qbclient.search_uninstall_plugin, names=names)
-        await sync_to_async(qbclient.search_install_plugin, src_plugins)
-    elif qb_plugins:
-        for plugin in qb_plugins:
-            await sync_to_async(qbclient.search_uninstall_plugin, names=plugin['name'])
-        globals()['PLUGINS'] = []
-    await sync_to_async(qbclient.auth_log_out)
-
+    global SITES
     if SEARCH_API_LINK := config_dict['SEARCH_API_LINK']:
-        global SITES
         try:
             async with ClientSession(trust_env=True) as c:
                 async with c.get(f'{SEARCH_API_LINK}/api/v1/sites') as res:
@@ -49,6 +38,29 @@ async def initiate_search_tools():
             LOGGER.error(
                 f"{e} Can't fetching sites from SEARCH_API_LINK make sure use latest version of API")
             SITES = None
+    search_plugins = config_dict['SEARCH_PLUGINS']
+    if not search_plugins and SITES is None:
+        search_plugins = DEFAULT_SEARCH_PLUGINS
+        config_dict['SEARCH_PLUGINS'] = DEFAULT_SEARCH_PLUGINS
+        LOGGER.info('Search: no API/PLUGINS configured — installing default qBit search engines')
+    try:
+        await sync_to_async(ensure_qbit)
+        qbclient = await sync_to_async(get_client)
+        qb_plugins = await sync_to_async(qbclient.search_plugins)
+        if search_plugins:
+            globals()['PLUGINS'] = []
+            src_plugins = eval(search_plugins)
+            if qb_plugins:
+                names = [plugin['name'] for plugin in qb_plugins]
+                await sync_to_async(qbclient.search_uninstall_plugin, names=names)
+            await sync_to_async(qbclient.search_install_plugin, src_plugins)
+        elif qb_plugins:
+            for plugin in qb_plugins:
+                await sync_to_async(qbclient.search_uninstall_plugin, names=plugin['name'])
+            globals()['PLUGINS'] = []
+        await sync_to_async(qbclient.auth_log_out)
+    except Exception as e:
+        LOGGER.error(f'Search tools init failed: {e}')
 
 
 async def __search(key, site, message, method):
@@ -92,16 +104,23 @@ async def __search(key, site, message, method):
             await editMessage(message, str(e))
             return
     else:
+        from ..helper.ext_utils.engine_lifecycle import ensure_qbit
         LOGGER.info(f"PLUGINS Searching: {key} from {site}")
-        client = await sync_to_async(get_client)
-        search = await sync_to_async(client.search_start, pattern=key, plugins=site, category='all')
-        search_id = search.id
-        while True:
-            result_status = await sync_to_async(client.search_status, search_id=search_id)
-            status = result_status[0].status
-            if status != 'Running':
-                break
-        dict_search_results = await sync_to_async(client.search_results, search_id=search_id, limit=TELEGRAPH_LIMIT)
+        await sync_to_async(ensure_qbit)
+        try:
+            client = await sync_to_async(get_client)
+            search = await sync_to_async(client.search_start, pattern=key, plugins=site, category='all')
+            search_id = search.id
+            while True:
+                result_status = await sync_to_async(client.search_status, search_id=search_id)
+                status = result_status[0].status
+                if status != 'Running':
+                    break
+                await sleep(1)
+            dict_search_results = await sync_to_async(client.search_results, search_id=search_id, limit=TELEGRAPH_LIMIT)
+        except Exception as e:
+            await editMessage(message, f'ERROR: {e}')
+            return
         search_results = dict_search_results.results
         total_results = dict_search_results.total
         if total_results == 0:
@@ -109,8 +128,14 @@ async def __search(key, site, message, method):
             return
         msg = f"<b>Found {min(total_results, TELEGRAPH_LIMIT)}</b>"
         msg += f" <b>result(s) for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i></b>"
-        await sync_to_async(client.search_delete, search_id=search_id)
-        await sync_to_async(client.auth_log_out)
+        try:
+            await sync_to_async(client.search_delete, search_id=search_id)
+        except Exception:
+            pass
+        try:
+            await sync_to_async(client.auth_log_out)
+        except Exception:
+            pass
     link = await __getResult(search_results, key, message, method)
     buttons = ButtonMaker()
     buttons.ubutton("🔎 VIEW", link)
@@ -196,13 +221,18 @@ def __api_buttons(user_id, method):
 
 
 async def __plugin_buttons(user_id):
+    from ..helper.ext_utils.engine_lifecycle import ensure_qbit
     buttons = ButtonMaker()
     if not PLUGINS:
-        qbclient = await sync_to_async(get_client)
-        pl = await sync_to_async(qbclient.search_plugins)
-        for name in pl:
-            PLUGINS.append(name['name'])
-        await sync_to_async(qbclient.auth_log_out)
+        await sync_to_async(ensure_qbit)
+        try:
+            qbclient = await sync_to_async(get_client)
+            pl = await sync_to_async(qbclient.search_plugins)
+            for name in pl:
+                PLUGINS.append(name['name'])
+            await sync_to_async(qbclient.auth_log_out)
+        except Exception as e:
+            LOGGER.error(f'Search plugins list failed: {e}')
     for siteName in PLUGINS:
         buttons.ibutton(siteName.capitalize(),
                         f"torser {user_id} {siteName} plugin")
