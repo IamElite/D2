@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-O (built)
-**Git:** `PENDING`  
+### 260912-O (built, pushed)
+**Git:** `1154c81`  
 **Date:** 2026-09-12  
 **Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
 **EXTENDS: 260912-N** (direct-gen me 3 naye sites)
@@ -87,7 +87,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - **User ka gdlink → `video-downloads.googleusercontent.com` direct (Sinners 2025 mkv)** ✓.
 - py_compile PASS, naye code me zero comments, koi nayi dependency nahi (curl-cffi pehle se hai) ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `1154c81` → `arnv1`.
 
 
 ### 260912-N (built, pushed)
