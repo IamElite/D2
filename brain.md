@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-K (built)
-**Git:** `PENDING`  
+### 260912-K (built, pushed)
+**Git:** `046205f`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py`  
 **OLD: 260912-J** (word-layer probes extended + naya episode/season variant-search layer)
@@ -91,7 +91,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - Sandbox e2e (15 engines): `one piece albarf arc episode 1177` → ✏️ elbaf → 🔧 variants → ⚠️ closest-1174 banner + 300 Elbaf results; `one piece episode 1177` → 🔧 → ✅ clean exact `one piece 1177`; `one piece episode 1200` → ⚠️ smart-miss + related results; `game of thornes season 2` → ✏️ → ✅ direct stage-1; `inception` control unchanged ✓.
 - py_compile PASS, zero comments, stdlib-only (`re`/`time` file me hi) ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `046205f` → `arnv1`.
 
 
 ### 260912-J (built, pushed)
