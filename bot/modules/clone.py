@@ -4,8 +4,7 @@ from pyrogram.filters import command
 from secrets import token_hex
 from asyncio import sleep, gather
 from aiofiles.os import path as aiopath
-from cloudscraper import create_scraper as cget
-from json import loads, dumps as jdumps
+from json import loads
 
 from .. import LOGGER, download_dict, download_dict_lock, categories_dict, config_dict, bot, bot_cache
 from ..helper.ext_utils.multi_tools import (
@@ -18,7 +17,7 @@ from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.button_build import ButtonMaker
 from ..helper.mirror_utils.status_utils.gdrive_status import GdriveStatus
-from ..helper.ext_utils.bot_utils import is_gdrive_link, new_task, get_readable_file_size, sync_to_async, fetch_user_tds, is_share_link, new_task, is_rclone_path, cmd_exec, get_telegraph_list, arg_parser
+from ..helper.ext_utils.bot_utils import is_gdrive_link, new_task, sync_to_async, fetch_user_tds, is_share_link, new_task, is_rclone_path, cmd_exec, get_telegraph_list, arg_parser
 from ..helper.ext_utils.exceptions import DirectDownloadLinkException
 from ..helper.mirror_utils.download_utils.direct_link_generator import direct_link_generator
 from ..helper.mirror_utils.rclone_utils.list import RcloneList
@@ -138,9 +137,6 @@ async def gdcloneNode(message, link, listen_up):
     if is_gdrive_link(link):
         gd = GoogleDriveHelper()
         name, mime_type, size, files, _ = await sync_to_async(gd.count, link)
-        # ponytail: only contribute when upstream is official, otherwise leak user's share links - delete this block if you want zero telemetry
-        if org_link and config_dict.get('UPSTREAM_REPO') == "https://github.com/Tamilupdates/KPSML-X":
-            cget().request('POST', "https://wzmlcontribute.vercel.app/contribute", headers={"Content-Type": "application/json"}, data=jdumps({"name": name, "link": org_link, "size": get_readable_file_size(size)}))
         if mime_type is None:
             await sendMessage(message, name)
             return

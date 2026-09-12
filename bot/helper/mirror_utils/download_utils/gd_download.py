@@ -1,13 +1,11 @@
-from json import dumps as jdumps
 from secrets import token_hex
-from cloudscraper import create_scraper as cget
 
-from .... import download_dict, download_dict_lock, LOGGER, non_queued_dl, queue_dict_lock, config_dict
+from .... import download_dict, download_dict_lock, LOGGER, non_queued_dl, queue_dict_lock
 from ..upload_utils.gdriveTools import GoogleDriveHelper
 from ..status_utils.gdrive_status import GdriveStatus
 from ..status_utils.queue_status import QueueStatus
 from ...telegram_helper.message_utils import sendMessage, sendStatusMessage
-from ...ext_utils.bot_utils import sync_to_async, get_readable_file_size, is_share_link
+from ...ext_utils.bot_utils import sync_to_async
 from ...ext_utils.task_manager import is_queued, limit_checker, stop_duplicate_check
 
 
@@ -19,11 +17,6 @@ async def add_gd_download(link, path, listener, newname, org_link):
         LOGGER.error(f"GDrive Download Init Error: {e}")
         await sendMessage(listener.message, f"{e}")
         return
-    if is_share_link(org_link) and config_dict.get('UPSTREAM_REPO') == "https://github.com/Tamilupdates/KPSML-X":
-        try:
-            cget().request('POST', "https://wzmlcontribute.vercel.app/contribute", headers={"Content-Type": "application/json"}, data=jdumps({"name": name, "link": org_link, "size": get_readable_file_size(size)}))
-        except Exception:
-            pass
     if mime_type is None:
         await sendMessage(listener.message, f"{name}")
         return

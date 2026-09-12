@@ -62,6 +62,33 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-D (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** 10 files (+31/-42): `bot/__init__.py`, `bot/modules/bot_settings.py`, `bot/helper/themes/kpsml_minimal.py`, `bot/modules/gen_pyro_sess.py`, `bot/modules/users_settings.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/__main__.py`, `bot/helper/mirror_utils/download_utils/mega_download.py`, `bot/modules/clone.py`, `bot/helper/mirror_utils/download_utils/gd_download.py`
+
+**User instruction:**
+- "Sab jagah Syntax Realm" — saari Rare / KPS Bots / KPSML-X / Tamilupdates branding + promotion links hatao. Background: 260911-J me sirf `bot_settings.py` ka `default_values` dict badla tha (wo sirf /botsettings reset-button pe use hota hai) — **effective defaults untouched the**, isliye bot abhi bhi "Rare Leech Bot Torrent Search" dikha raha tha.
+
+**Fix (complete rebrand — 37 verified replacements):**
+1. **Effective defaults** (`bot/__init__.py`): `AUTHOR_NAME='sʏɴᴛᴀx ʀᴇᴀʟᴍ'`, `AUTHOR_URL='https://t.me/SyntaxRealm'`, `TITLE_NAME='sʏɴᴛᴀx ʀᴇᴀʟᴍ'` (→ Telegraph titles ab "sʏɴᴛᴀx ʀᴇᴀʟᴍ Torrent Search" / "sʏɴᴛᴀx ʀᴇᴀʟᴍ Drive Search"), `GD_INFO='Syntax Realm Leech Bot'`.
+2. **load_config fallbacks** (`bot_settings.py:458-474`): KPS Bots / KPSBots / KPSML-X Leech Bot → same Syntax Realm values (dono defaults ab consistent).
+3. **Theme** (`kpsml_minimal.py`): Start-message buttons `ST_BN1_URL`/`ST_BN2_URL` → `t.me/SyntaxRealm`; `ST_UNAUTH` → "Deploy your own Syntax Realm Mirror-Leech bot".
+4. **gen_pyro_sess.py**: pyrogram client + session file names `KPSML-X-{id}` → `SyntaxRealm-{id}` (create + 2 remove paths saath, warna orphan files), saved-message credit `@Rare_Bots_Hub` → `@SyntaxRealm`.
+5. **users_settings.py**: 4 doc links `t.me/Rare_Leech_Mirror_Hub/5` → `t.me/SyntaxRealm`; usess security-warning ka compare URL `Tamilupdates/KPSML-X` → `IamElite/D2` (ab inka deployment "Bot is Secure" dikhayega, darawani warning nahi); metadata example `@Rare_Anime_Hub` → `@SyntaxRealm`.
+6. **bot_utils.py**: `/stats` version-check curl `Tamilupdates/KPSML-X@kpsmlx` → `IamElite/D2@arnv1` (wahan `bot/version.py` maujood + standalone-runnable verify kiya); `/help` BotCommand description → "Syntax Realm Bot".
+7. **__main__.py** boot logs + **mega_download.py** MegaApi app-name (`'KPSML-X'` → `'SyntaxRealm'`, 2 spots).
+8. **TELEMETRY REMOVED (privacy win):** `clone.py:gdcloneNode` + `gd_download.py` me wo blocks jo `UPSTREAM_REPO==Tamilupdates/KPSML-X` hone par user ke share links (name/link/size) `wzmlcontribute.vercel.app` ko POST karte the — **poore delete** (original comment khud bolta tha "delete this block if you want zero telemetry"). Condition inke deployment pe false thi (dead code) par future-proofing + dusron ka server reference hata. Unused imports bhi clean: `cget`, `jdumps` (dono files), `config_dict`, `get_readable_file_size`, `is_share_link` (gd_download). `is_share_link`/`org_link` clone.py me retained (line 125/155 pe use hote hain).
+
+**Intentionally NOT changed:** `KPSMLStyle` class name + `kpsml_minimal.py` filename + `themes/__init__.py` scan logic (internal identifiers, user ko dikhte nahi; rename = structural risk, zero benefit). Dockerfile build comment (non-runtime).
+
+**Verification:**
+- Full repo `py_compile` → PASS (0 errors).
+- Sweep grep `Rare_|ʀᴀʀᴇ|KPS Bots|KPSBots|KPSML-X|Tamilupdates|wzmlcontribute` across `bot/*.py` → **ZERO hits**.
+- Diff review: telemetry deletion surgical, koi import break nahi. Zero new comments (pure code rule ✓).
+- Behavior note: Heroku env/Mongo me `TITLE_NAME`/`AUTHOR_*` already set hue to wo precedence lenge — defaults tabhi lagenge jab vars khaali hon (unki deployment pe khaali hain, isliye "Rare" dikh raha tha).
+
+
 ### 260912-C (built, pushed)
 **Git:** `e20d0b7`  
 **Date:** 2026-09-12  
