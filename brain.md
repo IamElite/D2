@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-I (built, push pending)
-**Git:** `pending`  
+### 260912-I (built, pushed)
+**Git:** `559f25e`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py`
 
@@ -86,6 +86,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - 33-case matrix **×2 rounds = 0 BAD**: `one piece albarf arc`→`one piece Alabasta arc`, `game of thornes season 8`→`game of Thrones season 8`, `attack on tittan season 2`→`attack on Titan season 2`, `demon slayer infinit castel arc`→`demon slayer Infinity Castle arc` + poorani 26 title-cases + safety (ubuntu/windows iso, frieren, naruto, ac/dc → untouched).
 - Sandbox e2e: `/search one piece albarf arc` → ✏️ corrected → **878 results @14s** (top me real `[pushPOP] One Piece - 62-135 (Alabasta Arc)` pack).
 - py_compile PASS, zero comments ✓. Koi naya dependency nahi.
+
+**Pushed:** `559f25e` → `arnv1`.
 
 
 ### 260912-H (built, pushed)
