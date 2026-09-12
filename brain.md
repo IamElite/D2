@@ -62,6 +62,32 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-F (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py` (+1)
+
+**User instruction:**
+- Purani WZML-X default SEARCH_PLUGINS list (17 URLs) paste ki — in sites ko bhi cover karna tha (1337x, KickAss, YTS, ETTV, etc.).
+
+**Live testing (sandbox qBit 5.1, datacenter IP) — user list ka verdict:**
+- **Pehle se shipping list me (6):** piratebay, limetorrents, torrentscsv, torlock, torrentproject, nyaasi (same MadeOfMagicAndWires URL).
+- **404 — files GitHub se deleted (3):** `MaurizioRicci/kickass_torrent.py`, `MaurizioRicci/yts_am.py`, `msagca/uniondht.py`.
+- **Install hua par DEAD (4):** `leetx` (1337x — 0 results 1s; 1337x.to direct = HTTP 403 Cloudflare confirm), `yts` (khensolomon — 0@1s; yts.mx API = HTTP 000 unreachable), `ettv` (0@2s, site dead), `glotorrents`/`magnetdl`/`eztv` (260912-C me hi dead verify the).
+- **WORKING (1):** `linuxtracker` (MadeOfMagicAndWires) — **130 results @20s** (ubuntu query) → **ADD kiya** (Linux ISO content, brain.md history me Mint ISO use hua hai).
+- `thepiratebay` (LightDestory) working hai (100@1s) par official `piratebay` ka duplicate button banta — intentionally skip (260912-C decision).
+
+**Fix:**
+- `COMMUNITY_ENGINES` me linuxtracker URL add → `DEFAULT_SEARCH_PLUGINS` ab **14 engines**.
+
+**Verification:**
+- Sandbox me poora uninstall → exact shipping list install → **14/14 OK**.
+- `plugins='all'` + 'dress up darling season 2' → **total=1910 in 19.1s** (linuxtracker se koi slowdown nahi).
+- py_compile PASS, zero comments ✓.
+
+**Note:** 1337x/KickAss/YTS/TorrentGalaxy/MagnetDL/Zooqle — in sab pe Cloudflare ya site-death hai; koi bhi qBit engine (official purane, community, user-list wale) datacenter IP se kaam nahi karta. Ye sirf self-hosted Ryuk API (`SEARCH_API_LINK`) ya residential proxy se possible hota — abhi dono viable nahi.
+
+
 ### 260912-E (built, pushed)
 **Git:** `ecd55c2`  
 **Date:** 2026-09-12  
