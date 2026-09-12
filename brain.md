@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-L (built)
-**Git:** `PENDING`  
+### 260912-L (built, pushed)
+**Git:** `1ab9660`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py`  
 **OLD: 260912-K** (K ke search flow pe active-only filtering add hui)
@@ -85,7 +85,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - Sandbox e2e (qBit 5.2.3 static, 15 engines, rig rebuild kiya — profile `/tmp/qbtest`, WebUI port flag `--webui-port`, plugins `<profile>/qBittorrent/data/nova3/engines/`): `inception` → **276 active, zero-seed=0, sorted_desc=True, top=1474 seeds**; `one piece episode 1177` → 🔧 variants → **212 active (top 948 seeds)**; `one piece episode 1200` → ⚠️ smart-miss + **213 active (top 5265 seeds)**.
 - py_compile PASS, zero comments, stdlib-only ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `1ab9660` → `arnv1`.
 
 
 ### 260912-K (built, pushed)
