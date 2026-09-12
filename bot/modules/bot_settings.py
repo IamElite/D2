@@ -1053,7 +1053,7 @@ async def update_private_file(_, message, pre_message):
             await (await create_subprocess_exec("touch", ".netrc")).wait()
             await (await create_subprocess_exec("chmod", "600", ".netrc")).wait()
             await (await create_subprocess_exec("cp", ".netrc", "/root/.netrc")).wait()
-        elif file_name.startswith('kpsml_'):
+        elif file_name.startswith('syntax_'):
             path = f"bot/helper/themes/{file_name.rsplit('.py', 1)[0]}.py"
             if await aiopath.isfile(path):
                 await remove(path)
@@ -1073,7 +1073,7 @@ async def update_private_file(_, message, pre_message):
     elif doc := message.document:
         file_name = doc.file_name
         path = file_name
-        if file_name.startswith('kpsml_') and file_name.endswith('.py'):
+        if file_name.startswith('syntax_') and file_name.endswith('.py'):
             path = f'bot/helper/themes/{file_name}'
         await message.download(file_name=f'{getcwd()}/{path}')
         if file_name == 'accounts.zip':

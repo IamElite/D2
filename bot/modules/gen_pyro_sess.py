@@ -75,7 +75,7 @@ Get from https://my.telegram.org</i>.
             if session_dict['CONFIRM_PHN'].lower() in ['y', 'yes']:
                 break
     try:
-        pyro_client = Client(f"SyntaxRealm-{message.from_user.id}", api_id=api_id, api_hash=api_hash)
+        pyro_client = Client(f"SYNTA-X-{message.from_user.id}", api_id=api_id, api_hash=api_hash)
     except Exception as e:
         await editMessage(sess_msg, f"<b>Client Error:</b> {str(e)}")
         return
@@ -141,8 +141,8 @@ Get from https://my.telegram.org</i>.
     except Exception as e:
         return await editMessage(sess_msg ,f"<b>Export Session Error:</b> {str(e)}")
     try:
-        await aioremove(f'SyntaxRealm-{message.from_user.id}.session')
-        await aioremove(f'SyntaxRealm-{message.from_user.id}.session-journal')
+        await aioremove(f'SYNTA-X-{message.from_user.id}.session')
+        await aioremove(f'SYNTA-X-{message.from_user.id}.session-journal')
     except Exception:
         pass
     

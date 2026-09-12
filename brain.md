@@ -62,6 +62,33 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-E (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/__main__.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/mega_download.py`, `bot/modules/gen_pyro_sess.py`, `bot/modules/users_settings.py`, `bot/helper/themes/kpsml_minimal.py → syntax_minimal.py` (rename), `bot/helper/themes/__init__.py`, `bot/helper/themes/README.md`, `bot/modules/bot_settings.py`
+
+**User instruction:**
+- 260912-D pe correction: **jahan original KPSML-X tha wahan `SYNTA-X` chahiye tha** (bot name), maine wahan bhi Syntax Realm laga diya tha. Final rule: KPSML-X-origin → `SYNTA-X`; Rare-origin → `Syntax Realm` (channel brand — user ne khud 260911-J me default_values me likha tha: TITLE_NAME/AUTHOR_NAME 'sʏɴᴛᴀx ʀᴇᴀʟᴍ', AUTHOR_URL t.me/SyntaxRealm, GD_INFO 'Syntax Realm Leech Bot' — wo sab AS-IS rakha).
+
+**Fix (23 replacements + theme file rename):**
+1. `__main__.py` boot logs → `"SYNTA-X Bot [@..] Started!"` / `"SYNTA-X User [@..] Ready!"`
+2. `bot_utils.py` /help BotCommand description → `"Get detailed help about the SYNTA-X Bot"`
+3. `mega_download.py` MegaApi app-name ×2 → `'SYNTA-X'`
+4. `gen_pyro_sess.py` pyrogram client name + dono aioremove paths → `"SYNTA-X-{id}"` (teeno saath, warna orphan .session files)
+5. `users_settings.py` usess warning → `"then SYNTA-X is not responsible"`
+6. **Theme internal rename:** `kpsml_minimal.py` → `syntax_minimal.py` (git mv), `class KPSMLStyle` → `SyntaXStyle`, `themes/__init__.py` (import + scan prefix `'syntax_'` + teeno getattr spots), `bot_settings.py` theme upload/delete routing prefixes ×2, `README.md` (sample link → IamElite/D2@arnv1 + saare `kpsml_*` examples → `syntax_*`).
+
+**Intentionally NOT renamed (senior call, reasons):**
+- `conn.kpsmlx` **Mongo DB name** (`bot/__init__.py:190`, `db_handler.py:21`) — rename = live database orphan; saari user settings/leech config/sudo/authorized chats **wipe** ho jaati (fresh empty DB). Invisible internal — data safety > cosmetics.
+- **Callback-data protocol `'kpsmlx ...'`** (~30 spots, 8 files) + handler regex `^kpsmlx` + `?start=kpsmlx` deeplink — user ko kabhi nahi dikhta (Telegram callback internals); rename ka risk = purane pending messages ke buttons dead + koi ek spot miss hua to button system break. Zero visible benefit. (User insist kare to alag careful build.)
+- Dockerfile build comment (`nanthakps/kpsmlx` layer-scan provenance — historical fact, non-runtime).
+
+**Verification:**
+- Full repo `py_compile` PASS. Sweep: visible KPSML-X/KPS Bots/Rare strings = **zero**; bacha hua `kpsmlx` sirf upar ke 2 internal categories. `SYNTA-X`/`SyntaXStyle`/`syntax_` = 17 spots.
+- Theme behavior identical: `BOT_THEME='minimal'` lookup pehle bhi slice-quirk (`theme[5:-3]` → `'_minimal'`) ki wajah se default-module fallback pe jata tha; rename ke baad same fallback (`syntax_minimal.SyntaXStyle()`), values unchanged.
+- Pure code rule ✓ (zero added comments; README docs hai, code nahi).
+
+
 ### 260912-D (built, pushed)
 **Git:** `b62f38b`  
 **Date:** 2026-09-12  

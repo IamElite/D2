@@ -1075,7 +1075,7 @@ async def set_commands(client):
             ),
             BotCommand(
                 BotCommands.HelpCommand,
-                'Get detailed help about the Syntax Realm Bot',
+                'Get detailed help about the SYNTA-X Bot',
             ),
             BotCommand(
                 BotCommands.UserSetCommand[0],

@@ -287,9 +287,9 @@ async def main():
         BotCommands.HelpCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
     bot.add_handler(MessageHandler(stats, filters=command(
         BotCommands.StatsCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
-    LOGGER.info(f"Syntax Realm Bot [@{bot_name}] Started!")
+    LOGGER.info(f"SYNTA-X Bot [@{bot_name}] Started!")
     if user:
-        LOGGER.info(f"Syntax Realm User [@{user.me.username}] Ready!")
+        LOGGER.info(f"SYNTA-X User [@{user.me.username}] Ready!")
     from .helper.telegram_helper.tg_transfer import helper_bots
     if helper_bots:
         LOGGER.info(f"HyperUP helpers online: {len(helper_bots)}")
