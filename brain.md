@@ -63,7 +63,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260912-P (built, pushed)
-**Git:** `1e3b74a`  
+**Git:** `9b477a5`  
 **Date:** 2026-09-12  
 **Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
 **EXTENDS: 260912-O** (direct-gen me nexdrive + fastdl resolvers)
