@@ -62,6 +62,29 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-R (built, pushed)
+**Git:** `953b165`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+
+**User instruction:**
+- Support redirectors/wrappers like `https://new4.eonmovies.click/dl/30933` generically without hardcoding individual domains.
+- Fix anti-patterns: reuse top-level `user_agent` everywhere, replace duplicate regex lists with single-source-of-truth `SUPPORTED_HOST_REGEXES` and `_is_supported_domain()` matcher.
+
+**Fix:**
+- Unified global `user_agent` set to modern Chrome 120 (`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36`).
+- Removed redundant inline `User-Agent` strings from `dotflix`, `fastdl`, `nexdrive`, and `_resolve_wrapper_or_embed`, standardizing on global `user_agent`.
+- Grouped all compiled host regexes into `SUPPORTED_HOST_REGEXES` tuple and created `_is_supported_domain(domain)` helper.
+- Completely removed duplicate `raw_embed_patterns` regex list.
+- Implemented clean URL harvesting (`findall(r'https?://[^\s"\'<>{}|\\^`]+', text)`) with dynamic `_is_supported_domain()` filtering.
+- Preserved Rule 8: Zero comments in code edits.
+
+**Verification:**
+- Full syntax `py_compile` PASS.
+- Live test on `https://new4.eonmovies.click/dl/30933`: successfully resolved via 302 redirect -> dotflix -> direct Google video stream URL (`https://video-downloads.googleusercontent.com/...`).
+- Unsupported domain test (`https://httpbin.org/status/404`): cleanly raises `DirectDownloadLinkException('No Direct link function found for ...')`.
+
+
 ### 260912-Q (built, pushed)
 **Git:** `69f78f2`  
 **Date:** 2026-09-12  
