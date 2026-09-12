@@ -21,6 +21,10 @@ from ..helper.telegram_helper.button_build import ButtonMaker
 PLUGINS = []
 SITES = None
 TELEGRAPH_LIMIT = 300
+EARLY_MIN = 12
+EARLY_ENOUGH = 20
+EP_WAIT = 30
+HARD_CAP = 90
 SUGGEST_API = 'https://v2.sg.media-imdb.com/suggestion/'
 GOOGLE_SUGGEST_API = 'https://suggestqueries.google.com/complete/search'
 ALLOWED_QIDS = {'movie', 'tvMovie', 'tvSeries', 'tvMiniSeries',
@@ -388,22 +392,66 @@ async def __finishResults(search_results, total, key, site, message, method, not
     await editMessage(message, msg, button)
 
 
-def __qbMulti(client, keys, site):
+def __qbMulti(client, keys, site, ep=None, ep_words=()):
     jobs = {}
     for k in keys:
         jobs[k] = client.search_start(pattern=k, plugins=site, category='all').id
-    for _ in range(120):
-        running = False
-        for sid in jobs.values():
+    done = {k: False for k in jobs}
+    exact_found = False
+    waited = 0
+    while True:
+        pending = False
+        for k, sid in jobs.items():
+            if done[k]:
+                continue
             try:
-                if client.search_status(search_id=sid)[0].status == 'Running':
-                    running = True
-                    break
+                st = client.search_status(search_id=sid)[0].status
             except Exception:
-                pass
-        if not running:
+                st = 'Finished'
+            if st != 'Running':
+                done[k] = True
+                continue
+            if waited >= HARD_CAP or exact_found:
+                try:
+                    client.search_stop(search_id=sid)
+                except Exception:
+                    pass
+                done[k] = True
+                continue
+            if waited >= EARLY_MIN:
+                try:
+                    r = client.search_results(search_id=sid, limit=TELEGRAPH_LIMIT)
+                    show, _, _ = __activeFilter(r.results, 'plugin')
+                    if ep:
+                        if len(show) >= 5 and __epNote(show, 'plugin', ep, ep_words) is None:
+                            exact_found = True
+                            try:
+                                client.search_stop(search_id=sid)
+                            except Exception:
+                                pass
+                            done[k] = True
+                            continue
+                        if waited >= EP_WAIT:
+                            try:
+                                client.search_stop(search_id=sid)
+                            except Exception:
+                                pass
+                            done[k] = True
+                            continue
+                    elif len(show) >= EARLY_ENOUGH:
+                        try:
+                            client.search_stop(search_id=sid)
+                        except Exception:
+                            pass
+                        done[k] = True
+                        continue
+                except Exception:
+                    pass
+            pending = True
+        if not pending:
             break
-        time.sleep(1)
+        time.sleep(2)
+        waited += 2
     out = {}
     for k, sid in jobs.items():
         try:
@@ -440,7 +488,7 @@ async def __apiMulti(keys, site):
         except Exception:
             return k, (0, [], 0, False)
 
-    async with ClientSession(trust_env=True) as session:
+    async with ClientSession(trust_env=True, timeout=ClientTimeout(total=60)) as session:
         for k, v in await gather(*(fetch(session, k) for k in keys)):
             out[k] = v
     return out
@@ -450,7 +498,7 @@ async def __variantSearch(variants, broad, ep, ep_words, site, message, method):
     keys = list(dict.fromkeys([k for k in variants if k] + ([broad] if broad else [])))
     if not keys:
         return False
-    await editMessage(message, "🔧 <b>Trying torrent-style queries...</b>\n⏳ <b>Please wait...</b>")
+    await editMessage(message, f"🔧 <b>Trying {len(keys)} query styles...</b>\n⏳ <b>Please wait...</b>")
     try:
         if method.startswith('api'):
             results = await __apiMulti(keys, site)
@@ -459,7 +507,7 @@ async def __variantSearch(variants, broad, ep, ep_words, site, message, method):
             await sync_to_async(ensure_qbit)
             client = await sync_to_async(get_client)
             try:
-                results = await sync_to_async(__qbMulti, client, keys, site)
+                results = await sync_to_async(__qbMulti, client, keys, site, ep, ep_words)
             finally:
                 try:
                     await sync_to_async(client.auth_log_out)
@@ -516,26 +564,32 @@ async def __search(key, site, message, method):
             ep_words = c_words
     skip_base = bool(ep and variants and
                      not re.search(r'(?i)\bseasons?\s*\d|\bs\d{1,2}e\d', key))
-    statuses = []
+    batch = []
     if not skip_base:
-        if corrected:
-            r = await __doSearch(corrected, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
-        else:
-            r = await __doSearch(key, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
-        if r is True:
-            return
-        statuses.append(r)
-    if variants or broad:
-        r = await __variantSearch(variants, broad, ep, ep_words, site, message, method)
-        if r is True:
-            return
-        statuses.append(r)
+        batch.append(corrected or key)
+    batch.extend(variants)
     if corrected and not skip_base:
-        await editMessage(message, f"🔁 <b>Correction gave no result</b>\n⏳ Searching original: <code>{escape(str(key))}</code>")
+        batch.append(key)
+    seen = set()
+    uniq = []
+    for k in batch:
+        kl = k.lower()
+        if kl not in seen:
+            seen.add(kl)
+            uniq.append(k)
+    if broad:
+        uniq = [k for k in uniq if k.lower() != broad.lower()]
+    batch = uniq[:4]
+    statuses = []
+    if len(batch) == 1 and not broad:
+        r = await __doSearch(batch[0], site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
+    elif batch or broad:
+        r = await __variantSearch(batch, broad, ep, ep_words, site, message, method)
+    else:
         r = await __doSearch(key, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
-        if r is True:
-            return
-        statuses.append(r)
+    if r is True:
+        return
+    statuses.append(r)
     site_label = SITES.get(site) if method.startswith('api') else str(site).capitalize()
     hint = f"\n📺 <i>Episode {int(ep)} may not be released yet</i>" if ep else ''
     dead_line = '\n💀 <i>Found results but all dead (0 seeders)</i>' if 'dead' in statuses else ''
@@ -565,7 +619,7 @@ async def __doSearch(key, site, message, method, silent_miss=False, ep=None, ep_
             else:
                 api = f"{SEARCH_API_LINK}/api/v1/recent?site={site}&limit={SEARCH_LIMIT}"
         try:
-            async with ClientSession(trust_env=True) as c:
+            async with ClientSession(trust_env=True, timeout=ClientTimeout(total=60)) as c:
                 async with c.get(api) as res:
                     search_results = await res.json()
             if 'error' in search_results or search_results['total'] == 0:
@@ -594,12 +648,32 @@ async def __doSearch(key, site, message, method, silent_miss=False, ep=None, ep_
             client = await sync_to_async(get_client)
             search = await sync_to_async(client.search_start, pattern=key, plugins=site, category='all')
             search_id = search.id
+            waited = 0
             while True:
-                result_status = await sync_to_async(client.search_status, search_id=search_id)
-                status = result_status[0].status
+                try:
+                    result_status = await sync_to_async(client.search_status, search_id=search_id)
+                    status = result_status[0].status
+                except Exception:
+                    break
                 if status != 'Running':
                     break
-                await sleep(1)
+                if waited >= HARD_CAP:
+                    try:
+                        await sync_to_async(client.search_stop, search_id=search_id)
+                    except Exception:
+                        pass
+                    break
+                if waited >= EARLY_MIN:
+                    partial = await sync_to_async(client.search_results, search_id=search_id, limit=TELEGRAPH_LIMIT)
+                    show, _, _ = __activeFilter(partial.results, 'plugin')
+                    if len(show) >= EARLY_ENOUGH:
+                        try:
+                            await sync_to_async(client.search_stop, search_id=search_id)
+                        except Exception:
+                            pass
+                        break
+                await sleep(2)
+                waited += 2
             dict_search_results = await sync_to_async(client.search_results, search_id=search_id, limit=TELEGRAPH_LIMIT)
         except Exception as e:
             await editMessage(message, f"⚠️ <b>Search failed</b>\n🔎 <code>{escape(str(key))}</code>\n<code>{str(e)[:200]}</code>")

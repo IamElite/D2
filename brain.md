@@ -62,6 +62,38 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-M (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py`  
+**OLD: 260912-L** (L ke active-only flow pe speed layer)
+
+**User instruction (real failure):**
+- `/search7 one piece season 1 untouch BluRay` → "🔧 Trying torrent-style queries..." pe minute+ tak atka; `/search7 one piece season 1` → "⏳ Searching..." pe atka. User: "pahle to itna time nahin leta tha — ab bahut time le raha hai, user irritate ho jaega."
+
+**Root cause:**
+- Sequential double round: stage-1 literal search (60-80s, sab 15 engines) + variant round (60-80s) = 2+ minute structural queries pe.
+- qBit search job SAB engines ke complete hone tak rukti hai — ek slow/hang engine (torrentdownloads KeyError, snowfl slow) pura search hostage le leta hai.
+
+**Fix:**
+- **Early-exit polling** (`EARLY_MIN=12`, `EARLY_ENOUGH=20`, `HARD_CAP=90`): 12s baad har 2s partial results poll karo; ≥20 ACTIVE (seeds>0) mil gaye → `search_stop` + partial se aage badho. 90s hard stop. Single `__doSearch` + `__qbMulti` (per-job) dono me.
+- **Ep-aware early-exit** (`EP_WAIT=30`): episode queries me exact ep+title-word hit partial me milte hi SAB jobs turant stop (winner mil gaya); nahi mila to 30s pe accept — junk-engine partials se exact-ep miss nahi hota.
+- **Unified parallel batch**: literal + variants + original + broad ab EK round me parallel (≤4 keys + broad), priority selection same. Sequential stage-1→variants→original rounds khatam ('🔁 Correction gave no result' message bhi gaya — original key batch me hi hai). Single-key queries purane single path pe (early-exit ke sath).
+- API mode: 60s request timeout (`__doSearch`/`__apiMulti` sessions) — pehle 5-min tak hang possible tha.
+- Message: `🔧 Trying N query styles...`.
+
+**Verification (sandbox qBit 5.2.3 + 15 engines, timing BEFORE→AFTER):**
+- `inception`: 77s → **12s** (276 active, sorted, zero-seed=0)
+- `one piece season 1 untouch BluRay`: ~120s+ → **14s** (278 active, literal key hi jeeta)
+- `one piece episode 1177`: 114s → **12s** (exact win — 13 names me 1177, clean ✅)
+- `one piece albarf arc episode 1177`: **16s** → ✏️ elbaf → exact `one piece 1177` win (ep-aware exit verified)
+- `game of thornes season 2`: **17s** (✏️ + 5 styles → 283 active, top 2061 seeds)
+- `one piece episode 1200` (exists nahi karta): **31s** (EP_WAIT by design) → ⚠️ smart-miss + 212 active
+- Sab lists: zero-seed=0, seeders-descending ✓. py_compile PASS, zero comments, stdlib-only ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
+
 ### 260912-L (built, pushed)
 **Git:** `1ab9660`  
 **Date:** 2026-09-12  
