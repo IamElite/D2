@@ -62,6 +62,26 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-U (built, pushed)
+**Git:** `0d7be7a`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+
+**User instruction:**
+- Fix `https://nexdrive.fit/genxfm784776507417/` failing on Heroku with `ERROR: Nexdrive (ERROR: Key not found!)`.
+
+**Root-Cause & Fix:**
+1. **Misrouted Filebee to `sharer_scraper`:** In `is_share_link(link)`, `filebee.xyz` returned True. In `direct_link_generator()`, only `'filepress' in domain` was checked, causing `filebee.xyz` to fall through to `else: return sharer_scraper(link)`. `sharer_scraper()` expected a `key` parameter in the HTML which Filebee's React SPA did not have, raising `ERROR: Key not found!`.
+2. **Dedicated `vcloud()` extractor with multi-fetch fallback:** Built isolated `vcloud()` extractor supporting multi-level base64 `atob()` token extraction, setting `Referer: url` to avoid 403 blocks, and falling back across `curl_cffi` -> `create_scraper` -> `requests.Session`.
+3. **Dispatcher & Nexdrive Routing:** Added `VCLOUD_HOST` regex and handler; in `nexdrive()`, explicitly parsed `vcloud_match` and prioritized `fastdl` -> `vcloud` -> `hubcloud` -> `filepress` while cleanly tracking `last_error`.
+4. Rule 8 preserved: Pure code, zero comments added.
+
+**Verification:**
+- `py_compile` PASS with 0 errors.
+- Live test on `https://nexdrive.fit/genxfm784776507417/`: cleanly extracts direct Cloudflare R2 stream URL (`https://pub-9d13d26014a74575b8b7ffa7bbf53a77.r2.dev/1fb636fc07c68d3179a37b05d1893ef4?token=1789233124`, HTTP 200, 4.11 GB).
+- Previous link `https://nexdrive.fit/genxfm784776507403/` verified working.
+
+
 ### 260912-T (built, pushed)
 **Git:** `7d8af6f`  
 **Date:** 2026-09-12  
