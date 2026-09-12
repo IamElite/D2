@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-H (built, push pending)
-**Git:** `pending`  
+### 260912-H (built, pushed)
+**Git:** `45f738c`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py`
 
@@ -96,10 +96,10 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - Sandbox qBit e2e (15 engines): `incpetion` → AI Suggested 'Inception' → **2502 results** (bina correction ke sirf 58 junk "Incpetion 3D" milte the); `game of thornes` → 'Game of Thrones' **3056**; `ubuntu 22.04` → koi correction nahi, original search untouched.
 - py_compile PASS, zero comments ✓.
 
-**Pending:** 260912-G (`81cc2cf`) + yeh commit — dono push PAT ke bina nahi ho sakte (sandbox se PAT wipe ho chuka).
+**Pushed:** `81cc2cf` (G) + `45f738c` (H) → `arnv1` (user ne PAT dobara diya tha).
 
 
-### 260912-G (built, push pending)
+### 260912-G (built, pushed)
 **Git:** `81cc2cf`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py` (+1)
