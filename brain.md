@@ -63,7 +63,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260912-Q (built, pushed)
-**Git:** `81afa7c`  
+**Git:** `69f78f2`  
 **Date:** 2026-09-12  
 **Files:** `bot/helper/ext_utils/leech_utils.py`, `bot/__init__.py`, `bot/modules/bot_settings.py`  
 
