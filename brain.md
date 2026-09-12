@@ -62,6 +62,33 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-N (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`
+
+**User instruction:**
+- "direct gen me dotflix ko bhi add karo" — sample: `https://new2.dotflix.shop/share/<64-hex>`
+
+**Investigation (live, sandbox se):**
+- DOTFLIX = "Lifetime Google Drive Sharing & Direct Download Links" service (Next.js app). Ecosystem: `dotflix.store`, `dtflix.ink` (same app), `*.dotflix.shop` share-hosts (new2 etc. — alag front, same code DB).
+- Keyless API (site ke JS chunks se discover): `POST /api/extract-download {sharingCode}` → `{success, downloadUrl}` (googleusercontent direct); `POST /api/generate-quick-download` → `{workerUrl}` (workers.dev proxy); `GET /api/secure-cloudflare-url/<code>` → `{data.cloudflare_url}` (R2).
+- `new2.dotflix.shop` ki own API = 404 (Express, different routes) — par dotflix.store API usi sharingCode pe proper JSON error deta hai → **codes ecosystem-shared hain, cross-host fallback kaam karta hai**.
+- User ka sample link EXPIRED tha (site ka 404 page) — testing site ke own live sample (`dotflix.store/share/26882157`) se hui.
+
+**Fix:**
+- `DOTFLIX_HOST` regex (`dotflix.*`/`dtflix.*` labels — gdflix/hubcloud unaffected) + `dotflix()` generator + dispatcher elif.
+- Priority: extract-download (pure googleusercontent direct) → quick-download (worker) → cloudflare R2 → page-scrape (googleusercontent/workers.dev regex). Non-store hosts pe `dotflix.store` fallback API. Clean error messages (site ka apna error text surface hota hai).
+
+**Verification:**
+- Matcher 6/6: new2.dotflix.shop ✓, dotflix.store ✓, dtflix.ink ✓; gdflix.com ✗, hubcloud.cfd ✗, notdotflix.store ✗ (sahi).
+- Live: valid share → `video-downloads.googleusercontent.com` direct → **HEAD 200, 14.6MB, video/mp4** ✓; `dtflix.ink` domain route bhi same result ✓.
+- Expired new2 link → clean `ERROR: DOTFLIX: Sharing link not found or not completed` (cross-host fallback store API tak pahuncha) ✓; bad format → clean error ✓.
+- py_compile PASS, naye code me zero comments, koi nayi dependency nahi (requests pehle se imported) ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
+
 ### 260912-M (built, pushed)
 **Git:** `15436aa`  
 **Date:** 2026-09-12  

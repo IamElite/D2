@@ -112,6 +112,7 @@ GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
 STREAMTAPE_HOST = re.compile(r'(?:^|\.)(?:streamtape|streamta|tpead|tapead|strcloud|strtape|scloud)\.[a-z]{2,}$')
 MULTICLOUD_HOST = re.compile(r'(?:^|\.)multicloudlinks\.[a-z]{2,}$')
 HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn)\.[a-z]{2,}$')
+DOTFLIX_HOST = re.compile(r'(?:^|\.)(?:dotflix|dtflix)\.[a-z]{2,}$')
 
 def direct_link_generator(link):
     auth = None
@@ -181,6 +182,8 @@ def direct_link_generator(link):
         return multicloud(link)
     elif HUBCLOUD_HOST.search(domain or ''):
         return hubcloud(link)
+    elif DOTFLIX_HOST.search(domain or ''):
+        return dotflix(link)
     elif any(x in domain for x in ['wetransfer.com', 'we.tl']):
         return wetransfer(link)
     elif any(x in domain for x in anonfilesBaseSites):
@@ -683,6 +686,56 @@ def hubcloud(url, _depth=0):
     except Exception:
         pass
     raise DirectDownloadLinkException('ERROR: No usable download link found')
+
+
+def dotflix(url):
+    parsed = urlparse(url)
+    host = parsed.hostname or ''
+    m = search(r'/share/([A-Za-z0-9]+)', parsed.path)
+    if not m:
+        raise DirectDownloadLinkException('ERROR: Invalid DOTFLIX share link')
+    code = m.group(1)
+    ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    hosts = [f'https://{host}']
+    if host != 'dotflix.store':
+        hosts.append('https://dotflix.store')
+    last_error = None
+    with Session() as session:
+        session.headers.update({'User-Agent': ua, 'Referer': url})
+        for base in hosts:
+            try:
+                data = session.post(f'{base}/api/extract-download',
+                                    json={'sharingCode': code}, timeout=20).json()
+                if data.get('success') and data.get('downloadUrl'):
+                    return data['downloadUrl']
+                last_error = last_error or data.get('error') or data.get('message')
+            except Exception:
+                pass
+            try:
+                data = session.post(f'{base}/api/generate-quick-download',
+                                    json={'sharingCode': code}, timeout=20).json()
+                if data.get('success') and data.get('workerUrl'):
+                    return data['workerUrl']
+                last_error = last_error or data.get('error')
+            except Exception:
+                pass
+        try:
+            data = session.get(f'https://{host}/api/secure-cloudflare-url/{code}', timeout=20).json()
+            if data.get('success') and (data.get('data') or {}).get('cloudflare_url'):
+                return data['data']['cloudflare_url']
+        except Exception:
+            pass
+        try:
+            page = session.get(url, timeout=20).text
+            direct = search(r'https?://[^"\'\s<>]*googleusercontent\.com/[^"\'\s<>]+', page)
+            if direct:
+                return direct.group(0).replace('&amp;', '&')
+            worker = search(r'https?://[a-z0-9.-]+\.workers\.dev/[^"\'\s<>]+', page)
+            if worker:
+                return worker.group(0).replace('&amp;', '&')
+        except Exception:
+            pass
+    raise DirectDownloadLinkException(f'ERROR: DOTFLIX: {last_error or "Direct link not found (share may be expired)"}')
 
 
 def racaty(url):
