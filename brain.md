@@ -62,6 +62,36 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-P (built, pushed)
+**Git:** `1e3b74a`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+**EXTENDS: 260912-O** (direct-gen me nexdrive + fastdl resolvers)
+
+**User instruction:**
+- "direct gen m iska 'https://nexdrive.fit/genxfm784776507403/' iska bhi banai in isna ander multi server h uska usma alaga se or ise typr ke backend ka alag se apne code make karna h"
+
+**Investigation (live, sandbox se):**
+- Nexdrive (`nexdrive.fit/genxfm*`) page pe multiple backends link embedded hote hain:
+  1. `G-Direct [Instant]`: `https://fastdl.zip/embed.php?download=...` -> Instant Google CDN stream.
+  2. `V-Cloud [Resumable]`: `https://vcloud.fit/...` -> Hubcloud/vcloud redirect.
+  3. `Filepress [G-Drive]`: `https://filebee.xyz/file/...` -> Filepress GDrive.
+  4. `V-Drive [Multi]`: `https://one.vegadrive.app/s/...` -> Cloudflare Turnstile protected.
+- `fastdl.zip` flow: GET `/embed.php?download=...` -> `var reurl = "https://fastdl.zip/dl.php?link=https://video-downloads.googleusercontent.com/..."` -> `link` parameter contains direct Google Usercontent video URL (523 MB file, HEAD 200, video/mkv).
+
+**Fix:**
+- Implemented standalone `fastdl(url)` resolver extracting direct Google Usercontent CDN link.
+- Implemented master `nexdrive(url)` multi-server aggregator: parses page, extracts available servers, and tries them in priority order (`G-Direct / fastdl` -> `Filepress` -> `HubCloud / V-Cloud` -> any valid sub-domain fallback).
+- Added `FASTDL_HOST` and `NEXDRIVE_HOST` regex patterns in `direct_link_generator()` dispatcher.
+- Rule 8 strictly enforced: zero comments, pure code.
+
+**Verification:**
+- Live test on sample `https://nexdrive.fit/genxfm784776507403/`:
+  - `direct_link_generator` output: `https://video-downloads.googleusercontent.com/ADGPM2lKj7GD0yB3KFGKbQBvbwSGSl7ZbA...`
+  - HTTP HEAD: Status 200, Content-Type: `video/mkv`, Content-Length: 523,457,743 bytes.
+- Python full-repo compile: 100% PASS with 0 errors.
+
+
 ### 260912-O (built, pushed)
 **Git:** `1154c81`  
 **Date:** 2026-09-12  

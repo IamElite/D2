@@ -114,6 +114,8 @@ STREAMTAPE_HOST = re.compile(r'(?:^|\.)(?:streamtape|streamta|tpead|tapead|strcl
 MULTICLOUD_HOST = re.compile(r'(?:^|\.)multicloudlinks\.[a-z]{2,}$')
 HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn)\.[a-z]{2,}$')
 DOTFLIX_HOST = re.compile(r'(?:^|\.)(?:dotflix|dtflix)\.[a-z]{2,}$')
+FASTDL_HOST = re.compile(r'(?:^|\.)(?:fastdl)\.[a-z]{2,}$')
+NEXDRIVE_HOST = re.compile(r'(?:^|\.)(?:nexdrive)\.[a-z]{2,}$')
 
 def direct_link_generator(link):
     auth = None
@@ -187,6 +189,10 @@ def direct_link_generator(link):
         return dotflix(link)
     elif BUZZHEAVIER_HOST.search(domain or ''):
         return buzzheavier(link)
+    elif FASTDL_HOST.search(domain or ''):
+        return fastdl(link)
+    elif NEXDRIVE_HOST.search(domain or ''):
+        return nexdrive(link)
     elif '10drives.com' in domain:
         raise DirectDownloadLinkException('ERROR: 10drives is protected by Cloudflare Turnstile captcha and cannot be bypassed server-side')
     elif any(x in domain for x in ['wetransfer.com', 'we.tl']):
@@ -1099,6 +1105,67 @@ def gofile(url, auth=None):
     if len(details['contents']) == 1:
         return details['contents'][0]['url'], details['header']
     return details
+
+
+def fastdl(url):
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'}
+    with Session() as session:
+        try:
+            res = session.get(url, headers=headers, timeout=20)
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if res.status_code != 200:
+            raise DirectDownloadLinkException(f'ERROR: FastDL returned HTTP {res.status_code}')
+        m = re.search(r'var\s+reurl\s*=\s*["\']([^"\']+)["\']', res.text)
+        if not m:
+            m = re.search(r'href=["\']([^"\']*dl\.php\?link=[^"\']+)["\']', res.text)
+        if not m:
+            raise DirectDownloadLinkException('ERROR: FastDL direct link not found in page')
+        target = m.group(1)
+        if 'link=' in target:
+            target = target.split('link=', 1)[1]
+        if not target.startswith('http'):
+            raise DirectDownloadLinkException('ERROR: FastDL returned invalid target URL')
+        return target
+
+
+def nexdrive(url):
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'}
+    with Session() as session:
+        try:
+            res = session.get(url, headers=headers, timeout=20)
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if res.status_code != 200:
+            raise DirectDownloadLinkException(f'ERROR: Nexdrive returned HTTP {res.status_code}')
+        html_text = res.text
+        fastdl_match = re.search(r'href=["\'](https?://[^"\']*fastdl\.[^"\']+)["\']', html_text, re.I)
+        filepress_match = re.search(r'href=["\'](https?://[^"\']*(?:filepress|filebee)\.[^"\']+)["\']', html_text, re.I)
+        hubcloud_match = re.search(r'href=["\'](https?://[^"\']*(?:hubcloud|hubdrive|drivehub|vcloud)\.[^"\']+)["\']', html_text, re.I)
+        if fastdl_match:
+            try:
+                return fastdl(fastdl_match.group(1))
+            except Exception:
+                pass
+        if filepress_match:
+            try:
+                return filepress(filepress_match.group(1))
+            except Exception:
+                pass
+        if hubcloud_match:
+            try:
+                return hubcloud(hubcloud_match.group(1))
+            except Exception:
+                pass
+        all_links = re.findall(r'href=["\'](https?://[^"\']+)["\']', html_text)
+        for cand in all_links:
+            cand_domain = urlparse(cand).hostname or ''
+            if cand_domain and cand_domain not in url and not any(x in cand_domain for x in ['wordpress.org', 'w.org', 'google.com', 'telegram.me', 't.me', 'bit.ly']):
+                try:
+                    return direct_link_generator(cand)
+                except Exception:
+                    continue
+        raise DirectDownloadLinkException('ERROR: Could not resolve any download server from Nexdrive page')
 
 
 def sourceforge(url):
