@@ -1306,15 +1306,11 @@ def fastdl(url):
 
 
 def vcloud(url):
-    headers = {
-        'User-Agent': user_agent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    }
     text = None
     try:
         from curl_cffi.requests import Session as CurlSession
-        with CurlSession(impersonate='chrome120') as cs:
-            r = cs.get(url, headers=headers, timeout=20)
+        with CurlSession(impersonate='chrome') as cs:
+            r = cs.get(url, timeout=25)
             if r.status_code == 200 and len(r.text) > 200:
                 text = r.text
     except Exception:
@@ -1322,7 +1318,7 @@ def vcloud(url):
     if not text:
         try:
             with create_scraper() as ss:
-                r = ss.get(url, headers=headers, timeout=20)
+                r = ss.get(url, headers={'User-Agent': user_agent}, timeout=25)
                 if r.status_code == 200 and len(r.text) > 200:
                     text = r.text
         except Exception:
@@ -1330,7 +1326,7 @@ def vcloud(url):
     if not text:
         try:
             with Session() as rs:
-                r = rs.get(url, headers=headers, timeout=20)
+                r = rs.get(url, headers={'User-Agent': user_agent}, timeout=25)
                 if r.status_code == 200 and len(r.text) > 200:
                     text = r.text
         except Exception:
@@ -1347,12 +1343,11 @@ def vcloud(url):
     else:
         token_url = b64decode(b64decode(m.group(1)).decode()).decode()
     t_text = None
-    t_headers = dict(headers)
-    t_headers['Referer'] = url
+    t_headers = {'Referer': url, 'User-Agent': user_agent}
     try:
         from curl_cffi.requests import Session as CurlSession
-        with CurlSession(impersonate='chrome120') as cs:
-            r = cs.get(token_url, headers=t_headers, timeout=20)
+        with CurlSession(impersonate='chrome') as cs:
+            r = cs.get(token_url, headers=t_headers, timeout=25)
             if r.status_code == 200 and len(r.text) > 200:
                 t_text = r.text
     except Exception:
@@ -1360,7 +1355,7 @@ def vcloud(url):
     if not t_text:
         try:
             with create_scraper() as ss:
-                r = ss.get(token_url, headers=t_headers, timeout=20)
+                r = ss.get(token_url, headers=t_headers, timeout=25)
                 if r.status_code == 200 and len(r.text) > 200:
                     t_text = r.text
         except Exception:
@@ -1368,13 +1363,23 @@ def vcloud(url):
     if not t_text:
         try:
             with Session() as rs:
-                r = rs.get(token_url, headers=t_headers, timeout=20)
+                r = rs.get(token_url, headers=t_headers, timeout=25)
                 if r.status_code == 200 and len(r.text) > 200:
                     t_text = r.text
         except Exception:
             pass
     if not t_text:
         raise DirectDownloadLinkException('ERROR: Failed to fetch VCloud token page')
+    html_tree = HTML(t_text)
+    fsl = html_tree.xpath("//a[@id='fsl']/@href")
+    if fsl and fsl[0].startswith('http'):
+        return fsl[0]
+    pxl = html_tree.xpath("//a[@id='pxl-1']/@href")
+    if pxl and pxl[0].startswith('http'):
+        try:
+            return pixeldrain(pxl[0])
+        except Exception:
+            return pxl[0]
     urls = findall(r'https?://[^\s"\'<>{}|\\^`]+', t_text)
     for u in urls:
         u = u.rstrip('.,;)]\'"')
@@ -1383,10 +1388,10 @@ def vcloud(url):
     for u in urls:
         u = u.rstrip('.,;)]\'"')
         if 'pixeldrain' in u:
-            m_pix = search(r'/u/([A-Za-z0-9_-]+)', u)
-            if m_pix:
-                return f"https://pixeldrain.com/api/file/{m_pix.group(1)}?download"
-            return u
+            try:
+                return pixeldrain(u)
+            except Exception:
+                return u
     raise DirectDownloadLinkException('ERROR: No direct download link found on VCloud token page')
 
 
@@ -1421,20 +1426,23 @@ def nexdrive(url):
                 if link:
                     return link
             except Exception as e:
-                last_error = e
+                if not last_error:
+                    last_error = e
         if filepress_match:
             try:
                 return filepress(filepress_match.group(1))
             except Exception as e:
-                last_error = e
+                if not last_error:
+                    last_error = e
         all_links = re.findall(r'href=["\'](https?://[^"\']+)["\']', html_text)
         for cand in all_links:
             cand_domain = urlparse(cand).hostname or ''
-            if cand_domain and cand_domain not in url and not any(x in cand_domain for x in ['wordpress.org', 'w.org', 'google.com', 'telegram.me', 't.me', 'bit.ly']):
+            if cand_domain and cand_domain not in url and not any(x in cand_domain for x in ['wordpress.org', 'w.org', 'google.com', 'telegram.me', 't.me', 'bit.ly', 'filebee']):
                 try:
                     return direct_link_generator(cand)
                 except Exception as e:
-                    last_error = e
+                    if not last_error:
+                        last_error = e
                     continue
         if last_error:
             raise DirectDownloadLinkException(f'ERROR: Nexdrive ({last_error})')
@@ -1551,19 +1559,23 @@ def gd_index(url, auth):
 def filepress(url):
     with create_scraper() as session:
         try:
-            url = session.get(url).url
+            res_page = session.get(url, timeout=20)
+            url = res_page.url
             raw = urlparse(url)
             json_data = {
                 'id': raw.path.split('/')[-1],
                 'method': 'publicDownlaod',
             }
             api = f'{raw.scheme}://{raw.hostname}/api/file/downlaod/'
-            res = session.post(api, headers={'Referer': f'{raw.scheme}://{raw.hostname}'}, json=json_data).json()
+            res = session.post(api, headers={'Referer': f'{raw.scheme}://{raw.hostname}'}, json=json_data, timeout=20)
+            if res.status_code != 200:
+                raise DirectDownloadLinkException(f'ERROR: Filepress returned HTTP {res.status_code}')
+            data_json = res.json()
         except Exception as e:
             raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
-    if 'data' not in res:
-        raise DirectDownloadLinkException(f'ERROR: {res["statusText"]}')
-    return f'https://drive.google.com/uc?id={res["data"]}&export=download'
+    if 'data' not in data_json:
+        raise DirectDownloadLinkException(f'ERROR: {data_json.get("statusText", "Filepress data not found")}')
+    return f'https://drive.google.com/uc?id={data_json["data"]}&export=download'
 
 def jiodrive(url):
     with create_scraper() as session:
