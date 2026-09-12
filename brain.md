@@ -62,6 +62,38 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-K (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py`  
+**OLD: 260912-J** (word-layer probes extended + naya episode/season variant-search layer)
+
+**User instruction (real failure):**
+- `/search one piece albarf arc episode 1177` aur `/search one piece episode 1177` → ❌ No Result Found, jabki episode 1177 engines pe EXIST karta hai (SubsPlease/HatSubs). User: "user alag hi level pe search karte hai — apne se is type ki chijen create karo aur fix karo jisse user ko error na aaye. Fix like a senior developer promax."
+
+**Investigation (live, sandbox se):**
+- Torrent release names `- 1177` / `EP1177` / `S02E05` style hain — word `episode` kabhi nahi hota; engines query ke sab words AND karte hain → `one piece episode 1174` = 0 results, `one piece 1174` = 51.
+- Long-tail Google probe dead hai: `one piece alba arc episode 1177` → 0 completions; `one piece alba arc` → 10 (elbaf ✓) — suffix chhota karna padta hai.
+- Junk engines (academictorrents etc.) kisi bhi query pe 300 irrelevant results dete hain → FALSE SUCCESS real results ka rasta block karta hai.
+- J ke 2 latent bugs is build me surface hue: (1) `rstrip('s')` over-strip — `'dress'.rstrip('s')=='dre'` → false known-word → `dres up darling` correction marta tha; (2) len≤4 filter known-check se PEHLE chalta tha → `solo`/`note` ke echo recognize nahi hote the → `solo leveling`→`solomon leveling`, `death note`→`death notices` corrupt.
+
+**Fix:**
+- `__searchVariants`: natural-language se `episode N` / `ep N` / `season N` / `SxxEyy` extract → torrent-style variants: (1) cleaned key + tag, (2) arc/saga dropped, (3) first-2-words + tag (stopword-gated), + broad fallback. Ex: `one piece elbaf arc episode 1177` → `one piece elbaf arc 1177` / `one piece elbaf 1177` / `one piece 1177` / broad `one piece elbaf`.
+- `__variantSearch`: base search 0 ho to sab variants PARALLEL search (plugin: `__qbMulti` — ek qBit session me multi-job + poll + collect; API: `__apiMulti` — aiohttp gather). Two-pass selection: pass-1 = exact-episode-hit wala pehla variant (clean ✅); pass-2 (ep miss) = broad-first with ⚠️ banner.
+- `__epNote` (strict-episode gate + smart-miss): result tabhi hit jab name me exact ep number + query ka title word ho; warna ±60 window me closest ep (quality 1080/720 etc. aur years excluded) → `⚠️ Episode 1177 not found — closest available: 1174`. Episode query pe junk results = miss treat → variants ko mauka milta hai.
+- `skip_base`: episode-only keyword queries (`episode N`, season ke bina) me bekaar literal stage-1 search skip (~11-14s bachta hai).
+- Word-layer: probe suffix variants (full, first-word, empty) → long-tail queries ab correct hoti hain (`one piece albarf arc episode 1177` → `one piece elbaf arc episode 1177` ✓). Known-detection fix: exact/plural rules (`wl==token`, `wl+'s'==token`, `wl+'es'==token`) len-filter se pehle + phrase-context guard (completion `token ` se start ho → token known — `game`→`games` corruption block).
+- `__doSearch` refactor: shared tail `__finishResults`, exceptions hamesha display, `silent_miss` mode — final ❌ ab orchestrator `__search` deta hai (ep hint ke sath: `📺 Episode N may not be released yet`).
+
+**Verification:**
+- **39-case matrix ×2 rounds = 0 BAD** — 13 must-fix (naye episode-style cases incl. `game of thornes season 8 episode 5`→`game of thrones season 8 episode 5`, `dres up darling`→`dress up darling`) + 26 must-not (incl. solo leveling, death note, game of thrones, the boys, money heist — sab untouched).
+- `__searchVariants` + `__epNote` unit tests pass (8 variant cases, 3 epNote cases).
+- Sandbox e2e (15 engines): `one piece albarf arc episode 1177` → ✏️ elbaf → 🔧 variants → ⚠️ closest-1174 banner + 300 Elbaf results; `one piece episode 1177` → 🔧 → ✅ clean exact `one piece 1177`; `one piece episode 1200` → ⚠️ smart-miss + related results; `game of thornes season 2` → ✏️ → ✅ direct stage-1; `inception` control unchanged ✓.
+- py_compile PASS, zero comments, stdlib-only (`re`/`time` file me hi) ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
+
 ### 260912-J (built, pushed)
 **Git:** `ca60eec`  
 **Date:** 2026-09-12  
