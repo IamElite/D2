@@ -62,6 +62,34 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-O (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+**EXTENDS: 260912-N** (direct-gen me 3 naye sites)
+
+**User instruction:**
+- "direct dow m isnka v banao" — bot ne `No Direct link function found` diya tha: `gdlink.dev/file/SaH9anQPosp295R`, `buzzheavier.com/89it8tybdss8`, `10drives.com/b/MddkOxFadrOErbbrkd`.
+
+**Investigation (live, sandbox se):**
+- **gdlink.dev** → 301 → `new3.gdflix.io/file/...` = **GDFlix hi hai!** Existing `gdflix()` (260912-A, curl-cffi) link follow karke kaam karta hai — bas domain match nahi hota tha.
+- **buzzheavier** → plain requests pe CF 403; curl-cffi `impersonate='chrome'` se page khulta hai. Flow: GET `/{id}` → HTML me `hx-get="/{id}/download?t={token}"` (server-generated token) → us URL pe GET (`HX-Request: true` + Referer) → **204 + `hx-redirect` header = `https://ts.buzzheavier.com/d/{id}?v=...` = direct file URL**. Bina `t=` token ke hx-redirect page URL khud hota hai (guard lagaya). Public method (Reddit/gist Aug-2025) live confirm hua.
+- **10drives.com** → 301 → `gamesmain.xyz/?id=<code>` (Blogger "TechBlogverse" template) → **Cloudflare Turnstile captcha gate**: 30s fallback `cfcl("00")` dummy token server-side reject (`{"invalid":"s"}`), file link HTML me kabhi nahi aata real token ke bina → paid solver ke bina server-side bypass IMPOSSIBLE.
+
+**Fix:**
+- `GDFLIX_HOST` regex me `gdlink` label add → gdlink.dev proven gdflix() route pe.
+- Naya `buzzheavier()` (curl-cffi, no new dep): page → tokenized hx-get → hx-redirect direct link. `/f/{id}`, `/download` suffix formats handle; mirrors `bzzhr.co/.to`, `fuckingfast.net/.co` bhi match; clean errors (404 → "file not found", token-less redirect → guard).
+- `10drives.com` → dispatcher me explicit error: "protected by Cloudflare Turnstile captcha and cannot be bypassed server-side" (generic "No Direct link function found" ki jagah — user ko reason pata chale).
+
+**Verification:**
+- Domain matcher 8/8 (gdlink.dev/new3.gdflix.io/gdflix.com/buzzheavier.com/bzzhr.co/fuckingfast.net ✓; dotflix.store/10drives.com correctly unmatched ✓).
+- **User ka buzz link → `ts.buzzheavier.com/d/...` → Range GET = 206, `video/x-matroska` (real MKV bytes)** ✓; `/f/` format ✓; bad id → clean "file not found" ✓.
+- **User ka gdlink → `video-downloads.googleusercontent.com` direct (Sinners 2025 mkv)** ✓.
+- py_compile PASS, naye code me zero comments, koi nayi dependency nahi (curl-cffi pehle se hai) ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
+
 ### 260912-N (built, pushed)
 **Git:** `adeef16`  
 **Date:** 2026-09-12  

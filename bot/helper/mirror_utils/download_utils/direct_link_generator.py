@@ -108,7 +108,8 @@ debrid_link_sites = ["1dl.net", "1fichier.com", "alterupload.com", "cjoint.net",
                 "yahoo.com", "screen.yahoo.com", "news.yahoo.com", "sports.yahoo.com", "video.yahoo.com", "youporn.com"]
 
 
-GDFLIX_HOST = re.compile(r'(?:^|\.)gdflix\.[a-z]{2,}$')
+GDFLIX_HOST = re.compile(r'(?:^|\.)(?:gdflix|gdlink)\.[a-z]{2,}$')
+BUZZHEAVIER_HOST = re.compile(r'(?:^|\.)(?:buzzheavier|bzzhr|fuckingfast)\.[a-z]{2,}$')
 STREAMTAPE_HOST = re.compile(r'(?:^|\.)(?:streamtape|streamta|tpead|tapead|strcloud|strtape|scloud)\.[a-z]{2,}$')
 MULTICLOUD_HOST = re.compile(r'(?:^|\.)multicloudlinks\.[a-z]{2,}$')
 HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn)\.[a-z]{2,}$')
@@ -184,6 +185,10 @@ def direct_link_generator(link):
         return hubcloud(link)
     elif DOTFLIX_HOST.search(domain or ''):
         return dotflix(link)
+    elif BUZZHEAVIER_HOST.search(domain or ''):
+        return buzzheavier(link)
+    elif '10drives.com' in domain:
+        raise DirectDownloadLinkException('ERROR: 10drives is protected by Cloudflare Turnstile captcha and cannot be bypassed server-side')
     elif any(x in domain for x in ['wetransfer.com', 'we.tl']):
         return wetransfer(link)
     elif any(x in domain for x in anonfilesBaseSites):
@@ -736,6 +741,41 @@ def dotflix(url):
         except Exception:
             pass
     raise DirectDownloadLinkException(f'ERROR: DOTFLIX: {last_error or "Direct link not found (share may be expired)"}')
+
+
+def buzzheavier(url):
+    try:
+        from curl_cffi.requests import Session as CurlSession
+    except ImportError as e:
+        raise DirectDownloadLinkException('ERROR: curl-cffi missing') from e
+    parsed = urlparse(url)
+    parts = [p for p in parsed.path.split('/') if p and p not in ('f', 'download')]
+    if not parts:
+        raise DirectDownloadLinkException('ERROR: Invalid Buzzheavier link')
+    file_id = parts[-1]
+    page_url = f'https://{parsed.netloc}/{file_id}'
+    with CurlSession(impersonate='chrome') as session:
+        try:
+            res = session.get(page_url, timeout=30)
+        except Exception as e:
+            raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}') from e
+        if res.status_code in (404, 410):
+            raise DirectDownloadLinkException('ERROR: Buzzheavier file not found or removed')
+        m = search(r'hx-get="([^"]+/download[^"]*)"', res.text)
+        dl_url = urljoin(page_url, m.group(1).replace('&amp;', '&')) if m else f'{page_url}/download'
+        link = ''
+        try:
+            r = session.get(dl_url, timeout=30, allow_redirects=False,
+                            headers={'HX-Request': 'true', 'HX-Current-URL': page_url,
+                                     'Referer': page_url, 'Accept': '*/*'})
+            link = (r.headers.get('hx-redirect') or '').strip()
+        except Exception:
+            pass
+        if link.startswith('/'):
+            link = f'https://{parsed.netloc}{link}'
+    if not link.startswith('http') or link.rstrip('/') == page_url.rstrip('/'):
+        raise DirectDownloadLinkException('ERROR: Buzzheavier direct link not generated (protected or expired)')
+    return link
 
 
 def racaty(url):
