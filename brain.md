@@ -62,6 +62,30 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-G (built, pushed)
+**Git:** `pending`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py` (+1)
+
+**User instruction:**
+- Unofficial-search-plugins wiki URL dobara paste ki — bache hue untested engines mine karne the.
+
+**Live testing (sandbox qBit 5.1, datacenter IP) — 9 candidates ka verdict:**
+- **WORKING (1):** `sktorrent` (Ashalda/sktorrent-qbt) — movie 'inception' **14@7s**, anime 'dress up darling' **3@6s**, TV 'the last of us' **122@18s** → **ADD kiya** (Czech tracker hai par EN/international content milta hai).
+- **Install hua par DEAD (6):** `bt4gprx` 0@1s, `subsplease` 0@1s (archive-only site), `audiobookbay` 0@2s (Cloudflare), `acgrip` 0@1s + `mikanani` 0@3s + `dmhy` 0@1s (teeno Chinese-language sites — English queries pe hamesha 0; wrong language sphere for this bot).
+- **Install FAIL (2):** `pantsu` (file 404 — repo gone), `tokyotoshokan` (URL HTTP 200 par qBit validation fail — py2-era engine).
+
+**Fix:**
+- `COMMUNITY_ENGINES` me sktorrent URL add → `DEFAULT_SEARCH_PLUGINS` ab **15 engines**.
+
+**Verification:**
+- Sandbox me poora uninstall → exact shipping list install → **15/15 OK**. (Note: qBit 5.1 URL-install async hai — API call turant `False` return kar sakta hai jabki files background me install ho rahi hon; `search_plugins()` re-query se confirm karo.)
+- `plugins='all'` + 'inception' → **total=2502 in 57.2s** ✓.
+- py_compile PASS, zero comments ✓.
+
+**Status:** Iske saath wiki ki 94-URL list **fully audited** (260912-C + F + G milakar). Naye working engines exhaust ho chuke — sirf sktorrent bacha tha. `bitsearch` working par 25s+ slow (excluded), `thepiratebay` duplicate (excluded). Aage expansion sirf self-hosted Ryuk API ya residential proxy se possible.
+
+
 ### 260912-F (built, pushed)
 **Git:** `1e5beaa`  
 **Date:** 2026-09-12  

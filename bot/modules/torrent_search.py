@@ -29,6 +29,7 @@ COMMUNITY_ENGINES = (
     'https://raw.githubusercontent.com/BurningMop/qBittorrent-Search-Plugins/refs/heads/main/torrentdownloads.py',
     'https://raw.githubusercontent.com/BurningMop/qBittorrent-Search-Plugins/refs/heads/main/therarbg.py',
     'https://raw.githubusercontent.com/MadeOfMagicAndWires/qBit-plugins/master/engines/linuxtracker.py',
+    'https://raw.githubusercontent.com/Ashalda/sktorrent-qbt/refs/heads/main/sktorrent.py',
 )
 DEFAULT_SEARCH_PLUGINS = str([f'{QB_ENGINE_BASE}{n}.py' for n in (
     'limetorrents', 'piratebay', 'torlock', 'torrentproject', 'torrentscsv')] + list(COMMUNITY_ENGINES))
