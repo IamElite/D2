@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-M (built)
-**Git:** `PENDING`  
+### 260912-M (built, pushed)
+**Git:** `15436aa`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py`  
 **OLD: 260912-L** (L ke active-only flow pe speed layer)
@@ -91,7 +91,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - `one piece episode 1200` (exists nahi karta): **31s** (EP_WAIT by design) → ⚠️ smart-miss + 212 active
 - Sab lists: zero-seed=0, seeders-descending ✓. py_compile PASS, zero comments, stdlib-only ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `15436aa` → `arnv1`.
 
 
 ### 260912-L (built, pushed)
