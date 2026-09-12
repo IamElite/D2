@@ -25,7 +25,7 @@ from ...ext_utils.help_messages import PASSWORD_ERROR_MESSAGE
 
 _caches = {}
 user_agent = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
 fmed_list = ['fembed.net', 'fembed.com', 'femax20.com', 'fcdn.stream', 'feurl.com', 'layarkacaxxi.icu',
@@ -117,7 +117,26 @@ DOTFLIX_HOST = re.compile(r'(?:^|\.)(?:dotflix|dtflix)\.[a-z]{2,}$')
 FASTDL_HOST = re.compile(r'(?:^|\.)(?:fastdl)\.[a-z]{2,}$')
 NEXDRIVE_HOST = re.compile(r'(?:^|\.)(?:nexdrive)\.[a-z]{2,}$')
 
-def direct_link_generator(link):
+SUPPORTED_HOST_REGEXES = (
+    GDFLIX_HOST, BUZZHEAVIER_HOST, STREAMTAPE_HOST, MULTICLOUD_HOST,
+    HUBCLOUD_HOST, DOTFLIX_HOST, FASTDL_HOST, NEXDRIVE_HOST
+)
+
+KNOWN_DIRECT_DOMAINS = (
+    'mediafire.com', 'pixeldrain.com', 'gofile.io', 'krakenfiles.com',
+    '1fichier.com', 'racaty', 'solidfiles.com', 'akmfiles', 'linkbox',
+    'easyupload.io', 'streamvid.net', 'filelions', 'dood', 'terabox',
+    'fembed', 'sbembed', 'antfiles.com', 'upload.ee', 'shrdsk',
+    'letsupload.io', 'wetransfer.com', 'we.tl'
+)
+
+def _is_supported_domain(domain):
+    if not domain:
+        return False
+    d = domain.lower()
+    return any(p.search(d) for p in SUPPORTED_HOST_REGEXES) or any(x in d for x in KNOWN_DIRECT_DOMAINS)
+
+def direct_link_generator(link, _depth=0):
     auth = None
     if isinstance(link, tuple):
         link, auth = link
@@ -218,8 +237,98 @@ def direct_link_generator(link):
             return sharer_scraper(link)
     elif 'zippyshare.com' in domain:
         raise DirectDownloadLinkException('ERROR: R.I.P Zippyshare')
+    elif _depth < 3:
+        resolved = _resolve_wrapper_or_embed(link, _depth)
+        if resolved:
+            return resolved
+        raise DirectDownloadLinkException(f'No Direct link function found for {link}')
     else:
         raise DirectDownloadLinkException(f'No Direct link function found for {link}')
+
+
+def _resolve_wrapper_or_embed(link, _depth=0):
+    headers = {
+        'User-Agent': user_agent,
+        'Referer': f"{urlparse(link).scheme}://{urlparse(link).netloc}/",
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    }
+    origin_domain = (urlparse(link).hostname or '').lower()
+    resp = None
+    try:
+        from curl_cffi.requests import Session as CurlSession
+        with CurlSession(impersonate='chrome120') as cs:
+            resp = cs.get(link, headers=headers, allow_redirects=True, timeout=15)
+    except Exception:
+        try:
+            with create_scraper() as ss:
+                resp = ss.get(link, headers=headers, allow_redirects=True, timeout=15)
+        except Exception:
+            try:
+                with Session() as rs:
+                    resp = rs.get(link, headers=headers, allow_redirects=True, timeout=15)
+            except Exception:
+                return None
+    if not resp:
+        return None
+    final_url = getattr(resp, 'url', None) or ''
+    final_domain = (urlparse(final_url).hostname or '').lower()
+    if final_url and final_url != link and final_domain != origin_domain:
+        content_type = (resp.headers.get('content-type') or '').lower()
+        content_disp = (resp.headers.get('content-disposition') or '').lower()
+        if any(x in content_type for x in ['video/', 'audio/', 'octet-stream', 'matroska', 'zip', 'rar']) or 'attachment' in content_disp:
+            return final_url
+        if _is_supported_domain(final_domain):
+            try:
+                return direct_link_generator(final_url, _depth=_depth + 1)
+            except Exception:
+                pass
+    if hasattr(resp, 'history') and resp.history:
+        for h in reversed(resp.history):
+            h_url = getattr(h, 'url', None) or ''
+            h_domain = (urlparse(h_url).hostname or '').lower()
+            if h_url and h_url != link and h_domain != origin_domain and _is_supported_domain(h_domain):
+                try:
+                    return direct_link_generator(h_url, _depth=_depth + 1)
+                except Exception:
+                    pass
+    text = getattr(resp, 'text', '') or ''
+    if text:
+        meta_match = search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+content=["\'][^"\']*url=([^"\'\s>]+)', text, re.IGNORECASE)
+        if meta_match:
+            target = meta_match.group(1).strip()
+            if not target.startswith('http'):
+                target = urljoin(final_url or link, target)
+            target_domain = (urlparse(target).hostname or '').lower()
+            if target != link and target_domain != origin_domain and _is_supported_domain(target_domain):
+                try:
+                    return direct_link_generator(target, _depth=_depth + 1)
+                except Exception:
+                    pass
+        js_match = search(r'(?:window\.)?location(?:\.href|\.replace)?\s*=\s*["\'](https?://[^"\']+)["\']', text, re.IGNORECASE)
+        if js_match:
+            target = js_match.group(1).strip()
+            target_domain = (urlparse(target).hostname or '').lower()
+            if target != link and target_domain != origin_domain and _is_supported_domain(target_domain):
+                try:
+                    return direct_link_generator(target, _depth=_depth + 1)
+                except Exception:
+                    pass
+        found_urls = findall(r'https?://[^\s"\'<>{}|\\^`]+', text)
+        seen = set()
+        for cand in found_urls:
+            cand = cand.rstrip('.,;)]\'"')
+            if not cand or cand in seen:
+                continue
+            seen.add(cand)
+            cand_domain = (urlparse(cand).hostname or '').lower()
+            if not cand_domain or cand_domain == origin_domain:
+                continue
+            if _is_supported_domain(cand_domain):
+                try:
+                    return direct_link_generator(cand, _depth=_depth + 1)
+                except Exception:
+                    continue
+    return None
 
 
 def real_debrid(url: str, tor=False):
@@ -706,13 +815,12 @@ def dotflix(url):
     if not m:
         raise DirectDownloadLinkException('ERROR: Invalid DOTFLIX share link')
     code = m.group(1)
-    ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     hosts = [f'https://{host}']
     if host != 'dotflix.store':
         hosts.append('https://dotflix.store')
     last_error = None
     with Session() as session:
-        session.headers.update({'User-Agent': ua, 'Referer': url})
+        session.headers.update({'User-Agent': user_agent, 'Referer': url})
         for base in hosts:
             try:
                 data = session.post(f'{base}/api/extract-download',
@@ -1108,7 +1216,7 @@ def gofile(url, auth=None):
 
 
 def fastdl(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': user_agent}
     with Session() as session:
         try:
             res = session.get(url, headers=headers, timeout=20)
@@ -1130,7 +1238,7 @@ def fastdl(url):
 
 
 def nexdrive(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': user_agent}
     with Session() as session:
         try:
             res = session.get(url, headers=headers, timeout=20)
