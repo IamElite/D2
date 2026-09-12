@@ -117,14 +117,16 @@ DOTFLIX_HOST = re.compile(r'(?:^|\.)(?:dotflix|dtflix)\.[a-z]{2,}$')
 FASTDL_HOST = re.compile(r'(?:^|\.)(?:fastdl)\.[a-z]{2,}$')
 NEXDRIVE_HOST = re.compile(r'(?:^|\.)(?:nexdrive)\.[a-z]{2,}$')
 VCLOUD_HOST = re.compile(r'(?:^|\.)(?:vcloud)\.[a-z]{2,}$')
+PIXELDRAIN_HOST = re.compile(r'(?:^|\.)(?:pixeldrain|pixeldra)\.[a-z]{2,}$')
 
 SUPPORTED_HOST_REGEXES = (
     GDFLIX_HOST, BUZZHEAVIER_HOST, STREAMTAPE_HOST, MULTICLOUD_HOST,
-    HUBCLOUD_HOST, DOTFLIX_HOST, FASTDL_HOST, NEXDRIVE_HOST, VCLOUD_HOST
+    HUBCLOUD_HOST, DOTFLIX_HOST, FASTDL_HOST, NEXDRIVE_HOST, VCLOUD_HOST,
+    PIXELDRAIN_HOST
 )
 
 KNOWN_DIRECT_DOMAINS = (
-    'mediafire.com', 'pixeldrain.com', 'gofile.io', 'krakenfiles.com',
+    'mediafire.com', 'pixeldrain', 'pixeldra.in', 'gofile.io', 'krakenfiles.com',
     '1fichier.com', 'racaty', 'solidfiles.com', 'akmfiles', 'linkbox',
     'easyupload.io', 'streamvid.net', 'filelions', 'dood', 'terabox',
     'fembed', 'sbembed', 'antfiles.com', 'upload.ee', 'shrdsk',
@@ -169,7 +171,7 @@ def direct_link_generator(link, _depth=0):
         return hxfile(link)
     elif '1drv.ms' in domain:
         return onedrive(link)
-    elif 'pixeldrain.com' in domain:
+    elif PIXELDRAIN_HOST.search(domain or '') or any(x in domain for x in ['pixeldrain', 'pixeldra.in']):
         return pixeldrain(link)
     elif 'antfiles.com' in domain:
         return antfiles(link)
@@ -565,23 +567,44 @@ def onedrive(link):
 
 def pixeldrain(url):
     url = url.strip("/ ")
-    file_id = url.split("/")[-1]
-    if url.split("/")[-2] == "l":
-        info_link = f"https://pixeldrain.com/api/list/{file_id}"
-        dl_link = f"https://pixeldrain.com/api/list/{file_id}/zip?download"
+    parsed = urlparse(url)
+    domain = (parsed.netloc or '').lower()
+    if 'pixeldra.in' in domain:
+        base_domain = 'pixeldrain.dev'
+    elif 'pixeldrain' in domain:
+        base_domain = domain
     else:
-        info_link = f"https://pixeldrain.com/api/file/{file_id}/info"
-        dl_link = f"https://pixeldrain.com/api/file/{file_id}?download"
-    with create_scraper() as session:
+        base_domain = 'pixeldrain.com'
+    code = parsed.path.rstrip("/").split("/")[-1].split("?", 1)[0]
+    is_list = "/l/" in parsed.path
+    endpoint = f"api/list/{code}" if is_list else f"api/file/{code}"
+    dl_suffix = f"api/list/{code}/zip?download" if is_list else f"api/file/{code}?download"
+    headers = {'User-Agent': user_agent}
+    resp = None
+    last_err = None
+    domains = [base_domain]
+    for d in ['pixeldrain.dev', 'pixeldrain.com']:
+        if d not in domains:
+            domains.append(d)
+    for host in domains:
+        info_url = f"https://{host}/{endpoint}" if is_list else f"https://{host}/{endpoint}/info"
         try:
-            resp = session.get(info_link).json()
+            with create_scraper() as session:
+                r = session.get(info_url, headers=headers, timeout=15)
+                if r.status_code in (200, 404, 403):
+                    resp = r.json()
+                    dl_link = f"https://{host}/{dl_suffix}"
+                    break
         except Exception as e:
-            raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
-    if resp["success"]:
+            last_err = e
+            continue
+    if not resp:
+        raise DirectDownloadLinkException(f"ERROR: {last_err.__class__.__name__ if last_err else 'Pixeldrain unreachable'}")
+    if resp.get("success"):
         return dl_link
     else:
         raise DirectDownloadLinkException(
-            f"ERROR: Cant't download due {resp['message']}.")
+            f"ERROR: Cant't download due {resp.get('message', 'File unavailable')}.")
 
 
 def antfiles(url):
