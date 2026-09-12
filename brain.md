@@ -62,6 +62,36 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-V (built, pushed)
+**Git:** `f7268a3`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+
+**User instruction:**
+- Fix `No Direct link function found for https://pixeldrain.dev/u/Sok4AWWb` referencing wzv3.
+
+**Problem:**
+- `pixeldrain.com` was hardcoded in `KNOWN_DIRECT_DOMAINS` and `elif 'pixeldrain.com' in domain:` dispatcher check.
+- `pixeldrain.dev` and `pixeldra.in` were missing from supported host domains.
+- `pixeldrain.com` suffers from frequent ISP TCP connection resets (WinError 10054) on certain regions/ISPs while `pixeldrain.dev` works cleanly.
+
+**Fix:**
+- Added `PIXELDRAIN_HOST = re.compile(r'(?:^|\.)(?:pixeldrain|pixeldra)\.[a-z]{2,}$')` to `SUPPORTED_HOST_REGEXES`.
+- Replaced `'pixeldrain.com'` in `KNOWN_DIRECT_DOMAINS` with `'pixeldrain'` and `'pixeldra.in'`.
+- Updated dispatcher route: `elif PIXELDRAIN_HOST.search(domain or '') or any(x in domain for x in ['pixeldrain', 'pixeldra.in']): return pixeldrain(link)`.
+- Rebuilt `def pixeldrain(url)`: supports short URLs (`/code`), standard URLs (`/u/code`, `/file/code`), lists (`/l/code`), and implements multi-domain failover across `pixeldrain.dev` and `pixeldrain.com`.
+- Rule 8 preserved: Zero comments in code.
+
+**Verification:**
+- `py_compile` PASS with 0 errors.
+- Verified across all formats:
+  - `https://pixeldrain.dev/u/Sok4AWWb` -> `https://pixeldrain.dev/api/file/Sok4AWWb?download`
+  - `https://pixeldrain.com/u/Sok4AWWb` -> resolves successfully via failover
+  - `https://pixeldra.in/u/Sok4AWWb` -> `https://pixeldrain.dev/api/file/Sok4AWWb?download`
+  - `https://pixeldrain.dev/Sok4AWWb` -> `https://pixeldrain.dev/api/file/Sok4AWWb?download`
+  - HTTP HEAD: Status 200, Content-Type: `video/matroska`, Size: 4,110,668,066 bytes (4.11 GB).
+
+
 ### 260912-U (built, pushed)
 **Git:** `0d7be7a`  
 **Date:** 2026-09-12  
