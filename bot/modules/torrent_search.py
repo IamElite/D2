@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from asyncio import sleep
+from asyncio import sleep, gather
 
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
@@ -19,6 +19,9 @@ from ..helper.telegram_helper.button_build import ButtonMaker
 PLUGINS = []
 SITES = None
 TELEGRAPH_LIMIT = 300
+SUGGEST_API = 'https://v2.sg.media-imdb.com/suggestion/'
+ALLOWED_QIDS = {'movie', 'tvMovie', 'tvSeries', 'tvMiniSeries',
+                'tvSpecial', 'tvShort', 'short', 'video', 'videoGame'}
 QB_ENGINE_BASE = 'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/'
 COMMUNITY_ENGINES = (
     'https://raw.githubusercontent.com/MadeOfMagicAndWires/qBit-plugins/master/engines/nyaasi.py',
@@ -76,62 +79,145 @@ async def initiate_search_tools():
         LOGGER.error(f'Search tools init failed: {e}')
 
 
+async def __suggestions(session, query):
+    query = query.strip().lower()
+    if not query or not query[0].isalnum():
+        return []
+    url = f"{SUGGEST_API}{query[0]}/{quote(query, safe='')}.json"
+    async with session.get(url, headers={'User-Agent': 'Mozilla/5.0'}) as res:
+        data = await res.json(content_type=None)
+    items = []
+    for item in data.get('d', []):
+        if not str(item.get('id', '')).startswith('tt'):
+            continue
+        qid = item.get('qid')
+        if qid is not None and qid not in ALLOWED_QIDS:
+            continue
+        title = item.get('l')
+        if title:
+            items.append((title.strip(), item.get('y'), item.get('rank', 10**9)))
+    return items
+
+
 async def __spellCorrect(key):
     query = key.strip().lower()
     if len(query) < 4 or not query[0].isalnum():
         return None
-    url = f"https://v2.sg.media-imdb.com/suggestion/{query[0]}/{quote(query, safe='')}.json"
     try:
-        titles = []
-        allowed = {'movie', 'tvMovie', 'tvSeries', 'tvMiniSeries',
-                   'tvSpecial', 'tvShort', 'short', 'video', 'videoGame'}
         async with ClientSession(trust_env=True, timeout=ClientTimeout(total=6)) as session:
-            for attempt in range(2):
-                async with session.get(url, headers={'User-Agent': 'Mozilla/5.0'}) as res:
-                    data = await res.json(content_type=None)
-                for item in data.get('d', []):
-                    if not str(item.get('id', '')).startswith('tt'):
-                        continue
-                    qid = item.get('qid')
-                    if qid is not None and qid not in allowed:
-                        continue
-                    title = item.get('l')
-                    if not title:
-                        continue
-                    titles.append(title.strip())
-                    if item.get('y'):
-                        titles.append(f"{title.strip()} {item['y']}")
-                if titles or attempt:
-                    break
+            items = await __suggestions(session, query)
+            if not items:
                 await sleep(1)
-        if not titles:
-            return None
-        normalized_titles = [t.lower() for t in titles]
-        alnum_query = ''.join(filter(str.isalnum, query))
-        if any(''.join(filter(str.isalnum, t)) == alnum_query for t in normalized_titles):
-            return None
-        for title, normalized in zip(titles, normalized_titles):
-            if normalized in query or query in normalized:
-                continue
-            if ''.join(filter(str.isalnum, normalized)) == alnum_query:
-                continue
-            if SequenceMatcher(None, query, normalized).ratio() > 0.8:
-                return title
-        return None
+                items = await __suggestions(session, query)
     except Exception as e:
         LOGGER.error(f'Spell check failed: {e}')
         return None
+    titles = []
+    for title, year, _rank in items:
+        titles.append(title)
+        if year:
+            titles.append(f'{title} {year}')
+    if not titles:
+        return None
+    normalized_titles = [t.lower() for t in titles]
+    alnum_query = ''.join(filter(str.isalnum, query))
+    if any(''.join(filter(str.isalnum, t)) == alnum_query for t in normalized_titles):
+        return None
+    for title, normalized in zip(titles, normalized_titles):
+        if normalized in query or query in normalized:
+            continue
+        if ''.join(filter(str.isalnum, normalized)) == alnum_query:
+            continue
+        if SequenceMatcher(None, query, normalized).ratio() > 0.85:
+            return title
+    return None
+
+
+def __pickWord(token, items, min_score):
+    token_l = token.lower()
+    stem = token_l.rstrip('s')
+    known = False
+    cands = {}
+    for title, _year, rank in items:
+        words = ''.join(c if c.isalnum() or c == ' ' else ' ' for c in title).split()
+        for w in words:
+            wl = w.lower()
+            if wl == token_l or wl.rstrip('s') == stem:
+                known = True
+                continue
+            if len(wl) > 4 and len(wl) >= len(token_l) - 2:
+                score = SequenceMatcher(None, token_l, wl).ratio()
+                if score >= min_score:
+                    old = cands.get(wl)
+                    if old is None or rank < old[1]:
+                        cands[wl] = (w, rank, score)
+    if known or not cands:
+        return None
+    best = min(cands.values(), key=lambda v: (v[1], -v[2]))
+    return best[0]
+
+
+async def __wordCorrect(key):
+    tokens = key.split()
+    if len(tokens) < 2:
+        return None
+    probes = []
+    idxs = []
+    for i, token in enumerate(tokens):
+        if len(token) < 5 or not token.isalpha():
+            continue
+        context = ' '.join(tokens[:i])
+        probes.append(f'{context} {token[:4]}'.strip().lower())
+        probes.append(f'{context} {token[:3]}'.strip().lower())
+        idxs.extend((i, i))
+    if not probes:
+        return None
+    try:
+        async with ClientSession(trust_env=True, timeout=ClientTimeout(total=6)) as session:
+            results = await gather(*(__suggestions(session, p) for p in probes))
+            empties = [j for j, items in enumerate(results) if not items]
+            if empties:
+                await sleep(1)
+                retried = await gather(*(__suggestions(session, probes[j]) for j in empties))
+                for j, items in zip(empties, retried):
+                    results[j] = items
+    except Exception as e:
+        LOGGER.error(f'Word spell check failed: {e}')
+        return None
+    merged = {}
+    for i, items in zip(idxs, results):
+        bucket = merged.setdefault(i, [])
+        seen = {t for t, _y, _r in bucket}
+        for entry in items:
+            if entry[0] not in seen:
+                bucket.append(entry)
+                seen.add(entry[0])
+    fixed = list(tokens)
+    changed = False
+    for i, items in merged.items():
+        token = tokens[i]
+        min_score = 0.8 if len(token) >= 8 else 0.5
+        word = __pickWord(token, items, min_score)
+        if word:
+            fixed[i] = word
+            changed = True
+    if not changed:
+        return None
+    corrected = ' '.join(fixed)
+    return corrected if corrected.lower() != key.lower() else None
 
 
 async def __search(key, site, message, method):
     corrected = None
     if key and method in ('apisearch', 'plugin'):
         corrected = await __spellCorrect(key)
+        if corrected is None:
+            corrected = await __wordCorrect(key)
     if corrected:
-        await editMessage(message, f"✅ <b>AI Suggested:</b> <code>{escape(corrected)}</code>\n🔍 <b>Searching for it...</b>")
+        await editMessage(message, f"✏️ <b>Spelling Corrected</b>\n<s>{escape(str(key))}</s> ➜ <code>{escape(corrected)}</code>\n⏳ <b>Searching...</b>")
         if await __doSearch(corrected, site, message, method, silent_miss=True):
             return
-        await editMessage(message, "🔁 <b>No result for suggestion, searching original...</b>")
+        await editMessage(message, f"🔁 <b>Correction gave no result</b>\n⏳ Searching original: <code>{escape(str(key))}</code>")
     await __doSearch(key, site, message, method)
 
 
@@ -163,19 +249,19 @@ async def __doSearch(key, site, message, method, silent_miss=False):
                     search_results = await res.json()
             if 'error' in search_results or search_results['total'] == 0:
                 if not silent_miss:
-                    await editMessage(message, f"No result found for <i>{key}</i>\nTorrent Site:- <i>{SITES.get(site)}</i>")
+                    await editMessage(message, f"❌ <b>No Result Found</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{SITES.get(site)}</i>\n💡 <i>Try different or fewer keywords</i>")
                 return False
-            msg = f"<b>Found {min(search_results['total'], TELEGRAPH_LIMIT)}</b>"
+            msg = f"✅ <b>Found {min(search_results['total'], TELEGRAPH_LIMIT)}</b>"
             if method == 'apitrend':
-                msg += f" <b>trending result(s)\nTorrent Site:- <i>{SITES.get(site)}</i></b>"
+                msg += f" <b>trending result(s)</b>\n📍 <b>Site:</b> <i>{SITES.get(site)}</i>"
             elif method == 'apirecent':
-                msg += f" <b>recent result(s)\nTorrent Site:- <i>{SITES.get(site)}</i></b>"
+                msg += f" <b>recent result(s)</b>\n📍 <b>Site:</b> <i>{SITES.get(site)}</i>"
             else:
-                msg += f" <b>result(s) for <i>{key}</i>\nTorrent Site:- <i>{SITES.get(site)}</i></b>"
+                msg += f" <b>result(s)</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{SITES.get(site)}</i>"
             search_results = search_results['data']
         except Exception as e:
             if not silent_miss:
-                await editMessage(message, str(e))
+                await editMessage(message, f"⚠️ <b>Search failed</b>\n🔎 <code>{escape(str(key))}</code>\n<code>{str(e)[:200]}</code>")
             return False
     else:
         from ..helper.ext_utils.engine_lifecycle import ensure_qbit
@@ -194,16 +280,16 @@ async def __doSearch(key, site, message, method, silent_miss=False):
             dict_search_results = await sync_to_async(client.search_results, search_id=search_id, limit=TELEGRAPH_LIMIT)
         except Exception as e:
             if not silent_miss:
-                await editMessage(message, f'ERROR: {e}')
+                await editMessage(message, f"⚠️ <b>Search failed</b>\n🔎 <code>{escape(str(key))}</code>\n<code>{str(e)[:200]}</code>")
             return False
         search_results = dict_search_results.results
         total_results = dict_search_results.total
         if total_results == 0:
             if not silent_miss:
-                await editMessage(message, f"No result found for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i>")
+                await editMessage(message, f"❌ <b>No Result Found</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site.capitalize()}</i>\n💡 <i>Try different or fewer keywords</i>")
             return False
-        msg = f"<b>Found {min(total_results, TELEGRAPH_LIMIT)}</b>"
-        msg += f" <b>result(s) for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i></b>"
+        msg = f"✅ <b>Found {min(total_results, TELEGRAPH_LIMIT)} result(s)</b>"
+        msg += f"\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site.capitalize()}</i>"
         try:
             await sync_to_async(client.search_delete, search_id=search_id)
         except Exception:
@@ -378,11 +464,11 @@ async def torrentSearchUpdate(_, query):
                     endpoint = 'Recent'
                 elif method == 'apitrend':
                     endpoint = 'Trending'
-                await editMessage(message, f"<b>Listing {endpoint} Items...\nTorrent Site:- <i>{SITES.get(site)}</i></b>")
+                await editMessage(message, f"⏳ <b>Listing {endpoint} Items...</b>\n📍 <b>Site:</b> <i>{SITES.get(site)}</i>")
             else:
-                await editMessage(message, f"<b>Searching for <i>{key}</i>\nTorrent Site:- <i>{SITES.get(site)}</i></b>")
+                await editMessage(message, f"⏳ <b>Searching...</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{SITES.get(site)}</i>")
         else:
-            await editMessage(message, f"<b>Searching for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i></b>")
+            await editMessage(message, f"⏳ <b>Searching...</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site.capitalize()}</i>")
         await __search(key, site, message, method)
     else:
         await query.answer()

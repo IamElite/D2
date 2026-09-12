@@ -62,6 +62,32 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-I (built, push pending)
+**Git:** `pending`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py`
+
+**User instruction (real failure case):**
+- `/search one piece albarf arc` → "No result found" — 260912-H ka title-level correction multi-word query ke andar ek word typo (`albarf`→`alabasta`) pakad nahi paya.
+- UI complaints: "Searching" aur "No result" messages same-looking hain — alag style chahiye; correction dikhe (original query kya tha → kya correct hua); display SHORT rahe, kachra nahi.
+
+**Fix (3 parts):**
+1. **`__wordCorrect` layer (NEW):** har ≥5-char alpha word ka IMDb typeahead probe — context + word ke first 4 AUR 3 chars (dono parallel `gather`, empty pe 1 retry) → merged candidate pool → gates: word khud/plural-stem pool me maujood = known (skip); `len(w)≥len(token)-2` (anti-truncation); `SequenceMatcher.ratio()` ≥0.5 (≥8-char tokens pe ≥0.8) → **selection IMDb popularity `rank` se (min rank, tie = higher ratio)**.
+2. **Title-layer threshold 0.80→0.85:** borderline false-corrections block (jaise `attack on tittan season 2`→'Attack on Titan 2' @81%) — word layer ab use better banata hai (`attack on Titan season 2`).
+3. **Message restyle (short + visually distinct):** ⏳ Searching (query code-block me) / ✏️ Spelling Corrected (original pe strikethrough ➜ corrected code) / 🔁 correction se 0 mile to original retry / ❌ No Result Found (+💡 hint) / ✅ Found N result(s) / ⚠️ Search failed. Sab user input `escape()` hota hai.
+
+**Tuning me mile bugs (data-driven fix):**
+- `startswith` gate transposition typos maar deta tha: 'albarf'[:4]='alba' vs 'alabasta'[:4]='alab' → gate hataya; ratio+len+rank kaafi hain.
+- Suggestion API response vary karta hai (kabhi 'game of thor' me 'Game of Thrones' missing) → dual p4+p3 probes merge se nullify.
+- Best-score selection 'Thorns' (rank 676687, 92%) ko 'Thrones' (rank 22, 86%) se upar chunta → min-rank selection.
+- Truncation junk: 'discography'→'Disco'/'Disclosure' → len≥token-2 + long-word 0.8 floor se block.
+
+**Verification:**
+- 33-case matrix **×2 rounds = 0 BAD**: `one piece albarf arc`→`one piece Alabasta arc`, `game of thornes season 8`→`game of Thrones season 8`, `attack on tittan season 2`→`attack on Titan season 2`, `demon slayer infinit castel arc`→`demon slayer Infinity Castle arc` + poorani 26 title-cases + safety (ubuntu/windows iso, frieren, naruto, ac/dc → untouched).
+- Sandbox e2e: `/search one piece albarf arc` → ✏️ corrected → **878 results @14s** (top me real `[pushPOP] One Piece - 62-135 (Alabasta Arc)` pack).
+- py_compile PASS, zero comments ✓. Koi naya dependency nahi.
+
+
 ### 260912-H (built, pushed)
 **Git:** `45f738c`  
 **Date:** 2026-09-12  
