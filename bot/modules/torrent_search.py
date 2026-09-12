@@ -19,8 +19,18 @@ PLUGINS = []
 SITES = None
 TELEGRAPH_LIMIT = 300
 QB_ENGINE_BASE = 'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/'
+COMMUNITY_ENGINES = (
+    'https://raw.githubusercontent.com/MadeOfMagicAndWires/qBit-plugins/master/engines/nyaasi.py',
+    'https://raw.githubusercontent.com/AlaaBrahim/qBitTorrent-animetosho-search-plugin/main/animetosho.py',
+    'https://raw.githubusercontent.com/LightDestory/qBittorrent-Search-Plugins/master/src/engines/torrentdownload.py',
+    'https://raw.githubusercontent.com/LightDestory/qBittorrent-Search-Plugins/master/src/engines/snowfl.py',
+    'https://raw.githubusercontent.com/LightDestory/qBittorrent-Search-Plugins/master/src/engines/pirateiro.py',
+    'https://raw.githubusercontent.com/LightDestory/qBittorrent-Search-Plugins/master/src/engines/academictorrents.py',
+    'https://raw.githubusercontent.com/BurningMop/qBittorrent-Search-Plugins/refs/heads/main/torrentdownloads.py',
+    'https://raw.githubusercontent.com/BurningMop/qBittorrent-Search-Plugins/refs/heads/main/therarbg.py',
+)
 DEFAULT_SEARCH_PLUGINS = str([f'{QB_ENGINE_BASE}{n}.py' for n in (
-    'limetorrents', 'piratebay', 'torlock', 'torrentproject', 'torrentscsv', 'eztv')])
+    'limetorrents', 'piratebay', 'torlock', 'torrentproject', 'torrentscsv')] + list(COMMUNITY_ENGINES))
 
 
 async def initiate_search_tools():

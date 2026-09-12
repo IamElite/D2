@@ -62,6 +62,30 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-C (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py` (+14/-3)
+
+**User instruction:**
+- 260912-B me sites kam thi (6); purani API me 16 sites thi. Chahiye: **maximum available sites** + purane/deleted sites ke engine references mil sake to wo bhi add karo.
+
+**Work (research + LIVE sandbox testing, real qBit 5.1, datacenter IP):**
+1. `qbittorrent/search-plugins` wiki clone karke **94 community raw-engine URLs** nikale. Private/login-required (iptorrents, rutracker, kinozal, filelist, speedapp...), foreign-language (ES/FR/RU/ZH), adult aur flagged (✖/❗) engines shortlist se hataye → 26 candidates + 7 official.
+2. Sab **32 engines sandbox qBit pe install** karke per-engine LIVE matrix: anime (`dress up darling season 2`), movie (`inception 2010`), TV/game (`the last of us`, `cyberpunk 2077`).
+3. **Winners (13 final):** official 5 (limetorrents 76✓, piratebay 100✓, torlock 400✓, torrentproject 3✓, torrentscsv 25✓) + community 8: **nyaasi 119@3s** (MadeOfMagicAndWires fork — official registry se deleted tha, wiki reference se mila), **animetosho 75@1s**, **torrentdownload 489@14s**, **torrentdownloads 992@~20s** (BurningMop), **therarbg 94** (RARBG ka poora DB, slow par unique coverage), **snowfl 39@6s**, **pirateiro 5@2s**, **academictorrents 38@1s** (LightDestory).
+4. **Dead confirm → exclude:** eztv + eztvx (engine broken — TV query pe 1s me 0; purani default se hataya), solidtorrents (official + BurningMop dono 0), bitsearch (25s+ timeout, redundant), magnetdl/torrentgalaxy/kickasstorrents (Cloudflare wall), anidex, bakabt, nyaa (phuong fork broken), btdig, glotorrents, torrentclaw, yourbittorrent, zooqle, cloudtorrents, fitgirl/dodi repacks (0 dono queries pe). LightDestory `thepiratebay` 100@1s WORKING tha par official `piratebay` ke duplicate button ki wajah se nahi liya.
+5. `DEFAULT_SEARCH_PLUGINS` = 13 engines, **sab raw URLs** (name-based install broken — 260912-B proof). Code me `COMMUNITY_ENGINES` tuple alag — future me engine add/remove karna ek-line ka kaam.
+
+**Verification (LIVE, exact shipping list se):**
+- Sandbox me sab uninstall → sirf code wale 13 URLs install → **13/13 installed**.
+- `plugins='all'` + `dress up darling season 2` → **total=1910, 16.1s** (top: `My Dress Up Darling S02E07 [343S]`, `[Judas] batch [236S]`) — pehle 6-engine set pe 79 tha.
+- `plugins='all'` + `inception 2010` → **total=2395, 54.2s** (therarbg+torrentdownloads slow hain; per-site buttons fast, sirf 'All' button slow).
+- `py_compile` PASS, pure code rule ✓ (zero comments).
+
+**Coverage vs old API (16 sites):** ab live: torlock, piratebay, nyaasi, limetorrents, torrentproject + NEW animetosho, torrentdownload, torrentdownloads, therarbg(RARBG DB), snowfl, pirateiro, academictorrents, torrentscsv = **13 working**. Jo miss hain: 1337x/tgx/magnetdl/kickass = Cloudflare (sab known engines broken, wiki + Reddit 2025 reports), zooqle/glodls/yts = sites hi dead.
+
+
 ### 260912-B (built, pushed)
 **Git:** `931a211`  
 **Date:** 2026-09-12  
