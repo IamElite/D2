@@ -112,7 +112,7 @@ GDFLIX_HOST = re.compile(r'(?:^|\.)(?:gdflix|gdlink)\.[a-z]{2,}$')
 BUZZHEAVIER_HOST = re.compile(r'(?:^|\.)(?:buzzheavier|bzzhr|fuckingfast)\.[a-z]{2,}$')
 STREAMTAPE_HOST = re.compile(r'(?:^|\.)(?:streamtape|streamta|tpead|tapead|strcloud|strtape|scloud)\.[a-z]{2,}$')
 MULTICLOUD_HOST = re.compile(r'(?:^|\.)multicloudlinks\.[a-z]{2,}$')
-HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn)\.[a-z]{2,}$')
+HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn|vcloud)\.[a-z]{2,}$')
 DOTFLIX_HOST = re.compile(r'(?:^|\.)(?:dotflix|dtflix)\.[a-z]{2,}$')
 FASTDL_HOST = re.compile(r'(?:^|\.)(?:fastdl)\.[a-z]{2,}$')
 NEXDRIVE_HOST = re.compile(r'(?:^|\.)(?:nexdrive)\.[a-z]{2,}$')
@@ -780,6 +780,39 @@ def hubcloud(url, _depth=0):
             link = hubcloud_bypass_page(session, bypass_m.group(0).replace('&amp;', '&'), url)
             if link:
                 return link
+        atob_double = search(r'atob\(atob\(["\']([A-Za-z0-9+/=]+)["\']\)\)', text)
+        atob_single = search(r'atob\(["\']([A-Za-z0-9+/=]+)["\']\)', text)
+        token_url = None
+        if atob_double:
+            try:
+                token_url = b64decode(b64decode(atob_double.group(1)).decode()).decode()
+            except Exception:
+                pass
+        elif atob_single:
+            try:
+                token_url = b64decode(atob_single.group(1)).decode()
+            except Exception:
+                pass
+        if token_url and token_url.startswith('http'):
+            try:
+                r2 = session.get(token_url, timeout=25)
+                if r2.status_code == 200:
+                    html2 = HTML(r2.text)
+                    cands = html2.xpath("//a[contains(@href, 'r2.dev') or contains(@href, 'pixeldrain') or contains(@href, 'workers.dev') or contains(@href, 'download') or contains(@href, 'fsl')]/@href")
+                    for c in cands:
+                        if c.startswith('http'):
+                            if any(x in c for x in ['r2.dev', 'googleusercontent.com', 'workers.dev']):
+                                return c
+                    for c in cands:
+                        if c.startswith('http'):
+                            if 'pixeldrain' in c:
+                                try:
+                                    return pixeldrain(c)
+                                except Exception:
+                                    return c
+                            return c
+            except Exception:
+                pass
         html = HTML(text)
         instant = html.xpath("//a[contains(@href, 'instant') or contains(@href, 'download')]/@href")
         for l in instant:
@@ -1255,14 +1288,16 @@ def nexdrive(url):
                 return fastdl(fastdl_match.group(1))
             except Exception:
                 pass
+        if hubcloud_match:
+            try:
+                link = hubcloud(hubcloud_match.group(1))
+                if link:
+                    return link
+            except Exception:
+                pass
         if filepress_match:
             try:
                 return filepress(filepress_match.group(1))
-            except Exception:
-                pass
-        if hubcloud_match:
-            try:
-                return hubcloud(hubcloud_match.group(1))
             except Exception:
                 pass
         all_links = re.findall(r'href=["\'](https?://[^"\']+)["\']', html_text)
