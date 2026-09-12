@@ -449,8 +449,8 @@ async def format_filename(file_, user_id, dirpath=None, isMirror=False, has_cust
         suffix = suffix.replace('\s', ' ')
         file_ = f"{ospath.splitext(file_)[0]}{suffix}{ospath.splitext(file_)[1]}" if '.' in file_ else f"{file_}{suffix}"
 
-    cap_font = config_dict.get('CAP_FONT', '')
-    cap_mono = f"<{cap_font}>{nfile_}</{cap_font}>" if cap_font else nfile_
+    cap_font = config_dict.get('CAP_FONT', 'b') or 'b'
+    cap_mono = f"<{cap_font}>{nfile_}</{cap_font}>"
     
     if lcaption and dirpath and not isMirror:
         def lowerVars(match):

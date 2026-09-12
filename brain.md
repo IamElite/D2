@@ -62,6 +62,26 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-Q (built, pushed)
+**Git:** `81afa7c`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/ext_utils/leech_utils.py`, `bot/__init__.py`, `bot/modules/bot_settings.py`  
+
+**User instruction:**
+- "use ko ja file send ya dump m file jata h uska caption default h to usse bold karna h"
+
+**Problem:**
+- Jab koi custom caption set nahi hota tha, aur `CAP_FONT` empty ya unset hota tha, tab files plain text format me send hoti thin (`cap_mono = nfile_`). Dump channel aur bot PM me filename bold nahi hota tha.
+
+**Fix:**
+- In `bot/helper/ext_utils/leech_utils.py`: `cap_font = config_dict.get('CAP_FONT', 'b') or 'b'`, `cap_mono = f"<{cap_font}>{nfile_}</{cap_font}>"`. Default caption ab hamesha bold `<b>filename</b>` format me wrap hota hai.
+- In `bot/__init__.py` & `bot/modules/bot_settings.py`: Set default `CAP_FONT = 'b'` instead of empty string `''`.
+- Zero comments rule (Rule 8) preserved.
+
+**Verification:**
+- `py_compile` across all modified files: 100% PASS with 0 errors.
+
+
 ### 260912-P (built, pushed)
 **Git:** `9b477a5`  
 **Date:** 2026-09-12  
