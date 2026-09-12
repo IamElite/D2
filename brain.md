@@ -62,6 +62,25 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-T (built, pushed)
+**Git:** `7d8af6f`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+
+**User instruction:**
+- Diagnose and fix why `https://nexdrive.fit/genxfm784776507417/` printed `ERROR: Could not resolve any download server from Nexdrive page` on Heroku.
+
+**Root-Cause & Fix:**
+1. **Heroku Dyno Restart timing:** Heroku took ~3 minutes to rebuild the container after git push, while the test was executed at 11:19:14 PM before the dyno had loaded the fresh code.
+2. **Missing Referer & Script Extraction:** Added `Referer: url` and `User-Agent: user_agent` to `token_url` request in `hubcloud()` to prevent hotlink blocks on datacenter IPs, and added fallback regex for `var pxl = "https://pixeldrain.dev/..."` in case the DOM link is rendered dynamically.
+3. **Transparent Error Diagnostics:** Replaced silent `except Exception: pass` in `nexdrive()` with `last_error` tracking so that any underlying host failure is clearly reported rather than masked by a generic message.
+4. Preserved Rule 8: Zero comments added.
+
+**Verification:**
+- `py_compile` 100% PASS with 0 errors.
+- Live test on `https://nexdrive.fit/genxfm784776507417/`: successfully resolved to `https://pub-9d13d26014a74575b8b7ffa7bbf53a77.r2.dev/1fb636fc07c68d3179a37b05d1893ef4?token=1789233124` (HTTP 200, 4.11 GB).
+
+
 ### 260912-S (built, pushed)
 **Git:** `470ae3b`  
 **Date:** 2026-09-12  
