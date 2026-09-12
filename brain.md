@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-N (built)
-**Git:** `PENDING`  
+### 260912-N (built, pushed)
+**Git:** `adeef16`  
 **Date:** 2026-09-12  
 **Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`
 
@@ -86,7 +86,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - Expired new2 link → clean `ERROR: DOTFLIX: Sharing link not found or not completed` (cross-host fallback store API tak pahuncha) ✓; bad format → clean error ✓.
 - py_compile PASS, naye code me zero comments, koi nayi dependency nahi (requests pehle se imported) ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `adeef16` → `arnv1`.
 
 
 ### 260912-M (built, pushed)
