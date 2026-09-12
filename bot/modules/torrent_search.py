@@ -318,6 +318,30 @@ def __searchVariants(key):
     return variants, ep, broad
 
 
+def __seedOf(r, method):
+    if method.startswith('api'):
+        if not isinstance(r, dict):
+            return None
+        v = r.get('seeders', r.get('seeds'))
+    else:
+        v = getattr(r, 'nbSeeders', None)
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def __activeFilter(results, method):
+    seeds = [__seedOf(r, method) for r in results]
+    known = [s for s in seeds if s is not None]
+    if not known:
+        return list(results), 0, False
+    active = [(s, r) for s, r in zip(seeds, results) if s is not None and s > 0]
+    active.sort(key=lambda t: t[0], reverse=True)
+    show = [r for _, r in active]
+    return show, len(results) - len(show), True
+
+
 def __epNote(results, method, ep, words=()):
     if not ep:
         return None
@@ -346,14 +370,15 @@ def __epNote(results, method, ep, words=()):
     return f"⚠️ <b>Episode {epn} not found in these results</b>"
 
 
-async def __finishResults(search_results, total, key, site, message, method, note=None):
+async def __finishResults(search_results, total, key, site, message, method, note=None, filtered=False):
     site_label = SITES.get(site) if method.startswith('api') else str(site).capitalize()
+    act = ' active' if filtered else ''
     if method == 'apitrend':
-        msg = f"🔥 <b>Found {min(total, TELEGRAPH_LIMIT)} trending result(s)</b>\n📍 <b>Site:</b> <i>{site_label}</i>"
+        msg = f"🔥 <b>Found {min(total, TELEGRAPH_LIMIT)} trending{act} result(s)</b>\n📍 <b>Site:</b> <i>{site_label}</i>"
     elif method == 'apirecent':
-        msg = f"🆕 <b>Found {min(total, TELEGRAPH_LIMIT)} recent result(s)</b>\n📍 <b>Site:</b> <i>{site_label}</i>"
+        msg = f"🆕 <b>Found {min(total, TELEGRAPH_LIMIT)} recent{act} result(s)</b>\n📍 <b>Site:</b> <i>{site_label}</i>"
     else:
-        msg = f"✅ <b>Found {min(total, TELEGRAPH_LIMIT)} result(s)</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site_label}</i>"
+        msg = f"✅ <b>Found {min(total, TELEGRAPH_LIMIT)}{act} result(s)</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site_label}</i>"
     if note:
         msg = f'{note}\n{msg}'
     link = await __getResult(search_results, key, message, method)
@@ -383,9 +408,10 @@ def __qbMulti(client, keys, site):
     for k, sid in jobs.items():
         try:
             r = client.search_results(search_id=sid, limit=TELEGRAPH_LIMIT)
-            out[k] = (r.total, r.results)
+            show, _, filtered = __activeFilter(r.results, 'plugin')
+            out[k] = (len(show), show, len(r.results), filtered)
         except Exception:
-            out[k] = (0, [])
+            out[k] = (0, [], 0, False)
         try:
             client.search_delete(search_id=sid)
         except Exception:
@@ -407,10 +433,12 @@ async def __apiMulti(keys, site):
             async with session.get(api) as res:
                 data = await res.json()
             if 'error' in data:
-                return k, (0, [])
-            return k, (data.get('total', 0), data.get('data', []))
+                return k, (0, [], 0, False)
+            items = data.get('data', [])
+            show, _, filtered = __activeFilter(items, 'apisearch')
+            return k, (len(show), show, len(items), filtered)
         except Exception:
-            return k, (0, [])
+            return k, (0, [], 0, False)
 
     async with ClientSession(trust_env=True) as session:
         for k, v in await gather(*(fetch(session, k) for k in keys)):
@@ -440,24 +468,29 @@ async def __variantSearch(variants, broad, ep, ep_words, site, message, method):
     except Exception as e:
         LOGGER.error(f'Variant search failed: {e}')
         return False
+    any_dead = False
     for k in keys:
+        total, res, raw, filtered = results.get(k, (0, [], 0, False))
+        if raw > 0 and total == 0:
+            any_dead = True
         if broad and k == broad:
             continue
-        total, res = results.get(k, (0, []))
         if total > 0 and (not ep or __epNote(res, method, ep, ep_words) is None):
-            await __finishResults(res, total, k, site, message, method)
+            await __finishResults(res, total, k, site, message, method, filtered=filtered)
             return True
     if ep and broad:
         pass2 = [broad] + [k for k in keys if k != broad]
     else:
         pass2 = keys
     for k in pass2:
-        total, res = results.get(k, (0, []))
+        total, res, raw, filtered = results.get(k, (0, [], 0, False))
+        if raw > 0 and total == 0:
+            any_dead = True
         if total > 0:
             note = __epNote(res, method, ep, ep_words) if ep else None
-            await __finishResults(res, total, k, site, message, method, note=note)
+            await __finishResults(res, total, k, site, message, method, note=note, filtered=filtered)
             return True
-    return False
+    return 'dead' if any_dead else False
 
 
 async def __search(key, site, message, method):
@@ -483,22 +516,30 @@ async def __search(key, site, message, method):
             ep_words = c_words
     skip_base = bool(ep and variants and
                      not re.search(r'(?i)\bseasons?\s*\d|\bs\d{1,2}e\d', key))
+    statuses = []
     if not skip_base:
         if corrected:
-            if await __doSearch(corrected, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words):
-                return
+            r = await __doSearch(corrected, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
         else:
-            if await __doSearch(key, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words):
-                return
-    if (variants or broad) and await __variantSearch(variants, broad, ep, ep_words, site, message, method):
-        return
+            r = await __doSearch(key, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
+        if r is True:
+            return
+        statuses.append(r)
+    if variants or broad:
+        r = await __variantSearch(variants, broad, ep, ep_words, site, message, method)
+        if r is True:
+            return
+        statuses.append(r)
     if corrected and not skip_base:
         await editMessage(message, f"🔁 <b>Correction gave no result</b>\n⏳ Searching original: <code>{escape(str(key))}</code>")
-        if await __doSearch(key, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words):
+        r = await __doSearch(key, site, message, method, silent_miss=True, ep=ep, ep_words=ep_words)
+        if r is True:
             return
+        statuses.append(r)
     site_label = SITES.get(site) if method.startswith('api') else str(site).capitalize()
     hint = f"\n📺 <i>Episode {int(ep)} may not be released yet</i>" if ep else ''
-    await editMessage(message, f"❌ <b>No Result Found</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site_label}</i>\n💡 <i>Try different or fewer keywords</i>{hint}")
+    dead_line = '\n💀 <i>Found results but all dead (0 seeders)</i>' if 'dead' in statuses else ''
+    await editMessage(message, f"❌ <b>No Result Found</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site_label}</i>\n💡 <i>Try different or fewer keywords</i>{hint}{dead_line}")
 
 
 async def __doSearch(key, site, message, method, silent_miss=False, ep=None, ep_words=()):
@@ -534,6 +575,14 @@ async def __doSearch(key, site, message, method, silent_miss=False, ep=None, ep_
                 return False
             total = search_results['total']
             search_results = search_results['data']
+            show, dead, filtered = __activeFilter(search_results, method)
+            if not show:
+                if not silent_miss:
+                    site_label = SITES.get(site)
+                    await editMessage(message, f"❌ <b>No Result Found</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{site_label}</i>\n💀 <i>Found {total} result(s) but all dead (0 seeders)</i>")
+                return 'dead' if dead else False
+            search_results = show
+            total = len(show)
         except Exception as e:
             await editMessage(message, f"⚠️ <b>Search failed</b>\n🔎 <code>{escape(str(key))}</code>\n<code>{str(e)[:200]}</code>")
             return False
@@ -569,10 +618,17 @@ async def __doSearch(key, site, message, method, silent_miss=False, ep=None, ep_
             await sync_to_async(client.auth_log_out)
         except Exception:
             pass
+        show, dead, filtered = __activeFilter(search_results, method)
+        if not show:
+            if not silent_miss:
+                await editMessage(message, f"❌ <b>No Result Found</b>\n🔎 <code>{escape(str(key))}</code>\n📍 <b>Site:</b> <i>{str(site).capitalize()}</i>\n💀 <i>Found {total} result(s) but all dead (0 seeders)</i>")
+            return 'dead' if dead else False
+        search_results = show
+        total = len(show)
     note = __epNote(search_results, method, ep, ep_words) if ep else None
     if ep and note is not None:
         return False
-    await __finishResults(search_results, total, key, site, message, method, note=note)
+    await __finishResults(search_results, total, key, site, message, method, note=note, filtered=filtered)
     return True
 
 

@@ -62,6 +62,32 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-L (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py`  
+**OLD: 260912-K** (K ke search flow pe active-only filtering add hui)
+
+**User instruction (real failure):**
+- "Bahut sari dead link mil raha hai — koi is par kuch karo, only active hi link mile."
+
+**Fix:**
+- `__seedOf` + `__activeFilter`: har result ka seeder data padho (plugin: `nbSeeders`, API: `seeders`/`seeds`) → **sirf seeds>0 wale results dikhte hain**, **seeders-descending sorted** (sabse strong links telegraph page me sabse upar).
+- No-data safety: engine seeder info hi na de (sab None) → sab results keep hote hain (koi false-drop nahi); API ka nested `torrents` format bhi safe.
+- All-dead detection: raw results >0 par sab 0-seed → stage ko miss treat karo (`'dead'` status) → variants/next stage ko mauka; final me kuch na mile: `❌ ... 💀 Found results but all dead (0 seeders)`.
+- `__qbMulti`/`__apiMulti` per-key filter karte hain → variant selection ACTIVE count pe hoti hai (all-dead variant agle variant se haar jata hai).
+- `__epNote` active list pe chalta hai → "closest available" = closest ACTIVE episode.
+- Message: `✅ Found N active result(s)` (filtered=true par hi 'active' word).
+- Trending/Recent (API) pe bhi same filter apply.
+
+**Verification:**
+- `__activeFilter` unit tests: mixed → filter+sort ✓; all-dead → empty+dead=2 ✓; api dicts ✓; no-data → keep-all+filtered=False ✓.
+- Sandbox e2e (qBit 5.2.3 static, 15 engines, rig rebuild kiya — profile `/tmp/qbtest`, WebUI port flag `--webui-port`, plugins `<profile>/qBittorrent/data/nova3/engines/`): `inception` → **276 active, zero-seed=0, sorted_desc=True, top=1474 seeds**; `one piece episode 1177` → 🔧 variants → **212 active (top 948 seeds)**; `one piece episode 1200` → ⚠️ smart-miss + **213 active (top 5265 seeds)**.
+- py_compile PASS, zero comments, stdlib-only ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
+
 ### 260912-K (built, pushed)
 **Git:** `046205f`  
 **Date:** 2026-09-12  
