@@ -62,8 +62,45 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-G (built, pushed)
+### 260912-H (built, push pending)
 **Git:** `pending`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py`
+
+**User instruction:**
+- "Search karte time user spelling mistake kar raha h" — DreamXBotz/Auto_Filter_Bot repo wala AI spell check apne torrent search me add karna tha.
+- Follow-up: "Bina extra rapidfuzz install ke python ka use karke banao" → **zero new dependencies** (stdlib only).
+
+**Research:**
+- Ref repo ka flow: IMDb `search_movie` (cinemagoer) → `rapidfuzz process.extractOne` score >80 → corrected title se search ("✅ AI Suggested: X, Searching for it...").
+- Hamara OMDB (imdb.py wala) typos pe "Movie not found!" deta hai — useless for this.
+- **IMDb suggestion API** (`https://v2.sg.media-imdb.com/suggestion/{letter}/{query}.json`) — keyless, typo-tolerant (`incpetion`→Inception, `my dres up darlin`→My Dress-Up Darling), datacenter IP se kaam karta hai, ~0.5s → yeh choose kiya. Scorer: ref repo `rapidfuzz` use karta hai, hamara version stdlib `difflib.SequenceMatcher` — dono ka formula same (2·M/(len₁+len₂)), isliye >80 threshold tuning identical chalti hai.
+
+**Implementation:**
+- `__spellCorrect(key)` helper + `__search` ab orchestrator hai, purana body `__doSearch(key, site, message, method, silent_miss=False)` me extract hua (True/False return).
+- Flow: search se pehle spell check → correction mila to "✅ AI Suggested: <title> / 🔍 Searching for it..." → corrected search; corrected me 0 results mile to "🔁 searching original..." fallback → original search. Sirf `apisearch`/`plugin` methods pe (trend/recent skip).
+- Koi naya dependency NAHI — sirf stdlib (`difflib`, `aiohttp`, `urllib.parse` pehle se the). requirements.txt untouched.
+
+**Safety gates (sab live-test karke tune kiye):**
+- Full-string ratio scorer (`SequenceMatcher.ratio() > 0.8`) — partial-match scorers (WRatio) junk dete the (`frieren`→'Kleine frieren auch im Sommer', `ac/dc discography`→'Discography').
+- API ke apne rank order me pehla >80 match — `extractOne` obscure 'Interstelar' ko 'Interstellar' se upar chunta tha.
+- `qid` whitelist (movie/tv/short/video/videoGame) — podcast-episode junk ('The Last of Us Part 2//#1') block.
+- Exact-title early-exit — `one piece`→'The One Piece', `inception 2010`→'Deception 2010' false corrections block.
+- Punctuation-only-difference skip — `avengers endgame`≡'Avengers: Endgame' pe bekar re-search nahi.
+- Substring rejections dono taraf; len<4 ya special-char start skip; 6s timeout + 1 retry (silent 429/CDN flake ke liye).
+
+**Known tradeoff:** `interstelar` → None, kyunki IMDb pe 'Interstelar' (ek 'l') naam ki real movie maujood hai — query exact canonical title match karta hai to hum correct nahi karte (conservative by design).
+
+**Verification:**
+- 26-case matrix: **26/26** (`interstelar`→None ab expected hai, tradeoff note ke mutabik); matrix **rapidfuzz uninstall karke** dobara chalayi → 26/26 (proof ki stdlib path hi chalta hai).
+- Sandbox qBit e2e (15 engines): `incpetion` → AI Suggested 'Inception' → **2502 results** (bina correction ke sirf 58 junk "Incpetion 3D" milte the); `game of thornes` → 'Game of Thrones' **3056**; `ubuntu 22.04` → koi correction nahi, original search untouched.
+- py_compile PASS, zero comments ✓.
+
+**Pending:** 260912-G (`81cc2cf`) + yeh commit — dono push PAT ke bina nahi ho sakte (sandbox se PAT wipe ho chuka).
+
+
+### 260912-G (built, push pending)
+**Git:** `81cc2cf`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py` (+1)
 

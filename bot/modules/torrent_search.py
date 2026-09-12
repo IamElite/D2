@@ -3,9 +3,10 @@ from asyncio import sleep
 
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 from html import escape
 from urllib.parse import quote
+from difflib import SequenceMatcher
 
 from .. import bot, LOGGER, config_dict, get_client
 from ..helper.telegram_helper.message_utils import editMessage, sendMessage
@@ -75,7 +76,66 @@ async def initiate_search_tools():
         LOGGER.error(f'Search tools init failed: {e}')
 
 
+async def __spellCorrect(key):
+    query = key.strip().lower()
+    if len(query) < 4 or not query[0].isalnum():
+        return None
+    url = f"https://v2.sg.media-imdb.com/suggestion/{query[0]}/{quote(query, safe='')}.json"
+    try:
+        titles = []
+        allowed = {'movie', 'tvMovie', 'tvSeries', 'tvMiniSeries',
+                   'tvSpecial', 'tvShort', 'short', 'video', 'videoGame'}
+        async with ClientSession(trust_env=True, timeout=ClientTimeout(total=6)) as session:
+            for attempt in range(2):
+                async with session.get(url, headers={'User-Agent': 'Mozilla/5.0'}) as res:
+                    data = await res.json(content_type=None)
+                for item in data.get('d', []):
+                    if not str(item.get('id', '')).startswith('tt'):
+                        continue
+                    qid = item.get('qid')
+                    if qid is not None and qid not in allowed:
+                        continue
+                    title = item.get('l')
+                    if not title:
+                        continue
+                    titles.append(title.strip())
+                    if item.get('y'):
+                        titles.append(f"{title.strip()} {item['y']}")
+                if titles or attempt:
+                    break
+                await sleep(1)
+        if not titles:
+            return None
+        normalized_titles = [t.lower() for t in titles]
+        alnum_query = ''.join(filter(str.isalnum, query))
+        if any(''.join(filter(str.isalnum, t)) == alnum_query for t in normalized_titles):
+            return None
+        for title, normalized in zip(titles, normalized_titles):
+            if normalized in query or query in normalized:
+                continue
+            if ''.join(filter(str.isalnum, normalized)) == alnum_query:
+                continue
+            if SequenceMatcher(None, query, normalized).ratio() > 0.8:
+                return title
+        return None
+    except Exception as e:
+        LOGGER.error(f'Spell check failed: {e}')
+        return None
+
+
 async def __search(key, site, message, method):
+    corrected = None
+    if key and method in ('apisearch', 'plugin'):
+        corrected = await __spellCorrect(key)
+    if corrected:
+        await editMessage(message, f"✅ <b>AI Suggested:</b> <code>{escape(corrected)}</code>\n🔍 <b>Searching for it...</b>")
+        if await __doSearch(corrected, site, message, method, silent_miss=True):
+            return
+        await editMessage(message, "🔁 <b>No result for suggestion, searching original...</b>")
+    await __doSearch(key, site, message, method)
+
+
+async def __doSearch(key, site, message, method, silent_miss=False):
     if method.startswith('api'):
         SEARCH_API_LINK = config_dict['SEARCH_API_LINK']
         SEARCH_LIMIT = config_dict['SEARCH_LIMIT']
@@ -102,8 +162,9 @@ async def __search(key, site, message, method):
                 async with c.get(api) as res:
                     search_results = await res.json()
             if 'error' in search_results or search_results['total'] == 0:
-                await editMessage(message, f"No result found for <i>{key}</i>\nTorrent Site:- <i>{SITES.get(site)}</i>")
-                return
+                if not silent_miss:
+                    await editMessage(message, f"No result found for <i>{key}</i>\nTorrent Site:- <i>{SITES.get(site)}</i>")
+                return False
             msg = f"<b>Found {min(search_results['total'], TELEGRAPH_LIMIT)}</b>"
             if method == 'apitrend':
                 msg += f" <b>trending result(s)\nTorrent Site:- <i>{SITES.get(site)}</i></b>"
@@ -113,8 +174,9 @@ async def __search(key, site, message, method):
                 msg += f" <b>result(s) for <i>{key}</i>\nTorrent Site:- <i>{SITES.get(site)}</i></b>"
             search_results = search_results['data']
         except Exception as e:
-            await editMessage(message, str(e))
-            return
+            if not silent_miss:
+                await editMessage(message, str(e))
+            return False
     else:
         from ..helper.ext_utils.engine_lifecycle import ensure_qbit
         LOGGER.info(f"PLUGINS Searching: {key} from {site}")
@@ -131,13 +193,15 @@ async def __search(key, site, message, method):
                 await sleep(1)
             dict_search_results = await sync_to_async(client.search_results, search_id=search_id, limit=TELEGRAPH_LIMIT)
         except Exception as e:
-            await editMessage(message, f'ERROR: {e}')
-            return
+            if not silent_miss:
+                await editMessage(message, f'ERROR: {e}')
+            return False
         search_results = dict_search_results.results
         total_results = dict_search_results.total
         if total_results == 0:
-            await editMessage(message, f"No result found for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i>")
-            return
+            if not silent_miss:
+                await editMessage(message, f"No result found for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i>")
+            return False
         msg = f"<b>Found {min(total_results, TELEGRAPH_LIMIT)}</b>"
         msg += f" <b>result(s) for <i>{key}</i>\nTorrent Site:- <i>{site.capitalize()}</i></b>"
         try:
@@ -153,6 +217,7 @@ async def __search(key, site, message, method):
     buttons.ubutton("🔎 VIEW", link)
     button = buttons.build_menu(1)
     await editMessage(message, msg, button)
+    return True
 
 
 async def __getResult(search_results, key, message, method):
