@@ -63,7 +63,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260912-F (built, pushed)
-**Git:** `PENDING`  
+**Git:** `1e5beaa`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py` (+1)
 
