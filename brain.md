@@ -62,6 +62,32 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-S (built, pushed)
+**Git:** `470ae3b`  
+**Date:** 2026-09-12  
+**Files:** `bot/helper/mirror_utils/download_utils/direct_link_generator.py`  
+
+**User instruction:**
+- Fix `https://nexdrive.fit/genxfm784776507417/` failing with `ERROR: Could not resolve any download server from Nexdrive page`.
+
+**Problem:**
+- `nexdrive.fit` page contained V-Cloud (`vcloud.fit`), V-Drive (`vegadrive`), and Filepress (`filebee.xyz`).
+- (1) `vcloud` was missing from `HUBCLOUD_HOST` regex, so direct links and candidate matches did not route to `hubcloud`.
+- (2) `vcloud.fit` does not display instant `<a>` download links on the landing page; it generates a token URL via double-atob base64 encoded JavaScript (`atob(atob('...'))`), which navigates to a token page containing direct Cloudflare R2 (`.r2.dev`) and Pixeldrain streams.
+- (3) In `nexdrive()`, `filepress_match` was checked before `hubcloud_match`, and since `filebee.xyz` recently converted to a React SPA breaking its old POST endpoint, it prevented falling through cleanly to the fast V-Cloud stream.
+
+**Fix:**
+- Added `vcloud` to `HUBCLOUD_HOST` regex: `re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn|vcloud)\.[a-z]{2,}$')`.
+- Implemented `atob` token decode in `hubcloud()`: extracts double/single base64 encoded token URLs, fetches token landing page, and yields high-speed Cloudflare R2 / Pixeldrain direct download stream URLs.
+- Prioritized `hubcloud`/`vcloud` over `filepress` in `nexdrive()` resolver.
+- Rule 8 preserved: Zero comments added.
+
+**Verification:**
+- `py_compile` 100% PASS with 0 errors.
+- Live test on `https://nexdrive.fit/genxfm784776507417/`: successfully extracts direct Cloudflare R2 stream URL (`https://pub-9d13d26014a74575b8b7ffa7bbf53a77.r2.dev/1fb636fc07c68d3179a37b05d1893ef4?token=1789233124`, HTTP 200, 4.11 GB).
+- Live test on previous link `https://nexdrive.fit/genxfm784776507403/`: also extracts direct R2 stream URL (`https://pub-9d13d26014a74575b8b7ffa7bbf53a77.r2.dev/893fd0dc919fb5bdc4aae59a69d98019?token=1789232707`).
+
+
 ### 260912-R (built, pushed)
 **Git:** `953b165`  
 **Date:** 2026-09-12  
