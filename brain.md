@@ -63,7 +63,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260912-E (built, pushed)
-**Git:** `PENDING`  
+**Git:** `ecd55c2`  
 **Date:** 2026-09-12  
 **Files:** `bot/__main__.py`, `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/mega_download.py`, `bot/modules/gen_pyro_sess.py`, `bot/modules/users_settings.py`, `bot/helper/themes/kpsml_minimal.py → syntax_minimal.py` (rename), `bot/helper/themes/__init__.py`, `bot/helper/themes/README.md`, `bot/modules/bot_settings.py`
 
