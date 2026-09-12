@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260912-J (built, push pending)
-**Git:** `pending`  
+### 260912-J (built, pushed)
+**Git:** `ca60eec`  
 **Date:** 2026-09-12  
 **Files:** `bot/modules/torrent_search.py`  
 **OLD: 260912-I** (word-correction ka oracle badla — IMDb-only galat answers deta tha)
@@ -91,6 +91,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - **34-case matrix ×2 rounds = 0 BAD** — sab important: `one piece albarf arc`→`one piece elbaf arc` ✓, `game of thornes season 8`→`game of Thrones season 8` ✓, `attack on tittan season 2`→`attack on Titan season 2` ✓, `demon slayer infinit castel arc`→`demon slayer Infinity Castle arc` ✓; safety: ubuntu/windows iso, ac/dc discography, one piece, frieren, naruto shippuden, solo leveling → untouched ✓; pura 26-case title-regression suite pass ✓.
 - Sandbox e2e: `/search one piece albarf arc` → ✏️ `one piece elbaf arc` → **949 results @21s, 18 Elbaf episodes** (`[Naruto-Kun.Hu] One Piece (Elbaf arc) - 1174 [1080p]` etc.).
 - py_compile PASS, zero comments, zero naye dependencies ✓.
+
+**Pushed:** `ca60eec` → `arnv1`.
 
 
 ### 260912-I (built, pushed)
