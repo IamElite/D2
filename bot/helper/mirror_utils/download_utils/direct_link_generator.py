@@ -116,10 +116,11 @@ HUBCLOUD_HOST = re.compile(r'(?:^|\.)(?:hubcloud|drivehub|hubdrive|hubcdn|vcloud
 DOTFLIX_HOST = re.compile(r'(?:^|\.)(?:dotflix|dtflix)\.[a-z]{2,}$')
 FASTDL_HOST = re.compile(r'(?:^|\.)(?:fastdl)\.[a-z]{2,}$')
 NEXDRIVE_HOST = re.compile(r'(?:^|\.)(?:nexdrive)\.[a-z]{2,}$')
+VCLOUD_HOST = re.compile(r'(?:^|\.)(?:vcloud)\.[a-z]{2,}$')
 
 SUPPORTED_HOST_REGEXES = (
     GDFLIX_HOST, BUZZHEAVIER_HOST, STREAMTAPE_HOST, MULTICLOUD_HOST,
-    HUBCLOUD_HOST, DOTFLIX_HOST, FASTDL_HOST, NEXDRIVE_HOST
+    HUBCLOUD_HOST, DOTFLIX_HOST, FASTDL_HOST, NEXDRIVE_HOST, VCLOUD_HOST
 )
 
 KNOWN_DIRECT_DOMAINS = (
@@ -212,6 +213,8 @@ def direct_link_generator(link, _depth=0):
         return fastdl(link)
     elif NEXDRIVE_HOST.search(domain or ''):
         return nexdrive(link)
+    elif VCLOUD_HOST.search(domain or ''):
+        return vcloud(link)
     elif '10drives.com' in domain:
         raise DirectDownloadLinkException('ERROR: 10drives is protected by Cloudflare Turnstile captcha and cannot be bypassed server-side')
     elif any(x in domain for x in ['wetransfer.com', 'we.tl']):
@@ -229,7 +232,7 @@ def direct_link_generator(link, _depth=0):
     elif is_share_link(link):
         if 'gdtot' in domain:
             return gdtot(link)
-        elif 'filepress' in domain:
+        elif 'filepress' in domain or 'filebee' in domain:
             return filepress(link)
         elif 'www.jiodrive' in domain:
             return jiodrive(link)
@@ -1279,6 +1282,91 @@ def fastdl(url):
         return target
 
 
+def vcloud(url):
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    }
+    text = None
+    try:
+        from curl_cffi.requests import Session as CurlSession
+        with CurlSession(impersonate='chrome120') as cs:
+            r = cs.get(url, headers=headers, timeout=20)
+            if r.status_code == 200 and len(r.text) > 200:
+                text = r.text
+    except Exception:
+        pass
+    if not text:
+        try:
+            with create_scraper() as ss:
+                r = ss.get(url, headers=headers, timeout=20)
+                if r.status_code == 200 and len(r.text) > 200:
+                    text = r.text
+        except Exception:
+            pass
+    if not text:
+        try:
+            with Session() as rs:
+                r = rs.get(url, headers=headers, timeout=20)
+                if r.status_code == 200 and len(r.text) > 200:
+                    text = r.text
+        except Exception:
+            pass
+    if not text:
+        raise DirectDownloadLinkException('ERROR: Failed to fetch VCloud landing page')
+    m = search(r'(?:window\.)?atob\s*\(\s*(?:window\.)?atob\s*\(\s*["\']([A-Za-z0-9+/=]+)["\']\s*\)\s*\)', text)
+    if not m:
+        m = search(r'(?:window\.)?atob\s*\(\s*["\']([A-Za-z0-9+/=]+)["\']\s*\)', text)
+        if m:
+            token_url = b64decode(m.group(1)).decode()
+        else:
+            raise DirectDownloadLinkException('ERROR: VCloud atob token not found in page')
+    else:
+        token_url = b64decode(b64decode(m.group(1)).decode()).decode()
+    t_text = None
+    t_headers = dict(headers)
+    t_headers['Referer'] = url
+    try:
+        from curl_cffi.requests import Session as CurlSession
+        with CurlSession(impersonate='chrome120') as cs:
+            r = cs.get(token_url, headers=t_headers, timeout=20)
+            if r.status_code == 200 and len(r.text) > 200:
+                t_text = r.text
+    except Exception:
+        pass
+    if not t_text:
+        try:
+            with create_scraper() as ss:
+                r = ss.get(token_url, headers=t_headers, timeout=20)
+                if r.status_code == 200 and len(r.text) > 200:
+                    t_text = r.text
+        except Exception:
+            pass
+    if not t_text:
+        try:
+            with Session() as rs:
+                r = rs.get(token_url, headers=t_headers, timeout=20)
+                if r.status_code == 200 and len(r.text) > 200:
+                    t_text = r.text
+        except Exception:
+            pass
+    if not t_text:
+        raise DirectDownloadLinkException('ERROR: Failed to fetch VCloud token page')
+    urls = findall(r'https?://[^\s"\'<>{}|\\^`]+', t_text)
+    for u in urls:
+        u = u.rstrip('.,;)]\'"')
+        if any(x in u for x in ['.r2.dev', 'workers.dev', 'googleusercontent.com']):
+            return u
+    for u in urls:
+        u = u.rstrip('.,;)]\'"')
+        if 'pixeldrain' in u:
+            m_pix = search(r'/u/([A-Za-z0-9_-]+)', u)
+            if m_pix:
+                return f"https://pixeldrain.com/api/file/{m_pix.group(1)}?download"
+            return u
+    raise DirectDownloadLinkException('ERROR: No direct download link found on VCloud token page')
+
+
 def nexdrive(url):
     headers = {'User-Agent': user_agent}
     with Session() as session:
@@ -1290,12 +1378,18 @@ def nexdrive(url):
             raise DirectDownloadLinkException(f'ERROR: Nexdrive returned HTTP {res.status_code}')
         html_text = res.text
         fastdl_match = re.search(r'href=["\'](https?://[^"\']*fastdl\.[^"\']+)["\']', html_text, re.I)
+        vcloud_match = re.search(r'href=["\'](https?://[^"\']*vcloud\.[^"\']+)["\']', html_text, re.I)
+        hubcloud_match = re.search(r'href=["\'](https?://[^"\']*(?:hubcloud|hubdrive|drivehub)\.[^"\']+)["\']', html_text, re.I)
         filepress_match = re.search(r'href=["\'](https?://[^"\']*(?:filepress|filebee)\.[^"\']+)["\']', html_text, re.I)
-        hubcloud_match = re.search(r'href=["\'](https?://[^"\']*(?:hubcloud|hubdrive|drivehub|vcloud)\.[^"\']+)["\']', html_text, re.I)
         last_error = None
         if fastdl_match:
             try:
                 return fastdl(fastdl_match.group(1))
+            except Exception as e:
+                last_error = e
+        if vcloud_match:
+            try:
+                return vcloud(vcloud_match.group(1))
             except Exception as e:
                 last_error = e
         if hubcloud_match:
