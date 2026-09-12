@@ -795,7 +795,7 @@ def hubcloud(url, _depth=0):
                 pass
         if token_url and token_url.startswith('http'):
             try:
-                r2 = session.get(token_url, timeout=25)
+                r2 = session.get(token_url, headers={'Referer': url, 'User-Agent': user_agent}, timeout=25)
                 if r2.status_code == 200:
                     html2 = HTML(r2.text)
                     cands = html2.xpath("//a[contains(@href, 'r2.dev') or contains(@href, 'pixeldrain') or contains(@href, 'workers.dev') or contains(@href, 'download') or contains(@href, 'fsl')]/@href")
@@ -811,6 +811,15 @@ def hubcloud(url, _depth=0):
                                 except Exception:
                                     return c
                             return c
+                    pxl_m = search(r'var\s+pxl\s*=\s*["\'](https?://[^"\']+)["\']', r2.text)
+                    if pxl_m:
+                        c = pxl_m.group(1)
+                        if 'pixeldrain' in c:
+                            try:
+                                return pixeldrain(c)
+                            except Exception:
+                                return c
+                        return c
             except Exception:
                 pass
         html = HTML(text)
@@ -1283,31 +1292,35 @@ def nexdrive(url):
         fastdl_match = re.search(r'href=["\'](https?://[^"\']*fastdl\.[^"\']+)["\']', html_text, re.I)
         filepress_match = re.search(r'href=["\'](https?://[^"\']*(?:filepress|filebee)\.[^"\']+)["\']', html_text, re.I)
         hubcloud_match = re.search(r'href=["\'](https?://[^"\']*(?:hubcloud|hubdrive|drivehub|vcloud)\.[^"\']+)["\']', html_text, re.I)
+        last_error = None
         if fastdl_match:
             try:
                 return fastdl(fastdl_match.group(1))
-            except Exception:
-                pass
+            except Exception as e:
+                last_error = e
         if hubcloud_match:
             try:
                 link = hubcloud(hubcloud_match.group(1))
                 if link:
                     return link
-            except Exception:
-                pass
+            except Exception as e:
+                last_error = e
         if filepress_match:
             try:
                 return filepress(filepress_match.group(1))
-            except Exception:
-                pass
+            except Exception as e:
+                last_error = e
         all_links = re.findall(r'href=["\'](https?://[^"\']+)["\']', html_text)
         for cand in all_links:
             cand_domain = urlparse(cand).hostname or ''
             if cand_domain and cand_domain not in url and not any(x in cand_domain for x in ['wordpress.org', 'w.org', 'google.com', 'telegram.me', 't.me', 'bit.ly']):
                 try:
                     return direct_link_generator(cand)
-                except Exception:
+                except Exception as e:
+                    last_error = e
                     continue
+        if last_error:
+            raise DirectDownloadLinkException(f'ERROR: Nexdrive ({last_error})')
         raise DirectDownloadLinkException('ERROR: Could not resolve any download server from Nexdrive page')
 
 
