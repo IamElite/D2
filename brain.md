@@ -62,6 +62,37 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260912-J (built, push pending)
+**Git:** `pending`  
+**Date:** 2026-09-12  
+**Files:** `bot/modules/torrent_search.py`  
+**OLD: 260912-I** (word-correction ka oracle badla — IMDb-only galat answers deta tha)
+
+**User instruction (real failure):**
+- `/search one piece albarf arc` bot ne `Alabasta` me correct kiya — GALAT. User: "Google wala sahi karta hai — Google pe check karke waisa banao."
+
+**Investigation (live, sandbox se):**
+- Google "Did you mean": `one piece albarf arc` pe koi banner nahi (Google forcibly correct nahi karta).
+- **Google Suggest** (`one piece alb`) → `one piece elbaf` deta hai — **Elbaf arc** (One Piece ka current arc, eps 1168+). Similarity: albarf~elbaf **0.727** vs albarf~alabasta 0.571 — 260912-I ka 0.5 floor isliye galat 'Alabasta' pick kar raha tha.
+- Engine ground-truth: `one piece elbaf arc` → 949 results / **18 real Elbaf episodes**; `alabasta arc` → sirf 2; original `albarf` → 0 real.
+- Root causes: (1) IMDb-only candidate pool me 'Elbaf' hai hi nahi (probe 'alba' prefix se 'Alabasta' milta tha); (2) 0.5 threshold bahut loose; (3) `startswith` gate + best-score selection pehle se I me problematic the.
+
+**Fix:**
+- **Google Suggest API** (`suggestqueries.google.com/complete/search?client=firefox`, keyless JSON) ab **PRIMARY word-oracle** hai: probes = `context + token[:4]/[:3]/full + suffix` (sab parallel) → completions me se prefix/suffix strip → single-word candidate. Selection: highest ratio, tie = Google position (popularity order).
+- IMDb word-layer ab sirf **FALLBACK** (jab Google kuch decide na kare).
+- Score floors raise: **0.7** normal, **0.8** for ≥9-char tokens (block: alabasta 0.571, Disclosure 0.762; pass: elbaf 0.727, thrones 0.857, titan 0.909).
+- Length window `abs(len diff) ≤ 3` (anti-truncation, 'discography'→'Disco' block).
+- Title-level threshold 0.85 hi rakha (0.9 try kiya tha — `incpetion`=0.889 mar jata, revert).
+- Token min-length 5→4 (`dres`→'dress' ab possible).
+- Plural-stem guard: candidate ya pool-word token ka plural/stem match kare to KNOWN → koi correction nahi (`windows`≡`window`).
+- Bug fix: `__googleWordPick` ab `(word, decided)` tuple return karta hai — pehle known-case me IMDb fallback skip nahi hota tha.
+
+**Verification:**
+- **34-case matrix ×2 rounds = 0 BAD** — sab important: `one piece albarf arc`→`one piece elbaf arc` ✓, `game of thornes season 8`→`game of Thrones season 8` ✓, `attack on tittan season 2`→`attack on Titan season 2` ✓, `demon slayer infinit castel arc`→`demon slayer Infinity Castle arc` ✓; safety: ubuntu/windows iso, ac/dc discography, one piece, frieren, naruto shippuden, solo leveling → untouched ✓; pura 26-case title-regression suite pass ✓.
+- Sandbox e2e: `/search one piece albarf arc` → ✏️ `one piece elbaf arc` → **949 results @21s, 18 Elbaf episodes** (`[Naruto-Kun.Hu] One Piece (Elbaf arc) - 1174 [1080p]` etc.).
+- py_compile PASS, zero comments, zero naye dependencies ✓.
+
+
 ### 260912-I (built, pushed)
 **Git:** `559f25e`  
 **Date:** 2026-09-12  

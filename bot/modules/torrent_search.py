@@ -20,6 +20,7 @@ PLUGINS = []
 SITES = None
 TELEGRAPH_LIMIT = 300
 SUGGEST_API = 'https://v2.sg.media-imdb.com/suggestion/'
+GOOGLE_SUGGEST_API = 'https://suggestqueries.google.com/complete/search'
 ALLOWED_QIDS = {'movie', 'tvMovie', 'tvSeries', 'tvMiniSeries',
                 'tvSpecial', 'tvShort', 'short', 'video', 'videoGame'}
 QB_ENGINE_BASE = 'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/'
@@ -133,6 +134,49 @@ async def __spellCorrect(key):
     return None
 
 
+async def __googleSuggestions(session, query):
+    query = ' '.join(query.strip().lower().split())
+    if not query:
+        return []
+    params = {'client': 'firefox', 'q': query, 'hl': 'en'}
+    async with session.get(GOOGLE_SUGGEST_API, params=params,
+                           headers={'User-Agent': 'Mozilla/5.0'}) as res:
+        data = await res.json(content_type=None)
+    if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+        return []
+    return [' '.join(str(c).strip().lower().split()) for c in data[1] if c]
+
+
+def __googleWordPick(token, prefix, suffix, completions, min_score):
+    token_l = token.lower()
+    stem = token_l.rstrip('s')
+    cands = {}
+    for pos, completion in enumerate(completions):
+        if prefix and not completion.startswith(prefix):
+            continue
+        rest = completion[len(prefix):].strip() if prefix else completion
+        if suffix and rest.endswith(f' {suffix}'):
+            rest = rest[:-len(suffix) - 1].strip()
+        words = rest.split()
+        if len(words) != 1:
+            continue
+        wl = words[0].strip(',:-!?()')
+        if not wl.isalpha() or len(wl) <= 4:
+            continue
+        if wl == token_l or wl.rstrip('s') == stem:
+            return None, True
+        if abs(len(wl) - len(token_l)) > 3:
+            continue
+        score = SequenceMatcher(None, token_l, wl).ratio()
+        if score >= min_score:
+            prev = cands.get(wl)
+            if prev is None or (score, -pos) > (prev[1], -prev[0]):
+                cands[wl] = (pos, score, wl)
+    if not cands:
+        return None, False
+    return max(cands.values(), key=lambda v: (v[1], -v[0]))[2], True
+
+
 def __pickWord(token, items, min_score):
     token_l = token.lower()
     stem = token_l.rstrip('s')
@@ -145,7 +189,7 @@ def __pickWord(token, items, min_score):
             if wl == token_l or wl.rstrip('s') == stem:
                 known = True
                 continue
-            if len(wl) > 4 and len(wl) >= len(token_l) - 2:
+            if len(wl) > 4 and abs(len(wl) - len(token_l)) <= 3:
                 score = SequenceMatcher(None, token_l, wl).ratio()
                 if score >= min_score:
                     old = cands.get(wl)
@@ -161,43 +205,56 @@ async def __wordCorrect(key):
     tokens = key.split()
     if len(tokens) < 2:
         return None
-    probes = []
-    idxs = []
+    jobs = []
     for i, token in enumerate(tokens):
-        if len(token) < 5 or not token.isalpha():
+        if len(token) < 4 or not token.isalpha():
             continue
-        context = ' '.join(tokens[:i])
-        probes.append(f'{context} {token[:4]}'.strip().lower())
-        probes.append(f'{context} {token[:3]}'.strip().lower())
-        idxs.extend((i, i))
-    if not probes:
+        prefix = ' '.join(tokens[:i]).lower()
+        suffix = ' '.join(tokens[i + 1:]).lower()
+        cuts = dict.fromkeys((token[:4], token[:3], token))
+        gprobes = [' '.join(p for p in (prefix, f'{token[:4]}', suffix) if p),
+                   ' '.join(p for p in (prefix, f'{token[:3]}', suffix) if p),
+                   ' '.join(p for p in (prefix, token, suffix) if p)]
+        iprobes = [' '.join(p for p in (prefix, c) if p) for c in cuts]
+        jobs.append((i, token, prefix, suffix, gprobes, iprobes))
+    if not jobs:
         return None
+    gflat = [p for job in jobs for p in job[4]]
+    iflat = [p for job in jobs for p in job[5]]
     try:
         async with ClientSession(trust_env=True, timeout=ClientTimeout(total=6)) as session:
-            results = await gather(*(__suggestions(session, p) for p in probes))
-            empties = [j for j, items in enumerate(results) if not items]
-            if empties:
-                await sleep(1)
-                retried = await gather(*(__suggestions(session, probes[j]) for j in empties))
-                for j, items in zip(empties, retried):
-                    results[j] = items
+            gres, ires = await gather(
+                gather(*(__googleSuggestions(session, p) for p in gflat)),
+                gather(*(__suggestions(session, p) for p in iflat)),
+                return_exceptions=True)
+            if isinstance(gres, BaseException):
+                gres = [[] for _ in gflat]
+            if isinstance(ires, BaseException):
+                ires = [[] for _ in iflat]
     except Exception as e:
         LOGGER.error(f'Word spell check failed: {e}')
         return None
-    merged = {}
-    for i, items in zip(idxs, results):
-        bucket = merged.setdefault(i, [])
-        seen = {t for t, _y, _r in bucket}
-        for entry in items:
-            if entry[0] not in seen:
-                bucket.append(entry)
-                seen.add(entry[0])
     fixed = list(tokens)
     changed = False
-    for i, items in merged.items():
-        token = tokens[i]
-        min_score = 0.8 if len(token) >= 8 else 0.5
-        word = __pickWord(token, items, min_score)
+    gpos = 0
+    ipos = 0
+    for i, token, prefix, suffix, gprobes, iprobes in jobs:
+        gcomp = []
+        for _ in gprobes:
+            gcomp.extend(gres[gpos])
+            gpos += 1
+        iitems = []
+        seen = set()
+        for _ in iprobes:
+            for entry in ires[ipos]:
+                if entry[0] not in seen:
+                    seen.add(entry[0])
+                    iitems.append(entry)
+            ipos += 1
+        min_score = 0.8 if len(token) >= 9 else 0.7
+        word, decided = __googleWordPick(token, prefix, suffix, gcomp, min_score)
+        if not decided:
+            word = __pickWord(token, iitems, min_score)
         if word:
             fixed[i] = word
             changed = True
