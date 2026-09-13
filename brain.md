@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260913-B (docs-only rule fix, pushed)
-**Git:** `PENDING`  
+**Git:** `2ebf766`  
 **Date:** 2026-09-13  
 **Files:** `brain.md` ONLY (koi code change nahi)
 
@@ -76,7 +76,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - Next `/build` ka plan (user bolega tab): plugin **REMOVE** karke bot-core me **generic stream-resolver** — kisi bhi /yl URL ke page pe **player-backend signatures** scan ho (window.__P + player.js se XOR key dynamic; getSources/newclient JS se AES key/iv dynamic; direct m3u8/file patterns; iframe/embed follow). Signature mile to recipe se sub/dub + multi-server resolve → m3u8 + headers yt-dlp ko; signature na mile to URL untouched yt-dlp ko (baaki sab sites pe zero asar). Result: in player families ko use karne wali **koi bhi site/domain, ab ya future, automatically supported**.
 - OLD: 260913-A (approach superseded — plugin agle build me hatega; tab tak wo kaam karta rahega).
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `2ebf766` → `arnv1`.
 
 ### 260913-A (built, pushed)
 **Git:** `efc32f7`  
