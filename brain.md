@@ -64,8 +64,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260913-C (built)
-**Git:** `PENDING`  
+### 260913-C (built, pushed)
+**Git:** `fcdb8e4`  
 **Date:** 2026-09-13  
 **Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`; `yt_dlp_plugins/extractor/hianime.py` **REMOVED**  
 **OLD: 260913-A** (plugin approach RULE 9 ke against tha — superseded); 260913-B ka plan implement hua
@@ -92,7 +92,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - otakuthemes: chain end-to-end chala (WP API → base64 → megaplay → getSources → AES decrypt) — nexabloom CDN sandbox-datacenter-IP pe CF 403 deta hai → clean per-server warnings + honest error. Decrypt manually proven (m3u8 URL nikla). User-server IP allow kare to wahan chalega.
 - YouTube → youtube extractor untouched ✓. py_compile ✓; naye code me ZERO comments ✓; koi nayi dependency nahi (cryptography/curl-cffi pehle se) ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `fcdb8e4` → `arnv1`.
 
 ### 260913-B (docs-only rule fix, pushed)
 **Git:** `2ebf766`  
