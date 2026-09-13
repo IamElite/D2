@@ -64,6 +64,21 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-J (built, pushed)
+**Git:** `f958498`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/ext_utils/leech_utils.py`  
+**User instruction:**
+- Fix fallback video thumbnail generation: previously extracted black/blank frames at 98% (credits/end of video); upgrade to WZv3-style clear active scene extraction.
+
+**Fix:**
+- In `take_ss`:
+  1. Priority extraction of embedded cover art (`attached_pic`) if available in container.
+  2. For video frame extraction: selects active scene timestamp between 20% and 65% of video duration (avoiding intros and ending credits).
+  3. Uses `thumbnail=50` entropy filter with `-q:v 2` for high-quality, vivid colors.
+  4. For screenshot gallery (`gen_ss=True`), evenly spaces timestamps across the video (`duration // (total + 1) * eq_thumb`).
+- Followed Rule 8: zero comments in code.
+
 ### 260913-I (built, pushed)
 **Git:** `6739471`  
 **Date:** 2026-09-13  

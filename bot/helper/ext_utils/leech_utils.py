@@ -12,6 +12,7 @@ from asyncio import create_subprocess_exec, create_task, gather, Semaphore
 from asyncio.subprocess import PIPE
 from telegraph import upload_file
 from langcodes import Language
+from random import randint
 
 from ... import bot_cache, LOGGER, MAX_SPLIT_SIZE, config_dict, user_data
 from ...modules.autorename import get_autorename
@@ -264,15 +265,39 @@ async def take_ss(video_file, duration=None, total=1, gen_ss=False):
         duration = (await get_media_info(video_file))[0]
     if duration == 0:
         duration = 3
-    duration = duration - (duration * 2 / 100)
+    if not gen_ss:
+        out_path = ospath.join(des_dir, "wz_thumb_1.jpg")
+        cover_cmd = [bot_cache['pkgs'][2], "-hide_banner", "-loglevel", "error", "-i", video_file,
+                     "-map", "0:v:m:disposition:attached_pic?", "-frames:v", "1", "-q:v", "2", out_path]
+        proc = await create_subprocess_exec(*cover_cmd, stderr=PIPE)
+        await proc.wait()
+        if await aiopath.exists(out_path) and (await sync_to_async(ospath.getsize, out_path)) > 1024:
+            return out_path
+
+        ss_time = randint(max(1, int(duration * 0.2)), max(2, int(duration * 0.65))) if duration > 10 else max(1, int(duration * 0.4))
+        cmd = [bot_cache['pkgs'][2], "-hide_banner", "-loglevel", "error", "-ss", str(ss_time),
+               "-i", video_file, "-vf", "thumbnail=50", "-frames:v", "1", "-q:v", "2", out_path]
+        task = await create_subprocess_exec(*cmd, stderr=PIPE)
+        code = await task.wait()
+        if not await aiopath.exists(out_path) or code != 0:
+            cmd = [bot_cache['pkgs'][2], "-hide_banner", "-loglevel", "error", "-ss", str(ss_time),
+                   "-i", video_file, "-frames:v", "1", "-q:v", "2", out_path]
+            task = await create_subprocess_exec(*cmd, stderr=PIPE)
+            await task.wait()
+        if await aiopath.exists(out_path):
+            return out_path
+        await aiormtree(des_dir)
+        return None
+
+    step = max(1, duration // (total + 1))
     cmd = [bot_cache['pkgs'][2], "-hide_banner", "-loglevel", "error", "-ss", "",
-           "-i", video_file, "-vf", "thumbnail", "-frames:v", "1", des_dir]
+           "-i", video_file, "-vf", "thumbnail", "-frames:v", "1", "-q:v", "2", des_dir]
     tstamps = {}
     thumb_sem = Semaphore(3)
     
     async def extract_ss(eq_thumb):
         async with thumb_sem:
-            cmd[5] = str((duration // total) * eq_thumb)
+            cmd[5] = str(step * eq_thumb)
             tstamps[f"wz_thumb_{eq_thumb}.jpg"] = strftime("%H:%M:%S", gmtime(float(cmd[5])))
             cmd[-1] = ospath.join(des_dir, f"wz_thumb_{eq_thumb}.jpg")
             task = await create_subprocess_exec(*cmd, stderr=PIPE)
@@ -287,7 +312,7 @@ async def take_ss(video_file, duration=None, total=1, gen_ss=False):
             LOGGER.error(f'Error while extracting thumbnail no. {eq_thumb} from video. Name: {video_file} stderr: {err}')
             await aiormtree(des_dir)
             return None
-    return (des_dir, tstamps) if gen_ss else ospath.join(des_dir, "wz_thumb_1.jpg")
+    return (des_dir, tstamps)
 
 
 async def split_file(path, size, file_, dirpath, split_size, listener, start_time=0, i=1, inLoop=False, multi_streams=True):
