@@ -1818,6 +1818,13 @@ Nayi chat / push se pehle yeh log. Har future commit se pehle yahan 6-digit ID +
 - [ ] Heroku config: `UPSTREAM_BRANCH=arnv1`
 - [ ] 102GB packs `/btsel` or queue — 2X pe saath mat
 
+### NEXT BUILD (decision 2026-09-13, `.ask` me user ne choose kiya): anime DUAL-AUDIO + EN subs
+- User choice: **C** = dual-audio MKV (Japanese + English audio tracks EK file me) + English subtitles embedded.
+- Verified facts (frame-level investigation, sandbox ffmpeg se): stream TS me sirf video+audio (audio language tag `jpn`/`en`); **koi subtitle stream NAHI, koi burned-in subs NAHI** (dialogue-cue timestamps ke frames clean nikle). English subs = alag **VTT files** (14 langs, en default:true) jo site ka player overlay karta hai — isliye site pe "Japanese audio + EN subs" dikhta hai.
+- Matlab: leeched file abhi = video + chosen-lang audio only (bot ki subtitle-writing off). C ke liye: (1) EN VTT download+embed (soft track), (2) dub-stream ki audio alag download karke sub-stream ke video ke sath ffmpeg merge → MKV 2 audio tracks.
+- `/build` implementation notes: resolver ALREADY deta hai `subtitles` dict (14 langs, http_headers=Referer stamp) + dono lang candidates (sub/dub). __download/postprocess me add karna: EN vtt → subtitle track (FFmpegEmbedSubtitle ya ffmpeg `-c:s copy` mkv me); dub audio → `-map` second audio track; **fallback rule: dub stream fail ho to single-audio + subs deliver karo, error NAHI** (L/K robustness).
+- Trigger: user `/build` bolega tab code.
+
 ---
 
 ### `260830-G` — max useful speed, ultra-low waste CPU/RAM  
