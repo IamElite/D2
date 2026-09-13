@@ -64,6 +64,19 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-L (built, pushed)
+**Git:** `a84dc1e`  
+**Date:** 2026-09-13  
+**Files:** `bot/modules/users_settings.py`, `bot/helper/listeners/tasks_listener.py`  
+**User instruction:**
+- Make HD Thumb enabled by default (like Bot PM).
+
+**Fix:**
+- Updated `hd_thumb_on` check in `users_settings.py` to default to `True` if not present in `user_dict`.
+- Updated toggle handler to invert from default `True`.
+- In `tasks_listener.py`, updated leech attachment lookup to `self.user_dict.get('hd_thumb', True)`.
+- Followed Rule 8: zero comments in code.
+
 ### 260913-K (built, pushed)
 **Git:** `81e680a`  
 **Date:** 2026-09-13  

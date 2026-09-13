@@ -361,7 +361,7 @@ class MirrorLeechListener:
                         up_path = new_path
 
         user_thumb = f"Thumbnails/{self.message.from_user.id}.jpg"
-        attachment = self.user_dict.get("lattachment") or config_dict['ATTACHMENT'] or (user_thumb if self.isLeech and self.user_dict.get('hd_thumb', False) and await aiopath.isfile(user_thumb) else '')
+        attachment = self.user_dict.get("lattachment") or config_dict['ATTACHMENT'] or (user_thumb if self.isLeech and self.user_dict.get('hd_thumb', True) and await aiopath.isfile(user_thumb) else '')
         if attachment:
             meta_path = up_path or dl_path
             self.newDir = f'{self.dir}10000'
