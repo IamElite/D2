@@ -64,6 +64,25 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260914-A (built, pushed)
+**Git:** `4d6f9e5`  
+**Date:** 2026-09-14  
+**Files:** `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`  
+**User instruction:**
+- Generic, domain-independent stream/episode discovery for HiAnime and all clones/reskins (e.g. `https://hianime.otakuthemes.com/one-piece-film-red-episode-1/`). HiAnime domains keep changing; eliminate manual domain whitelist maintenance.
+
+**Fix:**
+- `bot_utils.py`: In `is_embed_discovery_url(url)`, generic recognition of stream/episode patterns (`-episode-`, `/episode-`, `/ep-`, `-ep-`, `/stream/`, `/embed/`, `?ep=`, `&ep=`) without requiring domain whitelisting. Routes all such URLs to `yt-dlp` automatically.
+- `yt_dlp_download.py`:
+  1. Updated `is_embed_discovery_url(url)` to match `_STREAM_EMBED_PATH_RE` and `_EPISODE_URL_RE`.
+  2. In `_typed_embeds`:
+     - Flexibly matches `post_id` (`"post_id": "1271"`, `data-id="1271"`, `wp-json/wp/v2/posts/<id>`, `data-post-id`, `episodeId`).
+     - Decodes escaped slashes from `rest_url` (`.replace('\\/', '/')`).
+     - Added generic `parse_data_hash(snippet)`: extracts servers with `data-hash` (Base64-encoded or raw stream URL) regardless of attribute order, extracting `data-type` (`sub`/`dub`) and `data-server-name`. Supports `data-hash`, `data-src`, `data-url`, and `data-embed`.
+     - Automatically scans both `/episode/servers?episodeId=...` endpoint and direct webpage HTML.
+- Followed Rule 8: zero comments in code.
+- Followed Rule 9: purely generic pattern detection, zero hardcoded domain names.
+
 ### 260913-L (built, pushed)
 **Git:** `a84dc1e`  
 **Date:** 2026-09-13  

@@ -763,17 +763,19 @@ def embed_enabled_hosts():
 
 
 def is_embed_discovery_url(url):
-    """True = yeh URL humare universal embed-resolver ka candidate hai.
-    Routing (bot_utils.is_ytdlp_link / is_ytdlp_supported) isko use karta hai."""
     if not url or not isinstance(url, str):
         return False
     try:
-        host = (urlparse(url).hostname or '').lower()
+        up = urlparse(url)
+        host = (up.hostname or '').lower()
     except Exception:
         return False
     if not host:
         return False
-    return any(host == d or host.endswith('.' + d) for d in embed_enabled_hosts())
+    if any(host == d or host.endswith('.' + d) for d in embed_enabled_hosts()):
+        return True
+    path = up.path or ''
+    return bool(_STREAM_EMBED_PATH_RE.search(path) or _EPISODE_URL_RE.search(f'{path}?{up.query or ""}'))
 
 
 def eval_js_concat(expr):
@@ -1115,20 +1117,54 @@ def _make_embed_ie():
                 if u and u not in [o[2] for o in out]:
                     out.append((lang, label, u))
 
+            def parse_data_hash(snippet):
+                for elem in re_findall(r'<[^>]+data-(?:hash|src|url|embed)=[^>]+>', snippet):
+                    h_m = re_search(r'data-(?:hash|src|url|embed)=["\']([^"\']+)["\']', elem)
+                    if not h_m:
+                        continue
+                    val = h_m.group(1).strip()
+                    embed = None
+                    if val.startswith(('http://', 'https://', '//')):
+                        embed = val
+                    else:
+                        try:
+                            decoded = b64decode(val).decode('utf-8', errors='ignore').strip()
+                            if decoded.startswith(('http://', 'https://', '//')):
+                                embed = decoded
+                        except Exception:
+                            pass
+                    if not embed:
+                        continue
+                    if embed.startswith('//'):
+                        embed = 'https:' + embed
+                    t_m = re_search(r'data-type=["\'](sub|dub)["\']', elem, re_I)
+                    s_m = re_search(r'data-server-name=["\']([^"\']*)["\']', elem, re_I)
+                    lang = t_m.group(1).lower() if t_m else None
+                    label = (s_m.group(1) if s_m else '') or (lang.upper() if lang else 'SERVER')
+                    add(lang, label, embed)
+
             text = (webpage or '').replace('\\/', '/')
-            rest = re_search(r'"rest_url"\s*:\s*"([^"]+)"', text)
-            post = re_search(r'wp-json/wp/v2/posts/(\d+)', text)
+            rest = re_search(r'["\']?rest_url["\']?\s*:\s*["\']([^"\']+)["\']', text)
+            post = re_search(r'(?:"post_id"\s*:\s*["\']?|data-id=["\']|wp-json/wp/v2/posts/|/posts/|data-post-id=["\']|episodeId[=:]["\']?)(\d+)', text)
             if rest and post:
-                api = rest.group(1).rstrip('/') + f'/episode/servers?episodeId={post.group(1)}'
+                api = rest.group(1).replace('\\/', '/').rstrip('/') + f'/episode/servers?episodeId={post.group(1)}'
                 data = self._download_json(
                     api, video_id, note='Downloading server list', fatal=False,
                     headers={'Referer': page_url, 'X-Requested-With': 'XMLHttpRequest'})
-                for m in _WP_SERVER_ITEM_RE.finditer(traverse_obj(data, ('html', {str})) or ''):
-                    try:
-                        embed = b64decode(m.group(3)).decode('utf-8')
-                    except Exception:
-                        continue
-                    add(m.group(1), m.group(2) or m.group(1).upper(), embed)
+                parse_data_hash(traverse_obj(data, ('html', {str})) or '')
+            elif not rest and post and '/wp-json/' in text:
+                wp_m = re_search(r'["\']([^"\']*?/wp-json/[^"\']*)["\']', text)
+                if wp_m:
+                    rest_str = wp_m.group(1).replace('\\/', '/')
+                    if not rest_str.startswith('http'):
+                        up_base = urlparse(page_url)
+                        rest_str = f'{up_base.scheme}://{up_base.netloc}' + ('/' if not rest_str.startswith('/') else '') + rest_str
+                    api = rest_str.rstrip('/') + f'/episode/servers?episodeId={post.group(1)}'
+                    data = self._download_json(
+                        api, video_id, note='Downloading server list', fatal=False,
+                        headers={'Referer': page_url, 'X-Requested-With': 'XMLHttpRequest'})
+                    parse_data_hash(traverse_obj(data, ('html', {str})) or '')
+            parse_data_hash(text)
             for m in _STREAM_EMBED_URL_RE.finditer(text):
                 u = m.group(0)
                 add(sp_lang_from_url(u), (urlparse(u).netloc or '').lower(), u)
