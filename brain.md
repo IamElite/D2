@@ -27,6 +27,8 @@ Alag `plan.md` **mat** banao — plan + built **yahi**.
    - `/plan` ya `.plan` = build/fix se **pehle** PLANS me `P-YYMMDD-X` likho (mode: plan), code nahi.
    - `/build` = code edit/fix/new + FIX LOG block + push.
 8. **PURE CODE RULE (VERY IMPORTANT):** Code likhte ya modify karte waqt **comments (`#`, `'''`, `"""`) kabhi mat add karo** — hamesha clean, pure code output hona chahiye.
+9. **GLOBAL-FIRST RULE (user instruction, BINDING):** Site/streaming support ke liye **site-specific plugin/extractor KABHI NAHI** banani. Hamesha **global/generic** mechanism: detection domain-name se nahi, **player/backend signature (content)** se ho — same family ki koi bhi site (nayi/unknown domain, reskinned clone) **bina naye code ke automatically support** ho. Ek baar ka recipe = player-software family ke liye (site ke liye nahi). 260913-A me ye galti hui thi — dobara mat todna.
+10. **PERMANENT INSTRUCTIONS → BRAIN TURANT:** User ki koi bhi standing preference/correction sune to **usi session me** brain.md ke Agent rules me likho + push karo (mode /ask ho tab bhi sirf rule likhna allowed, code nahi). User ko cheezein **baar-baar repeat** na karni padein.
 
 ---
 
@@ -61,6 +63,20 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ---
 
 ## FIX LOG
+
+### 260913-B (docs-only rule fix, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-13  
+**Files:** `brain.md` ONLY (koi code change nahi)
+
+**Problem/Galti (agent ki):** 260913-A me **site-specific yt-dlp plugin** (`yt_dlp_plugins/extractor/hianime.py`) banaya. User ki standing preference pehle se thi: per-site plugin NAHI, **global/generic** solution chahiye — same jaisi koi aur site ho to bina code change ke chale. User ko instruction repeat karni padi aur wo brain.md me recorded bhi nahi thi.
+
+**Fix:**
+- Agent rule **9 (GLOBAL-FIRST)** + rule **10 (permanent instructions turant brain me likho)** add kiye.
+- Next `/build` ka plan (user bolega tab): plugin **REMOVE** karke bot-core me **generic stream-resolver** — kisi bhi /yl URL ke page pe **player-backend signatures** scan ho (window.__P + player.js se XOR key dynamic; getSources/newclient JS se AES key/iv dynamic; direct m3u8/file patterns; iframe/embed follow). Signature mile to recipe se sub/dub + multi-server resolve → m3u8 + headers yt-dlp ko; signature na mile to URL untouched yt-dlp ko (baaki sab sites pe zero asar). Result: in player families ko use karne wali **koi bhi site/domain, ab ya future, automatically supported**.
+- OLD: 260913-A (approach superseded — plugin agle build me hatega; tab tak wo kaam karta rahega).
+
+**Pushed:** `PENDING` → `arnv1`.
 
 ### 260913-A (built, pushed)
 **Git:** `efc32f7`  
