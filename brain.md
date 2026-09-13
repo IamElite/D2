@@ -62,8 +62,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260913-A (built)
-**Git:** `PENDING`  
+### 260913-A (built, pushed)
+**Git:** `efc32f7`  
 **Date:** 2026-09-13  
 **Files:** `yt_dlp_plugins/extractor/hianime.py` (NEW plugin)  
 **Task:** YDL backend me HiAnime-clone sites (multi-audio SUB/DUB + multi-server)
@@ -93,7 +93,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - otakuthemes: chain end-to-end executed (servers→embeds→getSources→decrypt→m3u8) but nexabloom CDN sandbox-IP pe CF-blocked → clean per-server failure + honest error ✓ (user server IP se pass ho sakta hai).
 - py_compile ✓ pure code (0 comments) ✓ no new deps (cryptography/curl-cffi/yt-dlp sab pehle se) ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `efc32f7` → `arnv1`.
 
 
 ### 260912-W (built, pushed)
