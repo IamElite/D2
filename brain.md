@@ -64,6 +64,33 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260914-C (built, pushed)
+**Git:** `770c739`  
+**Date:** 2026-09-14  
+**Files:** `bot/helper/ext_utils/bot_utils.py`, `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`  
+**User instruction:**
+- User reported metadata being deleted after recent ytdl fixes ("hame jo ytdl m fix kiye h uske karna kahi to file ka meta mada delte ho raha h usse dekh kar fix karo").
+- User also approved global backend integration for `vidara.to` and tube blogs (e.g. `porndish.com`).
+
+**Root Cause (Metadata Deletion):**
+1. In `yt_dlp_download.py` `__polish_file`, `-map_metadata:g -1` was wiping all global metadata written by yt-dlp / source.
+2. `-map_chapters -1` was deleting all chapters from the video.
+3. `-map -0:t` was dropping all embedded attachments (including cover art and fonts).
+4. `self.opts['postprocessors']` had `'add_chapters': False`.
+5. For playlists (`self.is_playlist = True`), `info = {}` caused all playlist item metadata to be nuked into empty dict.
+
+**Fix:**
+1. In `__polish_file`:
+   - Switched `-map_metadata:g -1` to `-map_metadata 0` to preserve all source and yt-dlp metadata.
+   - Removed `-map_chapters -1` to preserve chapters.
+   - Removed `-map -0:t` to preserve attachments and cover art.
+   - Set `add_chapters: True` in `self.opts['postprocessors']`.
+2. Global `vidara` Backend Integration:
+   - Added `vidara` backend (`_VIDARA_HOST_RE`, `_VIDARA_PATH_RE`, `_TUBE_URL_RE`) to `_EMBED_BACKENDS`.
+   - Added `_vidara_formats`: calls `POST /api/stream` with `filecode` and extracts master HLS stream + headers.
+   - Updated `_player_embeds` to unescape escaped quotes and slashes (`\"https:\/\/...\"`), automatically detecting embeds on tube and WordPress blogs.
+- Followed Rule 8: zero comments in code.
+
 ### 260914-B (built, pushed)
 **Git:** `7bb1fc8`  
 **Date:** 2026-09-14  

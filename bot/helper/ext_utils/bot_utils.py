@@ -503,7 +503,7 @@ def is_embed_discovery_url(url):
     if any(host == d or host.endswith('.' + d) for d in embed_discovery_hosts()):
         return True
     path = '/' + low.split('://', 1)[1].split('/', 1)[1] if '/' in low.split('://', 1)[1] else ''
-    return any(x in path for x in ('-episode-', '/episode-', '/ep-', '-ep-', '/stream/', '/embed/')) or any(x in low for x in ('?ep=', '&ep='))
+    return any(x in path for x in ('-episode-', '/episode-', '/ep-', '-ep-', '/stream/', '/embed/', '/porn/', '/video/', '/videos/')) or any(x in low for x in ('?ep=', '&ep='))
 
 
 async def is_ytdlp_supported(url):

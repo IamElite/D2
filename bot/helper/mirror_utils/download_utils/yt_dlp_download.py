@@ -4,7 +4,7 @@ from base64 import urlsafe_b64decode, b64decode
 from secrets import token_hex
 from logging import getLogger
 from re import search as re_search, sub as re_sub, compile as re_compile, findall as re_findall, finditer as re_finditer, I as re_I
-from json import loads as json_loads
+from json import loads as json_loads, dumps as json_dumps
 from urllib.parse import urlparse, urljoin
 
 from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lock, bot_cache
@@ -423,9 +423,8 @@ class YoutubeDLHelper:
         tmp = f'{fpath}.polish{ext}'
         info = {} if self.is_playlist else (self.__extracted_info or {})
         cmd = [_ffmpeg_bin(), '-nostdin', '-threads', '1', '-y', '-hide_banner',
-               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata:g', '-1']
+               '-loglevel', 'error', '-i', fpath, '-map', '0', '-c', 'copy', '-map_metadata', '0']
         cmd += self.__meta_args(info, ospath.splitext(ospath.basename(fpath))[0])
-        cmd += ['-map_chapters', '-1', '-map', '-0:t']
         if ext in ('.mp4', '.m4v', '.mov'):
             cmd += ['-movflags', '+faststart+use_metadata_tags']
         cmd.append(tmp)
@@ -545,7 +544,7 @@ class YoutubeDLHelper:
         self.__gid = token_hex(5)
         await self.__onDownloadStart()
 
-        self.opts['postprocessors'] = [{'add_chapters': False, 'add_infojson': 'if_exists', 'add_metadata': True, 'key': 'FFmpegMetadata'}]
+        self.opts['postprocessors'] = [{'add_chapters': True, 'add_infojson': 'if_exists', 'add_metadata': True, 'key': 'FFmpegMetadata'}]
         self.opts['postprocessor_args'] = {
             'ffmpegmetadata+ffmpeg': ['-threads', '1', '-map_metadata', '0'],
             'thumbnailsconvertor+ffmpeg': ['-threads', '1'],
@@ -692,6 +691,9 @@ _ST_HOST_RE = re_compile(r'(?:^|\.)(?:streamtape\.\w+|streamta\.pe|tapecontent\.
 _BYSE_PATH_RE = re_compile(r'/[edfv]/[\w-]+/?$')
 _STREAM_EMBED_PATH_RE = re_compile(r'/(?:stream|embed)/.+/(?:sub|dub)/?$')
 _EPISODE_URL_RE = re_compile(r'(?:-episode-|/episode-|/ep-\d|-ep-\d|[?&]ep=\d)', re_I)
+_TUBE_URL_RE = re_compile(r'/(?:porn|video|videos|watch|view|post|archives)/[\w-]+', re_I)
+_VIDARA_HOST_RE = re_compile(r'(?:^|\.)(?:vidara\.\w+|vidshark\.\w+|playmogo\.\w+)$')
+_VIDARA_PATH_RE = re_compile(r'/[edfv]/[A-Za-z0-9_-]+/?$')
 _STREAM_EMBED_URL_RE = re_compile(r'https?://[^\s"\'<>\\()]+/(?:stream|embed)/[^\s"\'<>\\()]+/(?:sub|dub)(?![\w-])')
 _WP_SERVER_ITEM_RE = re_compile(
     r'data-type=["\'](sub|dub)["\'][^>]*?data-server-name=["\']([^"\']*)["\'][^>]*?data-hash=["\']([^"\']+)["\']')
@@ -713,6 +715,7 @@ _EMBED_BACKENDS = (
     # Byse family: GET /api/videos/<code> -> `playback` blob -> AES-256-GCM
     # -> HLS master playlist ya progressive MP4.
     ('byse', None, _BYSE_PATH_RE, '_byse_formats'),
+    ('vidara', _VIDARA_HOST_RE, None, '_vidara_formats'),
     ('streamlang', None, _STREAM_EMBED_PATH_RE, '_sp_formats'),
     # voe.sx: DDoS-Guard JS challenge -> 403 (curl_cffi chrome impersonate bhi
     # fail). Browser-less bypass namumkin, isliye koi backend nahi - embed
@@ -725,7 +728,7 @@ _EMBED_BACKENDS = (
 # lete hain + yeh host-blocklist lagate hain.
 _AD_HOST_BLOCKLIST = (
     'magsrv', 'exoclick', 'juicyads', 'popads', 'tsyndicate', 'adsterra',
-    'propellerads', 'clickadu', 'hilltopads', 'trafficjunky', 'a-ads',
+    'propellerads', 'clickadu', 'hilltopads', 'trafficjunky', 'a-ads', 'whitetrafsa',
 )
 
 # Jin hosts pe embed-discovery enabled hai. Default = letsjerk family.
@@ -775,7 +778,8 @@ def is_embed_discovery_url(url):
     if any(host == d or host.endswith('.' + d) for d in embed_enabled_hosts()):
         return True
     path = up.path or ''
-    return bool(_STREAM_EMBED_PATH_RE.search(path) or _EPISODE_URL_RE.search(f'{path}?{up.query or ""}'))
+    full_path = f'{path}?{up.query or ""}'
+    return bool(_STREAM_EMBED_PATH_RE.search(path) or _EPISODE_URL_RE.search(full_path) or _TUBE_URL_RE.search(path) or _VIDARA_PATH_RE.search(path))
 
 
 def eval_js_concat(expr):
@@ -980,7 +984,7 @@ def _make_embed_ie():
             except Exception:
                 return False
             path = up.path or ''
-            if _STREAM_EMBED_PATH_RE.search(path) or _EPISODE_URL_RE.search(f'{path}?{up.query or ""}'):
+            if _STREAM_EMBED_PATH_RE.search(path) or _EPISODE_URL_RE.search(f'{path}?{up.query or ""}') or _TUBE_URL_RE.search(path) or _VIDARA_PATH_RE.search(path):
                 return super().suitable(url)
             return False
 
@@ -1114,9 +1118,9 @@ def _make_embed_ie():
             return pages
 
         def _player_embeds(self, webpage):
-            """Player iframes only - absolute http(s) src + non-ad host."""
             out = []
-            for m in _IFRAME_SRC_RE.finditer(webpage or ''):
+            cleaned = (webpage or '').replace('\\/', '/').replace('\\"', '"')
+            for m in _IFRAME_SRC_RE.finditer(cleaned):
                 src = m.group('src').replace('&amp;', '&')
                 host = (urlparse(src).netloc or '').lower()
                 if not host or any(x in host for x in _AD_HOST_BLOCKLIST):
@@ -1381,6 +1385,40 @@ def _make_embed_ie():
             if not formats:
                 raise ExtractorError('playback sources had no usable media')
             return formats, data
+
+        def _vidara_formats(self, embed_url, video_id, note):
+            up = urlparse(embed_url)
+            origin = f'{up.scheme}://{up.netloc}'
+            code = next((p for p in reversed((up.path or '').strip('/').split('/')) if p), None)
+            if not code:
+                raise ExtractorError('no filecode in embed url', expected=True)
+            payload = json_dumps({'filecode': code, 'device': 'web'}).encode('utf-8')
+            headers = {
+                'Referer': embed_url,
+                'Origin': origin,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+            req = self._download_webpage(
+                f'{origin}/api/stream', video_id, note=f'{note}: stream api', fatal=False,
+                data=payload, headers=headers)
+            if not req:
+                raise ExtractorError('stream api returned empty response', expected=True)
+            try:
+                data = json_loads(req)
+            except Exception:
+                raise ExtractorError('stream api returned invalid json', expected=True)
+            stream_url = url_or_none(traverse_obj(data, ('streaming_url', {str})))
+            if not stream_url:
+                raise ExtractorError('no streaming_url in stream api response', expected=True)
+            thumb = url_or_none(traverse_obj(data, ('thumbnail', {str})))
+            title = traverse_obj(data, ('title', {str})) or None
+            fmts = self._extract_m3u8_formats(
+                stream_url, video_id, 'mp4', m3u8_id='hls',
+                headers={'Referer': f'{origin}/', 'Origin': origin}, note=f'{note}: hls')
+            for f in fmts:
+                f.setdefault('http_headers', {}).update({'Referer': f'{origin}/', 'Origin': origin})
+            return fmts, {'poster_url': thumb, 'title': title}
 
     _EMBED_IE_CLASS = D2EmbedIE
     return D2EmbedIE
