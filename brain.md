@@ -64,6 +64,39 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-D (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`  
+**Implements:** `.ask` me user ka decision **C** (dual-audio MKV + embedded EN subs) — brain "Next (pending)" me recorded tha
+
+**User instruction:**
+- `.ask`: leeched anime file me sirf Japanese audio mila — site experience = Japanese audio + English subs; English audio bhi site pe hai. User ne option **C** choose kiya: EK file = dono audio tracks + English subtitle track.
+- "Fix like a senior python developer" → /build trigger.
+
+**Investigation (frame-level proof, sandbox ffmpeg se):**
+- Stream TS = video + EK audio (language tag `jpn`/`en`); koi subtitle stream NAHI, koi burned-in sub NAHI (dialogue-cue timestamps ke frames clean nikle).
+- EN subs = alag VTT files (14 langs, en default) jo site-player overlay karta hai → "Japanese audio + EN subs" player-side combo tha, file me kabhi tha hi nahi.
+- Bot ki subtitle-writing default off → leech = video+audio only. Complaint ka root cause yahi.
+
+**Fix (gated, fallback-safe, zero global impact):**
+1. IE `_real_extract`: naya info field `d2_dual` = {url, lang, primary} — alternate-language candidate ka embed URL (sirf jab sub+dub dono candidates hon; chosen-lang lock jaisa tha waisa).
+2. Naya helper method `__dual_audio_merge` (`__download` me primary download ke baad, polish se pehle):
+   - Gate: `extractor=='d2embed'` AND not playlist AND primary exists AND (d2_dual ya en-subs) — baaki sab extractors pe ZERO asar.
+   - Secondary YoutubeDL run (format='worst' → 360p source, tmpdir outtmpl, impersonate) → alternate audio source; EN VTT `ydl.urlopen` se (subtitle entry ke Referer headers ke sath).
+   - EK ffmpeg pass (`-c copy`): primary se video+audio0, alt se audio1, VTT → srt subtitle track; language tags jpn/eng/eng; output MKV; primary ko in-place replace (pipeline directory-based hai → naam-safe).
+   - Fallbacks: alt fail → subs-only mkv; subs fail → dual-only; dono fail → primary untouched; ffmpeg fail → primary untouched (warning log; task KABHI nahi marta).
+3. `__download`: primary filepath ab `process_ie_result` ke `requested_downloads` se capture (fallback: name-glob).
+
+**Verification (live E2E, bot ke REAL helper code se):**
+- Default (sub): MKV = h264 + aac[jpn] + aac[eng] + subrip[eng] ✓; task-dir me sirf final mkv (temp sab clean) ✓.
+- "dub" message: MKV track-order aac[eng] + aac[jpn] + eng subs ✓ (keyword = default track; dono tracks hamesha).
+- Fallback T1 dual-broken → v+jpn+subs mkv ✓; T2 dual+subs broken → original mp4 untouched ✓; T3 youtube-info → no-op ✓.
+- Direct embed URL → subs-only merge (d2_dual None, subs hain) ✓; youtube extraction unchanged (48 formats, d2_dual None) ✓.
+- py_compile ✓; naye code me ZERO comments ✓; koi nayi dependency nahi ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
 ### 260913-C (built, pushed)
 **Git:** `fcdb8e4`  
 **Date:** 2026-09-13  

@@ -366,17 +366,16 @@ class YoutubeDLHelper:
                         f'Not enough free disk space for {get_readable_file_size(need)}.')
             except (OSError, ValueError):
                 pass
+        primary = None
         try:
             register_embed_resolver()   # idempotent — extractMetaData na chala ho to bhi safe
             with YoutubeDL(self.opts) as ydl:
                 try:
-                    # extractMetaData() already fetched webpage+JSON for this link.
-                    # Feeding that info back avoids a second full extraction per
-                    # task (2 HTTP requests saved, measured) and guarantees the
-                    # download uses the exact format/URL/headers we showed the user.
                     if self.__extracted_info is not None:
-                        ydl.process_ie_result(
+                        proc = ydl.process_ie_result(
                             ydl.sanitize_info(self.__extracted_info, False), download=True)
+                        if isinstance(proc, dict):
+                            primary = (proc.get('requested_downloads') or [{}])[0].get('filepath')
                     else:
                         ydl.download([link])
                 except DownloadError as e:
@@ -389,6 +388,11 @@ class YoutubeDLHelper:
                 return
             if self.__is_cancelled:
                 raise ValueError
+            if not primary and ospath.isdir(path):
+                primary = next((ospath.join(path, f) for f in listdir(path)
+                                if f.startswith(self.name) and ospath.splitext(f)[1].lower()
+                                in ('.mp4', '.mkv', '.webm', '.m4v')), None)
+            self.__dual_audio_merge(path, primary)
             self.__polish_media(path)
             async_to_sync(self.__listener.onDownloadComplete)
         except ValueError:
@@ -445,6 +449,92 @@ class YoutubeDLHelper:
         for cur, _, files in walk(path):
             for f in files:
                 self.__polish_file(ospath.join(cur, f))
+
+    def __dual_audio_merge(self, path, primary):
+        from yt_dlp import YoutubeDL
+        from urllib.request import Request
+        from tempfile import mkdtemp
+        from shutil import rmtree, move
+        info = self.__extracted_info or {}
+        if info.get('extractor') != 'd2embed' or self.is_playlist \
+                or not primary or not ospath.exists(primary):
+            return
+        dual = info.get('d2_dual') or {}
+        en_subs = (info.get('subtitles') or {}).get('en') or []
+        if not dual.get('url') and not en_subs:
+            return
+        tmpd = mkdtemp(prefix='d2dual-')
+        alt_file = vtt_file = None
+        try:
+            opts = {'quiet': True, 'no_warnings': True, 'noprogress': True,
+                    'logger': _NullYdlLog(), 'format': 'worst',
+                    'outtmpl': {'default': f'{tmpd}/alt.%(ext)s'},
+                    'retries': 2, 'fragment_retries': 2, 'socket_timeout': 30,
+                    'ffmpeg_location': f"/bin/{bot_cache['pkgs'][2]}",
+                    'concurrent_fragment_downloads': int(
+                        environ.get('YDLP_CONCURRENT_FRAGMENTS', '4') or 4)}
+            with YoutubeDL(add_impersonate(opts)) as y2:
+                register_embed_resolver()
+                if dual.get('url'):
+                    try:
+                        y2.extract_info(dual['url'], download=True)
+                    except Exception as e:
+                        LOGGER.warning(
+                            f'dual-audio source skipped: {e.__class__.__name__}: {str(e)[:160]}')
+                    alt_file = next((ospath.join(tmpd, f)
+                                     for f in listdir(tmpd) if f.startswith('alt.')), None)
+                if en_subs:
+                    try:
+                        req = Request(en_subs[0]['url'],
+                                      headers=en_subs[0].get('http_headers') or {})
+                        data = y2.urlopen(req).read()
+                        if data:
+                            vtt_file = f'{tmpd}/en.vtt'
+                            with open(vtt_file, 'wb') as fh:
+                                fh.write(data)
+                    except Exception as e:
+                        LOGGER.warning(
+                            f'english subtitle skipped: {e.__class__.__name__}: {str(e)[:160]}')
+            if not alt_file and not vtt_file:
+                return
+            out = f'{tmpd}/merged.mkv'
+            cmd = [_ffmpeg_bin(), '-nostdin', '-threads', '1', '-y', '-hide_banner',
+                   '-loglevel', 'error', '-i', primary]
+            if alt_file:
+                cmd += ['-i', alt_file]
+            if vtt_file:
+                cmd += ['-i', vtt_file]
+            cmd += ['-map', '0:v:0', '-map', '0:a:0']
+            nxt = 1
+            if alt_file:
+                cmd += ['-map', '1:a:0']
+                nxt = 2
+            if vtt_file:
+                cmd += ['-map', f'{nxt}:s:0']
+            cmd += ['-c:v', 'copy', '-c:a', 'copy']
+            if vtt_file:
+                cmd += ['-c:s', 'srt']
+            if dual.get('primary'):
+                cmd += ['-metadata:s:a:0',
+                        f"language={'jpn' if dual['primary'] == 'sub' else 'eng'}"]
+            if alt_file and dual.get('lang'):
+                cmd += ['-metadata:s:a:1',
+                        f"language={'jpn' if dual['lang'] == 'sub' else 'eng'}"]
+            if vtt_file:
+                cmd += ['-metadata:s:s:0', 'language=eng']
+            cmd += ['-map_metadata', '0', out]
+            _, err, code = async_to_sync(cmd_exec, cmd)
+            if code != 0 or not ospath.exists(out) or ospath.getsize(out) == 0:
+                LOGGER.warning(f'dual-audio merge skipped: {str(err)[-200:]}')
+                return
+            final = f'{ospath.splitext(primary)[0]}.mkv'
+            remove(primary)
+            move(out, final)
+            LOGGER.info(f'dual-audio package ready: {ospath.basename(final)}')
+        except Exception as e:
+            LOGGER.warning(f'dual-audio merge failed: {e.__class__.__name__}: {e}')
+        finally:
+            rmtree(tmpd, ignore_errors=True)
 
     async def add_download(self, link, path, name, qual, playlist, options):
         link = normalize_ydl_link(link)
@@ -946,6 +1036,8 @@ def _make_embed_ie():
                 if not candidates:
                     raise UnsupportedError(url)
                 raise ExtractorError('No working streaming server found on this page', expected=True)
+            alt = next((c for c in candidates if c[1] and c[1] != chosen), None) \
+                if chosen in ('sub', 'dub') else None
             return {
                 'id': video_id,
                 'title': title,
@@ -954,6 +1046,7 @@ def _make_embed_ie():
                 'age_limit': self._AGE_LIMIT,
                 'formats': formats,
                 'subtitles': subtitles or None,
+                'd2_dual': {'url': alt[3], 'lang': alt[1], 'primary': chosen} if alt else None,
             }
 
         def _clean_title(self, raw):
