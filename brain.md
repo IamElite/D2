@@ -62,6 +62,40 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-A (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-13  
+**Files:** `yt_dlp_plugins/extractor/hianime.py` (NEW plugin)  
+**Task:** YDL backend me HiAnime-clone sites (multi-audio SUB/DUB + multi-server)
+
+**User instruction:**
+- "ek unique site mila... ydl mein add karna hai" — `/yl7` pe `ERROR: Unsupported URL`: `hianime.otakuthemes.com/one-piece-film-red-episode-1/` aur `hianimes.se/watch/kaiju-no-8-...-episode-1-r4094u`.
+- "Japanese audio alag section, English audio alag section, multi-server — code ko support karna chahiye."
+- "hianime ka domain बार-बार change hota hai — dhyan rakhna."
+
+**Investigation (live sandbox):**
+- yt-dlp stable (2026.08.19) me hianime/aniwatch extractor EXIST nahi karta (upstream ne remove kiya) → Unsupported URL expected tha.
+- **otakuthemes** = WordPress clone: page → WP post id → REST `/wp-json/v1/otakuthemes/episode/servers?episodeId=` → SUB/DUB × HD-1/HD-2 items, base64 `data-hash` → `megaplay.buzz/stream/{s-2/<id>|mal/<id>/<ep>}/{sub,dub}` embeds.
+- **hianimes.se** = embed `zokoanime.video/stream/mal/<id>/<ep>/<sub|dub>` → `window.__P` = XOR(`otaku-embed-v1`)+base64 → JSON with `src` master.m3u8 (hls2.aniwatchtv.uk) + 14 subtitle langs. Alag backend, same sub/dub pattern.
+- **megaplay**: embed page → `data-id` → `/stream/getSources?id=` → plain `sources.file` YA `enc` (AES-256-CBC, key/iv newclient.min.js me hardcoded; rotate hone pe JS se live extraction fallback) → m3u8. Decrypt verified: `{"file":"https://fetch.nexabloom.top/.../master.m3u8"}`.
+- CDN **TLS-fingerprint** check yt-dlp ke default urllib stack ko block karta tha (CF 1010/403) → yt-dlp native `impersonate` (curl_cffi — already in requirements) se fix.
+- `fetch.nexabloom.top` = CF datacenter-IP block (sandbox se 403); zokoanime/aniwatchtv.uk CDN khulla hai (browser UA + Referer).
+
+**Fix (senior design):**
+- Naya **yt-dlp plugin extractor** `HianimeIE` — official plugin mechanism (`yt_dlp_plugins/` namespace pkg, repo root se auto-discover, `COPY . .` Docker me included). **ZERO bot core changes.**
+- **Domain-rotation-proof:** `_VALID_URL` = keyword-family (hianime|otakuthemes|zokoanime|megaplay|megacloud|aniwatch|anikoto|zoro) + env escape-hatch `HIANIME_DOMAINS` (pipe/comma separated, bina code change naya domain) + distinctive `/stream/.../(sub|dub)` embed-path. Site-type detection CONTENT se (WP markers vs embed URLs), domain se nahi.
+- **Multi-audio:** default SUB (Japanese `[ja]`); DUB via `--extractor-args "hianime:lang=dub"` (`[en]`); preference na mile to auto-fallback dusri lang. Multi-server failover (HD-1→HD-2). Subtitles passthrough (14 langs). Sab requests+formats pe `impersonate=True` (curl_cffi absent ho to graceful fallback).
+
+**Verification (live):**
+- hianimes.se: `-F` → 360/720/1080p `[ja] SUB` ✓; `lang=dub` → `[en] DUB` ✓; title clean ✓; subs 14 langs ✓; direct zokoanime embed URL ✓.
+- **REAL download: 360p full episode 56/56 fragments, 14.98MiB MPEG-TS, 1.39MiB/s** ✓.
+- YouTube sanity: unaffected (youtube extractor) ✓.
+- otakuthemes: chain end-to-end executed (servers→embeds→getSources→decrypt→m3u8) but nexabloom CDN sandbox-IP pe CF-blocked → clean per-server failure + honest error ✓ (user server IP se pass ho sakta hai).
+- py_compile ✓ pure code (0 comments) ✓ no new deps (cryptography/curl-cffi/yt-dlp sab pehle se) ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
+
 ### 260912-W (built, pushed)
 **Git:** `00dbd46`  
 **Date:** 2026-09-12  
