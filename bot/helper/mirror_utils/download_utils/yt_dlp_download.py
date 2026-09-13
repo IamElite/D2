@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 from os import path as ospath, listdir, environ, walk, replace, remove
-from base64 import urlsafe_b64decode
+from base64 import urlsafe_b64decode, b64decode
 from secrets import token_hex
 from logging import getLogger
-from re import search as re_search, sub as re_sub, compile as re_compile, findall as re_findall
+from re import search as re_search, sub as re_sub, compile as re_compile, findall as re_findall, finditer as re_finditer, I as re_I
 from json import loads as json_loads
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from .... import download_dict_lock, download_dict, non_queued_dl, queue_dict_lock, bot_cache
 from ...telegram_helper.message_utils import sendStatusMessage
@@ -225,6 +225,15 @@ class YoutubeDLHelper:
                                                'file_access': lambda n: 1,
                                                'extractor': lambda n: min(2 * n, 10)}}
         self.opts = add_impersonate(self.opts)
+        try:
+            _msg = getattr(listener, 'message', None)
+            _text = (getattr(_msg, 'text', None) or getattr(_msg, 'caption', None) or '')
+        except Exception:
+            _text = ''
+        if re_search(r'\bdub(?:s|bed)?\b', _text, re_I):
+            _ea = dict(self.opts.get('extractor_args') or {})
+            _ea['d2embed'] = {'lang': ['dub']}
+            self.opts['extractor_args'] = _ea
 
     @property
     def download_speed(self):
@@ -591,6 +600,22 @@ class YoutubeDLHelper:
 # Dono me se koi bhi None ho sakta hai (sirf host, ya sirf path se match).
 _ST_HOST_RE = re_compile(r'(?:^|\.)(?:streamtape\.\w+|streamta\.pe|tapecontent\.net)$')
 _BYSE_PATH_RE = re_compile(r'/[edfv]/[\w-]+/?$')
+_STREAM_EMBED_PATH_RE = re_compile(r'/(?:stream|embed)/.+/(?:sub|dub)/?$')
+_EPISODE_URL_RE = re_compile(r'(?:-episode-|/episode-|/ep-\d|-ep-\d|[?&]ep=\d)', re_I)
+_STREAM_EMBED_URL_RE = re_compile(r'https?://[^\s"\'<>\\()]+/(?:stream|embed)/[^\s"\'<>\\()]+/(?:sub|dub)(?![\w-])')
+_WP_SERVER_ITEM_RE = re_compile(
+    r'data-type=["\'](sub|dub)["\'][^>]*?data-server-name=["\']([^"\']*)["\'][^>]*?data-hash=["\']([^"\']+)["\']')
+_ZP_KEY_RE = re_compile(r'OBF_KEY\s*=\s*[\'"]([^\'"]{4,64})[\'"]')
+_ZP_JS_RE = re_compile(r'[\'"]([^\'"]*(?:obfuscate|core)[^\'"]*\.js)[\'"]')
+_MP_KEYPAIR_RE = re_compile(r'"([^"]{8,32})",\w+="([^"]{8,32})",\w+=/\\?/segment/')
+_ZP_DEFAULT_KEY = 'otaku-embed-v1'
+_MP_DEFAULT_KEY = b"i?LMTAx0Q6,:}50U" + b'\x00' * 16
+_MP_DEFAULT_IV = b"W0;27ToaUpl_P%'c"
+_SP_LANG_CODES = {
+    'english': 'en', 'japanese': 'ja', 'spanish': 'es', 'french': 'fr', 'german': 'de',
+    'arabic': 'ar', 'portuguese': 'pt', 'russian': 'ru', 'italian': 'it', 'indonesian': 'id',
+    'thai': 'th', 'vietnamese': 'vi', 'polish': 'pl', 'malay': 'ms', 'chinese': 'zh',
+}
 
 _EMBED_BACKENDS = (
     # StreamTape family: obfuscated `robotlink` assignment in the embed page.
@@ -598,6 +623,7 @@ _EMBED_BACKENDS = (
     # Byse family: GET /api/videos/<code> -> `playback` blob -> AES-256-GCM
     # -> HLS master playlist ya progressive MP4.
     ('byse', None, _BYSE_PATH_RE, '_byse_formats'),
+    ('streamlang', None, _STREAM_EMBED_PATH_RE, '_sp_formats'),
     # voe.sx: DDoS-Guard JS challenge -> 403 (curl_cffi chrome impersonate bhi
     # fail). Browser-less bypass namumkin, isliye koi backend nahi - embed
     # warning ke saath skip hota hai aur baaki servers chalte rehte hain.
@@ -764,6 +790,54 @@ def byse_decrypt_playback(playback, warn=None):
         return None
 
 
+def zp_decode_player_config(blob, key=None):
+    for k in (key, _ZP_DEFAULT_KEY):
+        if not k:
+            continue
+        kb = k.encode()
+        try:
+            raw = b64decode(blob + '=' * (-len(blob) % 4))
+            out = bytes(b ^ kb[i % len(kb)] for i, b in enumerate(raw))
+            return json_loads(out.decode('utf-8'))
+        except Exception:
+            continue
+    return None
+
+
+def megaplay_decrypt_source(enc, key=None, iv=None):
+    try:
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    except Exception:
+        return None
+    pairs = []
+    if key and iv:
+        pairs.append((key, iv))
+    pairs.append((_MP_DEFAULT_KEY, _MP_DEFAULT_IV))
+    data = enc.replace('-', '+').replace('_', '/')
+    data += '=' * (-len(data) % 4)
+    for k, v in pairs:
+        try:
+            raw = b64decode(data)
+            dec = Cipher(algorithms.AES(k), modes.CBC(v)).decryptor()
+            pt = dec.update(raw) + dec.finalize()
+            pad = pt[-1]
+            if not 1 <= pad <= 16 or pt[-pad:] != bytes((pad,)) * pad:
+                continue
+            return json_loads(pt[:-pad].decode('utf-8')).get('file')
+        except Exception:
+            continue
+    return None
+
+
+def sp_lang_from_url(embed_url):
+    path = (urlparse(embed_url).path or '').rstrip('/').lower()
+    if path.endswith('/dub'):
+        return 'dub'
+    if path.endswith('/sub'):
+        return 'sub'
+    return None
+
+
 # -- S2. InfoExtractor factory (class LAZY banti hai - boot pe yt_dlp load nahi)
 _EMBED_IE_CLASS = None
 
@@ -773,7 +847,7 @@ def _make_embed_ie():
     if _EMBED_IE_CLASS is not None:
         return _EMBED_IE_CLASS
     from yt_dlp.extractor.common import InfoExtractor
-    from yt_dlp.utils import ExtractorError, int_or_none, traverse_obj, url_or_none
+    from yt_dlp.utils import ExtractorError, UnsupportedError, int_or_none, traverse_obj, url_or_none
 
     class D2EmbedIE(InfoExtractor):
         IE_NAME = 'd2embed'
@@ -782,57 +856,95 @@ def _make_embed_ie():
         _WORKING = True
         _AGE_LIMIT = 18
 
-        _TITLE_BRAND_RE = re_compile(r'Letsjerk|Free Full Porn HD Videos')
+        _TITLE_BRAND_RE = re_compile(r'Letsjerk|Free Full Porn HD Videos|HiAnime|Watch Anime Online', re_I)
         _TITLE_SEP_RE = re_compile(r'\s*[-\u2013\u2014]\s*')
 
         @classmethod
         def suitable(cls, url):
             """Sirf enabled hosts pe match - warna built-in extractors (YouTube,
             Vimeo, pornhub, ...) aur GenericIE apna kaam karte rehte hain."""
-            return is_embed_discovery_url(url) and super().suitable(url)
+            if is_embed_discovery_url(url):
+                return super().suitable(url)
+            try:
+                up = urlparse(url)
+            except Exception:
+                return False
+            path = up.path or ''
+            if _STREAM_EMBED_PATH_RE.search(path) or _EPISODE_URL_RE.search(f'{path}?{up.query or ""}'):
+                return super().suitable(url)
+            return False
 
         def _real_extract(self, url):
             video_id = re_sub(r'\W+', '_', urlparse(url).path.strip('/'))[:80] or 'video'
-            webpage = self._download_webpage(url, video_id)
-            title = self._clean_title(self._og_search_title(webpage, default=None) or '') \
-                or self._html_search_regex(r'<title>([^<]+)', webpage, 'title', default=None) \
-                or video_id
+            lang_pref = (self._configuration_arg('lang', ['sub'])[0] or 'sub').lower()
+            if lang_pref not in ('sub', 'dub'):
+                lang_pref = 'sub'
+            direct_embed = bool(_STREAM_EMBED_PATH_RE.search(urlparse(url).path or ''))
+            webpage = '' if direct_embed else (self._download_webpage(url, video_id, fatal=False) or '')
+            title = self._clean_title(
+                self._og_search_title(webpage, default=None)
+                or self._html_search_regex(r'<title>([^<]+)', webpage, 'title', default=None)
+                or '') or video_id
             thumbnail = self._og_search_thumbnail(webpage, default=None)
 
-            pages = {url: webpage}
-            formats, seen, duration = [], set(), None
-            for server_no, page_url in enumerate(self._server_pages(url, webpage), 1):
-                html = pages.get(page_url)
-                if html is None:
-                    html = self._download_webpage(
-                        page_url, video_id, note=f'Downloading server {server_no} page', fatal=False)
-                    if not html:
-                        continue
-                    pages[page_url] = html
-
-                for embed_url in self._player_embeds(html):
-                    host = (urlparse(embed_url).netloc or '').lower()
-                    note = f'server {server_no} ({host})'
-                    try:
-                        got, meta = self._resolve_embed(embed_url, video_id, note)
-                    except ExtractorError as e:
-                        self.report_warning(f'{note}: skipped - {e.msg}')
-                        continue
-                    except Exception as e:
-                        self.report_warning(f'{note}: skipped - {e.__class__.__name__}: {e}')
-                        continue
-                    duration = duration or int_or_none(traverse_obj(meta, 'duration_seconds'))
-                    thumbnail = thumbnail or url_or_none(traverse_obj(meta, 'poster_url'))
-                    for fmt in got:
-                        key = (re_sub(r'[?#].*$', '', fmt.get('url') or ''),
-                               fmt.get('height'), fmt.get('tbr'))
-                        if key in seen:
+            pages = {url: webpage} if webpage else {}
+            candidates = []
+            if direct_embed:
+                candidates.append((1, sp_lang_from_url(url), 'embed', url))
+            else:
+                for server_no, page_url in enumerate(self._server_pages(url, webpage), 1):
+                    html = pages.get(page_url)
+                    if html is None:
+                        html = self._download_webpage(
+                            page_url, video_id, note=f'Downloading server {server_no} page', fatal=False)
+                        if not html:
                             continue
-                        seen.add(key)
-                        fmt.setdefault('format_note', note)
-                        formats.append(fmt)
+                        pages[page_url] = html
+                    for lang, label, embed_url in self._typed_embeds(page_url, html, video_id):
+                        if embed_url not in [c[3] for c in candidates]:
+                            candidates.append((server_no, lang, label, embed_url))
+
+            def _rank(c):
+                if c[1] == lang_pref:
+                    return 0
+                if c[1] is None:
+                    return 1
+                return 2
+            candidates.sort(key=_rank)
+
+            formats, seen, duration, subtitles = [], set(), None, {}
+            chosen = 'unset'
+            for server_no, lang, label, embed_url in candidates:
+                if chosen != 'unset' and lang != chosen:
+                    continue
+                note = f'server {server_no} ({label})'
+                try:
+                    got, meta = self._resolve_embed(embed_url, video_id, note)
+                except ExtractorError as e:
+                    self.report_warning(f'{note}: skipped - {e.msg}')
+                    continue
+                except Exception as e:
+                    self.report_warning(f'{note}: skipped - {e.__class__.__name__}: {e}')
+                    continue
+                chosen = lang
+                duration = duration or int_or_none(traverse_obj(meta, 'duration_seconds'))
+                thumbnail = thumbnail or url_or_none(traverse_obj(meta, 'poster_url'))
+                for sub_lang, sub_list in (traverse_obj(meta, 'subtitles') or {}).items():
+                    subtitles.setdefault(sub_lang, []).extend(sub_list)
+                for fmt in got:
+                    key = (re_sub(r'[?#].*$', '', fmt.get('url') or ''),
+                           fmt.get('height'), fmt.get('tbr'))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    if lang:
+                        fmt.setdefault('language', 'en' if lang == 'dub' else 'ja')
+                    fmt.setdefault('format_note', f'{note} {lang.upper()}' if lang else note)
+                    formats.append(fmt)
 
             if not formats:
+                if not candidates:
+                    raise UnsupportedError(url)
                 raise ExtractorError('No working streaming server found on this page', expected=True)
             return {
                 'id': video_id,
@@ -841,6 +953,7 @@ def _make_embed_ie():
                 'duration': duration,
                 'age_limit': self._AGE_LIMIT,
                 'formats': formats,
+                'subtitles': subtitles or None,
             }
 
         def _clean_title(self, raw):
@@ -857,6 +970,7 @@ def _make_embed_ie():
             raw = (raw or '').strip()
             if not raw:
                 return ''
+            raw = re_sub(r'\s*Watch All Episodes.*$', '', raw, flags=re_I).strip()
             parts = self._TITLE_SEP_RE.split(raw)
             while len(parts) > 1 and self._TITLE_BRAND_RE.search(parts[-1]):
                 parts.pop()
@@ -899,6 +1013,116 @@ def _make_embed_ie():
                 if src not in out:
                     out.append(src)
             return out
+
+        def _typed_embeds(self, page_url, webpage, video_id):
+            out = []
+
+            def add(lang, label, u):
+                u = url_or_none((u or '').replace('\\/', '/'))
+                if u and u not in [o[2] for o in out]:
+                    out.append((lang, label, u))
+
+            text = (webpage or '').replace('\\/', '/')
+            rest = re_search(r'"rest_url"\s*:\s*"([^"]+)"', text)
+            post = re_search(r'wp-json/wp/v2/posts/(\d+)', text)
+            if rest and post:
+                api = rest.group(1).rstrip('/') + f'/episode/servers?episodeId={post.group(1)}'
+                data = self._download_json(
+                    api, video_id, note='Downloading server list', fatal=False,
+                    headers={'Referer': page_url, 'X-Requested-With': 'XMLHttpRequest'})
+                for m in _WP_SERVER_ITEM_RE.finditer(traverse_obj(data, ('html', {str})) or ''):
+                    try:
+                        embed = b64decode(m.group(3)).decode('utf-8')
+                    except Exception:
+                        continue
+                    add(m.group(1), m.group(2) or m.group(1).upper(), embed)
+            for m in _STREAM_EMBED_URL_RE.finditer(text):
+                u = m.group(0)
+                add(sp_lang_from_url(u), (urlparse(u).netloc or '').lower(), u)
+            for e in self._player_embeds(webpage):
+                add(None, (urlparse(e).netloc or '').lower(), e)
+            for idx, (lang, label, u) in enumerate(out):
+                if lang is None and sp_lang_from_url(u):
+                    out[idx] = (sp_lang_from_url(u), label, u)
+            return out
+
+        def _zp_key(self, page, origin, video_id):
+            js_urls = []
+            for m in re_finditer(r'<script[^>]+src="([^"]+)"', page or ''):
+                src = m.group(1)
+                if any(x in src.lower() for x in ('player', 'obfuscate', 'core')):
+                    js_urls.append(urljoin(origin + '/', src))
+            for js_url in js_urls[:3]:
+                js = self._download_webpage(js_url, video_id, note='Downloading player script', fatal=False) or ''
+                m = _ZP_KEY_RE.search(js)
+                if m:
+                    return m.group(1)
+                for sub in _ZP_JS_RE.findall(js)[:3]:
+                    sub_url = urljoin(js_url, sub)
+                    js2 = self._download_webpage(sub_url, video_id, note='Downloading player module', fatal=False) or ''
+                    m2 = _ZP_KEY_RE.search(js2)
+                    if m2:
+                        return m2.group(1)
+            return None
+
+        def _sp_formats(self, embed_url, video_id, note):
+            up = urlparse(embed_url)
+            origin = f'{up.scheme}://{up.netloc}'
+            headers = {'Referer': origin + '/'}
+            lang = sp_lang_from_url(embed_url)
+            page = (self._download_webpage(embed_url, video_id, note=f'{note}: embed page', fatal=False) or '')
+            page = page.replace('\\/', '/')
+            blob = re_search(r'window\.__P="([^"]+)"', page)
+            if blob:
+                cfg = zp_decode_player_config(blob.group(1), self._zp_key(page, origin, video_id))
+                src = url_or_none(traverse_obj(cfg, ('src', {str})))
+                if not src:
+                    raise ExtractorError('unable to decode player config', expected=True)
+                subs = {}
+                for t in traverse_obj(cfg, ('subtitles', lambda _, v: url_or_none(v.get('src')))) or []:
+                    lg = (t.get('lang') or '').strip().lower()
+                    lg = _SP_LANG_CODES.get(lg, lg if re_search(r'^[a-z]{2}$', lg) else 'und')
+                    subs.setdefault(lg, []).append({'url': t['src'], 'http_headers': dict(headers)})
+                fmts = self._extract_m3u8_formats(
+                    src, video_id, 'mp4', m3u8_id=f'sp-{lang or "hls"}', headers=headers, note=f'{note}: hls')
+                for f in fmts:
+                    f.setdefault('http_headers', {}).update(headers)
+                return fmts, {'subtitles': subs}
+            data_id = re_search(r'data-id=["\'](\d+)', page)
+            data_id = data_id.group(1) if data_id else next(
+                (p for p in reversed((up.path or '').split('/')) if p.isdigit()), None)
+            if not data_id:
+                raise ExtractorError('no known player signature on embed page', expected=True)
+            data = self._download_json(
+                f'{origin}/stream/getSources?id={data_id}', video_id, note=f'{note}: sources', fatal=False,
+                headers={'Referer': embed_url, 'X-Requested-With': 'XMLHttpRequest'})
+            src = url_or_none(traverse_obj(data, ('sources', 'file'))) \
+                or url_or_none(traverse_obj(data, ('sources', 0, 'file')))
+            if not src and traverse_obj(data, ('enc', {str})):
+                key = iv = None
+                js = re_search(r'<script[^>]+src="([^"]*newclient[^"]*)"', page)
+                if js:
+                    js_text = self._download_webpage(
+                        urljoin(origin + '/', js.group(1)), video_id, note=f'{note}: client script', fatal=False) or ''
+                    km = _MP_KEYPAIR_RE.search(js_text)
+                    if km:
+                        key = km.group(1).encode()[:32].ljust(32, b'\x00')
+                        iv = km.group(2).encode()[:16].ljust(16, b'\x00')
+                src = url_or_none(megaplay_decrypt_source(data['enc'], key, iv))
+            if not src:
+                raise ExtractorError('source api returned no stream', expected=True)
+            subs = {}
+            for t in traverse_obj(data, ('tracks', lambda _, v: url_or_none(v.get('file')))) or []:
+                if t.get('kind') not in (None, 'captions', 'subtitles'):
+                    continue
+                lg = (t.get('label') or '').strip().lower()
+                lg = _SP_LANG_CODES.get(lg, lg if re_search(r'^[a-z]{2}$', lg) else 'und')
+                subs.setdefault(lg, []).append({'url': t['file'], 'http_headers': dict(headers)})
+            fmts = self._extract_m3u8_formats(
+                src, video_id, 'mp4', m3u8_id=f'sp-{lang or "hls"}', headers=headers, note=f'{note}: hls')
+            for f in fmts:
+                f.setdefault('http_headers', {}).update(headers)
+            return fmts, {'subtitles': subs}
 
         def _resolve_embed(self, embed_url, video_id, note):
             """Backend dispatch - host/path pattern se, site ke naam se nahi."""

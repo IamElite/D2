@@ -64,6 +64,36 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-C (built)
+**Git:** `PENDING`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`; `yt_dlp_plugins/extractor/hianime.py` **REMOVED**  
+**OLD: 260913-A** (plugin approach RULE 9 ke against tha — superseded); 260913-B ka plan implement hua
+
+**User instruction:**
+- "Fix like a pro" → `.ask` discussion wala GLOBAL build: site-specific plugin nahi; ek global mechanism jo same family ki koi bhi site (koi bhi domain) automatically support kare.
+
+**Fix (GLOBAL — player-signature based, domain-agnostic):**
+- 260913-A ka plugin DELETE. Repo ke existing **universal embed system (`D2EmbedIE` + `_EMBED_BACKENDS`)** ko extend kiya — site ke naam kahin nahi, sirf software-signatures:
+  1. **Gate** (`suitable()`): pehle jaisa host allow-list (`YTDL_EMBED_HOSTS` env) + AB path-signatures bhi: `/stream|embed/.../(sub|dub)` embed paths aur episode patterns (`-episode-`, `/ep-N`, `-ep-N`, `?ep=`). Built-in extractors (YouTube etc.) hamesha pehle match karte hain — unpe zero asar.
+  2. **Naya backend `streamlang`** (host=None → koi bhi domain), 2 player-family recipes:
+     - `window.__P` XOR-blob player: **XOR key site ke apne player.js/obfuscate.js se LIVE extract** (fallback `otaku-embed-v1`) → decode → direct m3u8 + multi-lang subtitles.
+     - `getSources` player (megaplay family): data-id → `/stream/getSources?id=` → plain `sources.file` YA `enc` AES-256-CBC → **key/iv page ke apne client-JS se LIVE extract** (fallback known values) → m3u8.
+  3. **Watch-page embed discovery** (`_typed_embeds`): WP-theme REST signature (`"rest_url"` + `wp-json/wp/v2/posts/<id>`) → `episode/servers` API → base64 `data-hash` → typed (sub/dub) embeds; JS-strings me raw stream-URLs; iframes ko path se auto-type. Kisi bhi domain pe ye signatures milein → chal jayega.
+  4. **Multi-audio UX:** default SUB (`[ja]`); user message me word **"dub"** → DUB (`[en]`) (word-boundary: "dubai" false-positive nahi); preferred lang available na ho to dusri lang auto-fallback (error nahi — L/K robustness rules). Pehli success ke baad chosen-lang lock — sub/dub formats mix nahi hote (deterministic default).
+  5. Multi-server failover (HD-1→HD-2, warning+skip), 14 subtitle langs info dict me, formats pe **Referer http_headers explicit stamp** (ye missing tha to segments 403 khate), title cleanup generic ("Watch All Episodes…", theme-branding dash-segments).
+  6. Koi known signature nahi mila → `UnsupportedError` → GenericIE fallback pehle jaisa (koi hijack nahi).
+
+**Verification (live — bot ke REAL module code se, stub-package harness):**
+- hianimes.se default → 360/720/1080p `[ja] SUB` ONLY, Referer ✓; `dub` arg → `[en] DUB` ONLY ✓; title clean ✓; subs 14 langs ✓.
+- Direct embed URL (zokoanime) ✓.
+- **REAL download bot-flow se (extract_info → sanitize_info → process_ie_result): 15.7MB mp4, sub-360p** ✓.
+- dub-keyword hook: "dub me bhejo" → lang=dub ✓; plain → None ✓; "dubai-tour" → None ✓.
+- otakuthemes: chain end-to-end chala (WP API → base64 → megaplay → getSources → AES decrypt) — nexabloom CDN sandbox-datacenter-IP pe CF 403 deta hai → clean per-server warnings + honest error. Decrypt manually proven (m3u8 URL nikla). User-server IP allow kare to wahan chalega.
+- YouTube → youtube extractor untouched ✓. py_compile ✓; naye code me ZERO comments ✓; koi nayi dependency nahi (cryptography/curl-cffi pehle se) ✓.
+
+**Pushed:** `PENDING` → `arnv1`.
+
 ### 260913-B (docs-only rule fix, pushed)
 **Git:** `2ebf766`  
 **Date:** 2026-09-13  
