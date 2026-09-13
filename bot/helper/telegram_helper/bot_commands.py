@@ -1,81 +1,90 @@
 from ... import CMD_SUFFIX, config_dict
 
-_ALL_SUFFIX_ALIASES = {'ra', 'aa', 'uaa', 'asa', 'rsa', 'bsa', 'sa', 'sta', 'usa'}
+_ALL_SUFFIX_ALIASES = {'ra', 'aa', 'uaa', 'asa', 'rsa', 'bsa', 'sa', 'sta', 'usa', 'cancellallbot'}
 
 class CommandList(list):
     def __str__(self):
         return self[0] if self else ''
 
-def _build_cmd(cmd):
-    if not cmd:
-        return cmd
-    if cmd.endswith('all') or cmd in _ALL_SUFFIX_ALIASES:
+def _fmt(cmd):
+    if not cmd or (CMD_SUFFIX and cmd.endswith(CMD_SUFFIX)) or cmd.endswith('all') or cmd in _ALL_SUFFIX_ALIASES:
         return cmd
     return f'{cmd}{CMD_SUFFIX}'
 
-def _build_cmds(cmds):
-    if isinstance(cmds, list):
-        return CommandList(dict.fromkeys(_build_cmd(c) for c in cmds if c != ''))
-    return _build_cmd(cmds)
-
 class _BotCommands:
+    StartCommand = 'start'
+    LoginCommand = 'login'
+
+    _COMMANDS = {
+        'Mirror': ['mirror', 'm'],
+        'QbMirror': ['qbmirror', 'qm'],
+        'Ytdl': ['ytdl', 'y'],
+        'Leech': ['leech', 'l'],
+        'QbLeech': ['qbleech', 'ql'],
+        'YtdlLeech': ['ytdlleech', 'yl'],
+        'Clone': ['clone', 'c'],
+        'Count': 'count',
+        'Delete': 'del',
+        'CancelMirror': 'cancel',
+        'CancelAll': [f'cancelall{CMD_SUFFIX}', 'cancelall', 'cancellallbot'],
+        'ForceStart': ['forcestart', 'fs'],
+        'List': 'list',
+        'Search': 'search',
+        'Status': ['status', 's', 'statusall', 'sa'],
+        'Users': 'users',
+        'Authorize': ['authorize', 'a', 'authorizeall', 'aa'],
+        'UnAuthorize': ['unauthorize', 'ua', 'unauthorizeall', 'uaa'],
+        'AddBlackList': ['blacklist', 'bl'],
+        'RmBlackList': ['rmblacklist', 'rbl'],
+        'AddSudo': ['addsudo', 'as', 'addsudoall', 'asa'],
+        'RmSudo': ['rmsudo', 'rs', 'rmsudoall', 'rsa'],
+        'Ping': ['ping', 'p'],
+        'Restart': ['restart', 'r', 'restartall', 'ra'],
+        'Stats': ['stats', 'st'],
+        'Help': 'help',
+        'Log': 'log',
+        'Shell': 'shell',
+        'Eval': 'eval',
+        'Exec': 'exec',
+        'ClearLocals': 'clearlocals',
+        'BotSet': ['bsetting', 'bs', 'bsettingall', 'bsa'],
+        'UserSet': ['usetting', 'us', 'usettingsall', 'usall', 'usa'],
+        'BtSelect': 'btsel',
+        'CategorySelect': 'ctsel',
+        'Speed': ['speedtest', 'sp', 'speedtestall', 'sta'],
+        'Rss': 'rss',
+        'AddImage': 'addimg',
+        'Images': 'images',
+        'IMDB': 'imdb',
+        'AniList': 'anime',
+        'AnimeHelp': 'animehelp',
+        'MediaInfo': ['mediainfo', 'mi'],
+        'MyDramaList': 'mdl',
+        'Poster': 'poster',
+        'GDClean': ['gdclean', 'gc'],
+        'AutoRename': 'autorename',
+        'Broadcast': ['broadcast', 'bc'],
+    }
+
+    _EXTRA_COMMANDS = {
+        'Mirror': ['unzipmirror', 'uzm', 'zipmirror', 'zm'],
+        'QbMirror': ['qbunzipmirror', 'quzm', 'qbzipmirror', 'qzm'],
+        'Ytdl': ['ytdlzip', 'yz'],
+        'Leech': ['unzipleech', 'uzl', 'zipleech', 'zl'],
+        'QbLeech': ['qbunzipleech', 'quzl', 'qbzipleech', 'qzl'],
+        'YtdlLeech': ['ytdlzipleech', 'yzl'],
+    }
+
     def __init__(self):
-        self.StartCommand = 'start'
-        self.MirrorCommand = _build_cmds(['mirror', 'm'])
-        self.QbMirrorCommand = _build_cmds(['qbmirror', 'qm'])
-        self.YtdlCommand = _build_cmds(['ytdl', 'y'])
-        self.LeechCommand = _build_cmds(['leech', 'l'])
-        self.QbLeechCommand = _build_cmds(['qbleech', 'ql'])
-        self.YtdlLeechCommand = _build_cmds(['ytdlleech', 'yl'])
-        if config_dict['SHOW_EXTRA_CMDS']:
-            self.MirrorCommand.extend([_build_cmd(x) for x in ['unzipmirror', 'uzm', 'zipmirror', 'zm']])
-            self.QbMirrorCommand.extend([_build_cmd(x) for x in ['qbunzipmirror', 'quzm', 'qbzipmirror', 'qzm']])
-            self.YtdlCommand.extend([_build_cmd(x) for x in ['ytdlzip', 'yz']])
-            self.LeechCommand.extend([_build_cmd(x) for x in ['unzipleech', 'uzl', 'zipleech', 'zl']])
-            self.QbLeechCommand.extend([_build_cmd(x) for x in ['qbunzipleech', 'quzl', 'qbzipleech', 'qzl']])
-            self.YtdlLeechCommand.extend([_build_cmd(x) for x in ['ytdlzipleech', 'yzl']])
-        self.CloneCommand = _build_cmds(['clone', 'c'])
-        self.CountCommand = _build_cmd('count')
-        self.DeleteCommand = _build_cmd('del')
-        self.CancelMirror = _build_cmd('cancel')
-        self.CancelAllCommand = _build_cmds([f'cancelall{CMD_SUFFIX}', 'cancelall', 'call', 'cancellallbot'])
-        self.ForceStartCommand = _build_cmds(['forcestart', 'fs'])
-        self.ListCommand = _build_cmd('list')
-        self.SearchCommand = _build_cmd('search')
-        self.StatusCommand = _build_cmds(['status', 's', 'statusall', 'sa'])
-        self.UsersCommand = _build_cmd('users')
-        self.AuthorizeCommand = _build_cmds(['authorize', 'a', 'authorizeall', 'aa'])
-        self.UnAuthorizeCommand = _build_cmds(['unauthorize', 'ua', 'unauthorizeall', 'uaa'])
-        self.AddBlackListCommand = _build_cmds(['blacklist', 'bl'])
-        self.RmBlackListCommand = _build_cmds(['rmblacklist', 'rbl'])
-        self.AddSudoCommand = _build_cmds(['addsudo', 'as', 'addsudoall', 'asa'])
-        self.RmSudoCommand = _build_cmds(['rmsudo', 'rs', 'rmsudoall', 'rsa'])
-        self.PingCommand = _build_cmds(['ping', 'p'])
-        self.RestartCommand = _build_cmds(['restart', 'r', 'restartall', 'ra'])
-        self.StatsCommand = _build_cmds(['stats', 'st'])
-        self.HelpCommand = _build_cmd('help')
-        self.LogCommand = _build_cmd('log')
-        self.ShellCommand = _build_cmd('shell')
-        self.EvalCommand = _build_cmd('eval')
-        self.ExecCommand = _build_cmd('exec')
-        self.ClearLocalsCommand = _build_cmd('clearlocals')
-        self.BotSetCommand = _build_cmds(['bsetting', 'bs', 'bsettingall', 'bsa'])
-        self.UserSetCommand = _build_cmds(['usetting', 'us', 'usettingsall', 'usall', 'usa'])
-        self.BtSelectCommand = _build_cmd('btsel')
-        self.CategorySelect = _build_cmd('ctsel')
-        self.SpeedCommand = _build_cmds(['speedtest', 'sp', 'speedtestall', 'sta'])
-        self.RssCommand = _build_cmd('rss')
-        self.LoginCommand = 'login'
-        self.AddImageCommand = _build_cmd('addimg')
-        self.ImagesCommand = _build_cmd('images')
-        self.IMDBCommand = _build_cmd('imdb')
-        self.AniListCommand = _build_cmd('anime')
-        self.AnimeHelpCommand = _build_cmd('animehelp')
-        self.MediaInfoCommand = _build_cmds(['mediainfo', 'mi'])
-        self.MyDramaListCommand = _build_cmd('mdl')
-        self.PosterCommand = _build_cmd('poster')
-        self.GDCleanCommand = _build_cmds(['gdclean', 'gc'])
-        self.AutoRenameCommand = _build_cmd('autorename')     
-        self.BroadcastCommand = _build_cmds(['broadcast', 'bc'])
+        show_extra = config_dict.get('SHOW_EXTRA_CMDS', False)
+        for key, cmds in self._COMMANDS.items():
+            attr = key if key in ('CancelMirror', 'CategorySelect') or key.endswith('Command') else f'{key}Command'
+            if isinstance(cmds, list):
+                cmd_list = list(cmds)
+                if show_extra and key in self._EXTRA_COMMANDS:
+                    cmd_list.extend(self._EXTRA_COMMANDS[key])
+                setattr(self, attr, CommandList(dict.fromkeys(_fmt(c) for c in cmd_list if c)))
+            else:
+                setattr(self, attr, _fmt(cmds))
 
 BotCommands = _BotCommands()

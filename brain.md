@@ -64,6 +64,21 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-F (built, pushed)
+**Git:** `84c9be6`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/telegram_helper/bot_commands.py`  
+**User instruction:**
+- Refactor bot commands to declarative dictionary-driven architecture matching user's pattern.
+- Clean code without repetitive `self.XCommand = ...` boilerplate.
+- Removed `'call'` alias from `CancelAllCommand`.
+
+**Fix:**
+- Implemented `_COMMANDS` dictionary mapping and `_EXTRA_COMMANDS` for extra zip/unzip features.
+- Clean constructor dynamically creates `CommandList` attributes with suffix filtering.
+- Fully preserved compatibility for `BotCommands.CancelMirror`, `BotCommands.CategorySelect`, etc.
+- Followed Rule 8: zero comments in code.
+
 ### 260913-E (built, pushed)
 **Git:** `60d376f`  
 **Date:** 2026-09-13  
