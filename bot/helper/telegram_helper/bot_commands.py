@@ -7,7 +7,7 @@ class CommandList(list):
         return self[0] if self else ''
 
 def _fmt(cmd):
-    if not cmd or (CMD_SUFFIX and cmd.endswith(CMD_SUFFIX)) or cmd.endswith('all') or cmd in _ALL_SUFFIX_ALIASES:
+    if not cmd or (CMD_SUFFIX and cmd.endswith(CMD_SUFFIX)) or (cmd.endswith('all') and cmd != 'cancelall') or cmd in _ALL_SUFFIX_ALIASES:
         return cmd
     return f'{cmd}{CMD_SUFFIX}'
 
@@ -26,7 +26,7 @@ class _BotCommands:
         'Count': 'count',
         'Delete': 'del',
         'CancelMirror': 'cancel',
-        'CancelAll': [f'cancelall{CMD_SUFFIX}', 'cancelall', 'cancellallbot'],
+        'CancelAll': ['cancelall', 'cancellallbot'],
         'ForceStart': ['forcestart', 'fs'],
         'List': 'list',
         'Search': 'search',

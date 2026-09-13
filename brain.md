@@ -64,6 +64,19 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-G (built, pushed)
+**Git:** `59c502e`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/telegram_helper/bot_commands.py`  
+**User instruction:**
+- Fix `CancelAll` in `_COMMANDS` dictionary: remove hardcoded `f'{CMD_SUFFIX}'` f-string and fix suffix routing.
+
+**Fix:**
+- Updated `_fmt(cmd)` to exempt commands ending in `"all"` except `"cancelall"` (`cmd.endswith('all') and cmd != 'cancelall'`).
+- Cleaned `CancelAll` to `['cancelall', 'cancellallbot']` pure strings without hacks.
+- `[0]` cleanly resolves to `cancelall{CMD_SUFFIX}` for single-bot cancelling, and `[1]` resolves to `cancellallbot` for multiple bots, matching `help_messages.py` line 384.
+- Followed Rule 8: zero comments in code.
+
 ### 260913-F (built, pushed)
 **Git:** `84c9be6`  
 **Date:** 2026-09-13  
