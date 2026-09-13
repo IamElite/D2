@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260913-D (built, pushed)
-**Git:** `PENDING`  
+**Git:** `a41a10b`  
 **Date:** 2026-09-13  
 **Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`  
 **Implements:** `.ask` me user ka decision **C** (dual-audio MKV + embedded EN subs) — brain "Next (pending)" me recorded tha
@@ -95,7 +95,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - Direct embed URL → subs-only merge (d2_dual None, subs hain) ✓; youtube extraction unchanged (48 formats, d2_dual None) ✓.
 - py_compile ✓; naye code me ZERO comments ✓; koi nayi dependency nahi ✓.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `a41a10b` → `arnv1`.
 
 ### 260913-C (built, pushed)
 **Git:** `fcdb8e4`  
