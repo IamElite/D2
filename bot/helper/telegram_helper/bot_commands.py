@@ -59,6 +59,7 @@ class BotCommands:
         'GDClean': ['gdclean', 'gc'],
         'AutoRename': 'autorename',
         'Broadcast': ['broadcast', 'bc'],
+        'Id': 'id',
     }
 
     if config_dict.get('SHOW_EXTRA_CMDS'):

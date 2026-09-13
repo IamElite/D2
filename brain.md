@@ -64,6 +64,19 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-K (built, pushed)
+**Git:** `81e680a`  
+**Date:** 2026-09-13  
+**Files:** `bot/modules/id.py`, `bot/helper/telegram_helper/bot_commands.py`, `bot/__main__.py`  
+**User instruction:**
+- Add universal `/id` inspector command based on batbin snippet, covering all Telegram media file IDs and unique IDs.
+
+**Fix:**
+- Added `bot/modules/id.py` with support for Message ID, User ID, Chat ID, `/id username`, forwarded chat/channel/user IDs, topic/thread ID, sent-as-channel ID.
+- Full media inspector covering all Telegram media: document, photo, video, animation (GIF), sticker, audio, voice note, video note, poll, contact, location, dice.
+- Added `'Id': 'id'` in `BotCommands` dictionary and imported module in `bot/__main__.py`.
+- Followed Rule 8: zero comments in code.
+
 ### 260913-J (built, pushed)
 **Git:** `f958498`  
 **Date:** 2026-09-13  
