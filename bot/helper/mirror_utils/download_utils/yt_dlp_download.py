@@ -897,25 +897,43 @@ def zp_decode_player_config(blob, key=None):
 
 
 def megaplay_decrypt_source(enc, key=None, iv=None):
-    try:
-        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    except Exception:
-        return None
     pairs = []
     if key and iv:
         pairs.append((key, iv))
     pairs.append((_MP_DEFAULT_KEY, _MP_DEFAULT_IV))
     data = enc.replace('-', '+').replace('_', '/')
     data += '=' * (-len(data) % 4)
+    try:
+        raw = b64decode(data)
+    except Exception:
+        return None
     for k, v in pairs:
+        pt = None
         try:
-            raw = b64decode(data)
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
             dec = Cipher(algorithms.AES(k), modes.CBC(v)).decryptor()
             pt = dec.update(raw) + dec.finalize()
+        except Exception:
+            try:
+                import pyaes
+                decrypter = pyaes.Decrypter(pyaes.AESModeOfOperationCBC(k, iv=v))
+                pt = decrypter.feed(raw) + decrypter.feed()
+            except Exception:
+                try:
+                    from Crypto.Cipher import AES
+                    dec = AES.new(k, AES.MODE_CBC, v)
+                    pt = dec.decrypt(raw)
+                except Exception:
+                    pass
+        if not pt:
+            continue
+        try:
             pad = pt[-1]
-            if not 1 <= pad <= 16 or pt[-pad:] != bytes((pad,)) * pad:
-                continue
-            return json_loads(pt[:-pad].decode('utf-8')).get('file')
+            if 1 <= pad <= 16 and pt[-pad:] == bytes((pad,)) * pad:
+                pt = pt[:-pad]
+            val = json_loads(pt.decode('utf-8', errors='ignore')).get('file')
+            if val:
+                return val
         except Exception:
             continue
     return None
@@ -1201,6 +1219,8 @@ def _make_embed_ie():
             lang = sp_lang_from_url(embed_url)
             page = (self._download_webpage(embed_url, video_id, note=f'{note}: embed page', fatal=False) or '')
             page = page.replace('\\/', '/')
+            if "Error Code: 410" in page or "deleted by the owner" in page or "copyright violation" in page:
+                raise ExtractorError('file removed by host (Error 410)', expected=True)
             blob = re_search(r'window\.__P="([^"]+)"', page)
             if blob:
                 cfg = zp_decode_player_config(blob.group(1), self._zp_key(page, origin, video_id))
@@ -1254,7 +1274,6 @@ def _make_embed_ie():
             return fmts, {'subtitles': subs}
 
         def _resolve_embed(self, embed_url, video_id, note):
-            """Backend dispatch - host/path pattern se, site ke naam se nahi."""
             up = urlparse(embed_url)
             host = (up.netloc or '').lower()
             path = up.path or ''
@@ -1264,6 +1283,21 @@ def _make_embed_ie():
                 if path_re is not None and not path_re.search(path):
                     continue
                 return getattr(self, resolver)(embed_url, video_id, note)
+            try:
+                sub_info = self._downloader.extract_info(embed_url, download=False, process=True)
+                if sub_info:
+                    fmts = sub_info.get('formats') or []
+                    if not fmts and sub_info.get('url'):
+                        fmts = [{'url': sub_info['url'], 'ext': sub_info.get('ext', 'mp4')}]
+                    if fmts:
+                        meta = {
+                            'duration_seconds': sub_info.get('duration'),
+                            'poster_url': sub_info.get('thumbnail'),
+                            'subtitles': sub_info.get('subtitles') or {},
+                        }
+                        return fmts, meta
+            except Exception:
+                pass
             raise ExtractorError(f'no backend for embed host {host}', expected=True)
 
         # ---- backends ----

@@ -64,6 +64,24 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260914-B (built, pushed)
+**Git:** `7bb1fc8`  
+**Date:** 2026-09-14  
+**Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`  
+**User instruction:**
+- User tested `https://hianime.otakuthemes.com/one-piece-film-red-episode-1/` and received: `ERROR: [d2embed] No working streaming server found on this page`.
+
+**Investigation & Root Cause:**
+1. OtakuThemes demo post points to `megaplay.buzz` (`s-2/96071/sub` and `mal/50410/1/sub`). Live browser probe confirmed MegaPlay displays: `Error Code: 410 (We're Sorry! We can't find the file you are looking for. It maybe got deleted by the owner or was removed due a copyright violation.)`. The video file was deleted upstream by the host.
+2. Decrypt fallback resilience: `megaplay_decrypt_source` previously only imported `cryptography`. If absent, AES-CBC source decryption returned `None`.
+3. Extractor fallback: `_resolve_embed` had no delegate for embeds supported natively by yt-dlp (YouTube, Mp4upload, Vidhide, Filemoon, etc.).
+
+**Fix:**
+1. `megaplay_decrypt_source`: Added `pyaes` and `Crypto.Cipher` fallbacks so AES-CBC source decryption succeeds with zero dependency issues.
+2. `_sp_formats`: Added early detection for HTTP 410 / "deleted by the owner / copyright violation" embed pages.
+3. `_resolve_embed`: Added native yt-dlp downloader delegation fallback (`self._downloader.extract_info(embed_url, download=False)`) for universal multi-host embed extraction.
+- Followed Rule 8: zero comments in code.
+
 ### 260914-A (built, pushed)
 **Git:** `4d6f9e5`  
 **Date:** 2026-09-14  
