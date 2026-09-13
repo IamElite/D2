@@ -64,7 +64,20 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
-### 260913-D (built, pushed)
+### 260913-E (built, pushed)
+**Git:** `60d376f`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/telegram_helper/bot_commands.py`  
+**User instruction:**
+- Command suffix exemption for multi-bot broadcast commands (e.g. commands ending with `all` or matching `_ALL_SUFFIX_ALIASES = {'ra', 'aa', 'uaa', 'asa', 'rsa', 'bsa', 'sa', 'sta', 'usa'}`).
+- `CMD_SUFFIX` must not be attached to multi-bot commands while retaining individual bot suffixing on regular commands.
+
+**Fix:**
+- Added `_ALL_SUFFIX_ALIASES` set and helper `_build_cmd` / `_build_cmds`.
+- Implemented `CommandList(list)` with custom `__str__` returning primary command to avoid broken list representation formatting in help strings while preserving Pyrogram iterable filters.
+- Added aliases: `statusall`/`sa`, `restartall`/`ra`, `authorizeall`/`aa`, `unauthorizeall`/`uaa`, `addsudoall`/`asa`, `rmsudoall`/`rsa`, `bsettingall`/`bsa`, `usettingsall`/`usall`/`usa`, `speedtestall`/`sta`, `cancelall`/`call`/`cancellallbot`.
+- Followed Rule 8: zero comments in code.
+
 **Git:** `a41a10b`  
 **Date:** 2026-09-13  
 **Files:** `bot/helper/mirror_utils/download_utils/yt_dlp_download.py`  
