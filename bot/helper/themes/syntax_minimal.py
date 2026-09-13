@@ -293,6 +293,7 @@ Type {help_command} to get a list of available commands</b>'''
 ┠<b> Leech Type :</b> <i>{LTYPE}</i>
 ┠<b> Bot PM :</b> <i>{BOT_PM}</i>
 ┠<b> Custom Thumbnail :</b> <i>{THUMB}</i>
+┠<b> HD Thumb :</b> <i>{HD_THUMB}</i>
 ┠<b> Leech Split Size :</b> <code>{SPLIT_SIZE}</code>
 ┠<b> Equal Splits :</b> <i>{EQUAL_SPLIT}</i>
 ┠<b> Media Group :</b> <i>{MEDIA_GROUP}</i>

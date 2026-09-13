@@ -195,6 +195,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         media_group = 'Enabled' if user_dict.get('media_group', config_dict.get('MEDIA_GROUP')) else 'Disabled'
         buttons.ibutton(f"{'✅️' if user_dict.get('split_size') else ''} Leech Splits", f"userset {user_id} split_size")
 
+        hd_thumb_on = bool(user_dict.get('hd_thumb', False))
+        hd_thumb_cap = "Enabled" if hd_thumb_on else "Disabled"
+        buttons.ibutton("✅ HD Thumb" if hd_thumb_on else "HD Thumb", f"userset {user_id} hd_thumb")
+
         autorename_status = "Enabled" if user_dict.get('autorename', False) else "Disabled"
         buttons.ibutton(f"{'✅️' if autorename_status == 'Enabled' else ''} Auto Rename", f"userset {user_id} autorename")
 
@@ -220,7 +224,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton(f"{'✅️' if metadata != 'Not Exists' else ''} Leech Metadata", f"userset {user_id} metadata")
 
         text = BotTheme('LEECH', NAME=name, DL=f"{dailyll} / {dailytlle}",
-                LTYPE=ltype, BOT_PM=bot_pm_cap, THUMB=thumbmsg, SPLIT_SIZE=split_size,
+                LTYPE=ltype, BOT_PM=bot_pm_cap, THUMB=thumbmsg, HD_THUMB=hd_thumb_cap, SPLIT_SIZE=split_size,
                 EQUAL_SPLIT=equal_splits, MEDIA_GROUP=media_group,
                 LCAPTION=escape(trun(lcaption)), LPREFIX=escape(trun(lprefix)),
                 LSUFFIX=escape(trun(lsuffix)), LREMNAME=escape(trun(lremname)), 
@@ -770,7 +774,7 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'autorename')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
-    elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode']:
+    elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode', 'hd_thumb']:
         handler_dict[user_id] = False
         if data[2] == 'save_mode' and not user_dict.get(data[2], False) and not user_dict.get('ldump'):
             return await query.answer("Set User Dump first to Change Save Msg Mode !", show_alert=True)
@@ -783,11 +787,14 @@ async def edit_user_settings(client, query):
         if data[2] == 'bot_pm':
             cur = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
             update_user_ldata(user_id, 'bot_pm', not cur)
+        elif data[2] == 'hd_thumb':
+            cur = bool(user_dict.get('hd_thumb', False))
+            update_user_ldata(user_id, 'hd_thumb', not cur)
         else:
             update_user_ldata(user_id, data[2], not user_dict.get(data[2], False))
         if data[2] in ['td_mode']:
             await update_user_settings(query, 'user_tds', 'mirror')
-        elif data[2] == 'bot_pm':
+        elif data[2] in ['bot_pm', 'hd_thumb']:
             await update_user_settings(query, 'leech')
         else:
             await update_user_settings(query, 'universal')

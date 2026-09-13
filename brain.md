@@ -64,6 +64,22 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-I (built, pushed)
+**Git:** `6739471`  
+**Date:** 2026-09-13  
+**Files:** `bot/modules/users_settings.py`, `bot/helper/themes/syntax_minimal.py`, `bot/helper/ext_utils/ffmpeg.py`, `bot/helper/listeners/tasks_listener.py`  
+**User instruction:**
+- Leech settings me `Thumbnail` ke theek niche `Bot PM` jaisa toggle button (`HD Thumb` / `✅ HD Thumb`).
+- Caption me `┠ HD Thumb : Enabled / Disabled` custom thumbnail ke theek niche.
+- User ka existing custom thumbnail (`Thumbnails/{user_id}.jpg`) leech video (MKV / MP4) me as cover stream copy (`-c copy`) se embed ho jaye.
+
+**Fix:**
+- `syntax_minimal.py`: Added `┠<b> HD Thumb :</b> <i>{HD_THUMB}</i>` to LEECH template.
+- `users_settings.py`: Added `HD Thumb` toggle button directly below `Thumbnail` in 2-column grid; added callback handler for `hd_thumb` to toggle state in memory and database.
+- `ffmpeg.py`: Upgraded `edit_attachment` to support both `.mkv` (`cover.jpg` attachment) and `.mp4` (`attached_pic` stream) via fast `-c copy`.
+- `tasks_listener.py`: In leech pipeline, if `hd_thumb` is enabled and user custom thumbnail exists, automatically routes it as cover attachment for all video files.
+- Followed Rule 8: zero comments in code.
+
 ### 260913-H (built, pushed)
 **Git:** `061997e`  
 **Date:** 2026-09-13  
@@ -2319,6 +2335,17 @@ User: alag plan.md = agent ko 2 file, context waste. Plan + built **isi** file.
 
 `P-` IDs. **mode:** `plan` = socha, code nahi. `built` = arnv1 push + hash.  
 `/plan` pe naya `P-` yahan. `/build` pe mode badlo. FIX LOG se alag.
+
+### `P-260913-A` — HD Thumb (video cover embed) in leech settings
+**mode:** `built`  
+**Git:** `PENDING`  
+**Date:** 2026-09-13  
+
+**User instruction:**
+- Leech settings me `Thumbnail` ke theek niche `Bot PM` jaisa toggle button (`HD Thumb` / `✅ HD Thumb`).
+- Caption me `┠ HD Thumb : Enabled / Disabled` custom thumbnail ke niche.
+- User ka existing custom thumbnail (`Thumbnails/{user_id}.jpg`) leech video me as cover (MKV attachment / MP4 attached_pic) stream copy (`-c copy`) se embed ho jaye.
+- Minimal aur pro implementation, zero comments.
 
 ### `P-260902-A` — /l7 auto-engine detect (no fail-chain)
 **mode:** `plan`  

@@ -196,29 +196,39 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
     file_name = os_path.basename(media_file)
 
     file_ext = os_path.splitext(file_name)[-1].lower()
-    if file_ext != '.mkv':
-        return
-
-    omg = "photo"
     attachment_ext = attachment.split(".")[-1].lower()
-    mime_type = "application/octet-stream"
-    if attachment_ext in ["jpg", "jpeg"]:
-        mime_type = "image/jpeg"
-    elif attachment_ext == "png":
-        mime_type = "image/png"
-
-    cmd = [
-        bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1',
-        '-i', media_file,
-        '-attach', attachment,
-        '-metadata:s:t', f'mimetype={mime_type}',
-        '-metadata:s:t', f'filename={omg}.{attachment_ext}',
-        '-disposition:t', 'default',
-        '-c', 'copy',
-        '-map', '0',
-        '-map', '0:t?',
-        outfile
-    ]
+    if file_ext == '.mkv':
+        omg = "cover"
+        mime_type = "application/octet-stream"
+        if attachment_ext in ["jpg", "jpeg"]:
+            mime_type = "image/jpeg"
+        elif attachment_ext == "png":
+            mime_type = "image/png"
+        cmd = [
+            bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1',
+            '-i', media_file,
+            '-attach', attachment,
+            '-metadata:s:t', f'mimetype={mime_type}',
+            '-metadata:s:t', f'filename={omg}.{attachment_ext}',
+            '-disposition:t', 'default',
+            '-c', 'copy',
+            '-map', '0',
+            '-map', '0:t?',
+            outfile
+        ]
+    elif file_ext == '.mp4':
+        cmd = [
+            bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1',
+            '-i', media_file,
+            '-i', attachment,
+            '-map', '0',
+            '-map', '1',
+            '-c', 'copy',
+            '-disposition:v:1', 'attached_pic',
+            outfile
+        ]
+    else:
+        return
     listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
     code = await listener.suproc.wait()
     if code == 0:
