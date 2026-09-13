@@ -64,6 +64,20 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260913-H (built, pushed)
+**Git:** `061997e`  
+**Date:** 2026-09-13  
+**Files:** `bot/helper/telegram_helper/bot_commands.py`  
+**User instruction:**
+- Switch to minimal class-level loop structure matching user's pattern directly (`BotCommands` class-level `vars()[attr] = ...`).
+
+**Fix:**
+- Switched to direct class-level `vars()[attr] = CommandList(...)` comprehension.
+- Preserved `CommandList` for string formatting compatibility.
+- Handled `SHOW_EXTRA_CMDS` cleanly with in-place list extensions.
+- Deleted temporary class variables after loop to keep namespace pristine.
+- Followed Rule 8: zero comments in code.
+
 ### 260913-G (built, pushed)
 **Git:** `59c502e`  
 **Date:** 2026-09-13  

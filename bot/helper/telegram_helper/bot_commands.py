@@ -6,16 +6,11 @@ class CommandList(list):
     def __str__(self):
         return self[0] if self else ''
 
-def _fmt(cmd):
-    if not cmd or (CMD_SUFFIX and cmd.endswith(CMD_SUFFIX)) or (cmd.endswith('all') and cmd != 'cancelall') or cmd in _ALL_SUFFIX_ALIASES:
-        return cmd
-    return f'{cmd}{CMD_SUFFIX}'
-
-class _BotCommands:
+class BotCommands:
     StartCommand = 'start'
     LoginCommand = 'login'
 
-    _COMMANDS = {
+    commands = {
         'Mirror': ['mirror', 'm'],
         'QbMirror': ['qbmirror', 'qm'],
         'Ytdl': ['ytdl', 'y'],
@@ -66,25 +61,23 @@ class _BotCommands:
         'Broadcast': ['broadcast', 'bc'],
     }
 
-    _EXTRA_COMMANDS = {
-        'Mirror': ['unzipmirror', 'uzm', 'zipmirror', 'zm'],
-        'QbMirror': ['qbunzipmirror', 'quzm', 'qbzipmirror', 'qzm'],
-        'Ytdl': ['ytdlzip', 'yz'],
-        'Leech': ['unzipleech', 'uzl', 'zipleech', 'zl'],
-        'QbLeech': ['qbunzipleech', 'quzl', 'qbzipleech', 'qzl'],
-        'YtdlLeech': ['ytdlzipleech', 'yzl'],
-    }
+    if config_dict.get('SHOW_EXTRA_CMDS'):
+        commands['Mirror'].extend(['unzipmirror', 'uzm', 'zipmirror', 'zm'])
+        commands['QbMirror'].extend(['qbunzipmirror', 'quzm', 'qbzipmirror', 'qzm'])
+        commands['Ytdl'].extend(['ytdlzip', 'yz'])
+        commands['Leech'].extend(['unzipleech', 'uzl', 'zipleech', 'zl'])
+        commands['QbLeech'].extend(['qbunzipleech', 'quzl', 'qbzipleech', 'qzl'])
+        commands['YtdlLeech'].extend(['ytdlzipleech', 'yzl'])
 
-    def __init__(self):
-        show_extra = config_dict.get('SHOW_EXTRA_CMDS', False)
-        for key, cmds in self._COMMANDS.items():
-            attr = key if key in ('CancelMirror', 'CategorySelect') or key.endswith('Command') else f'{key}Command'
-            if isinstance(cmds, list):
-                cmd_list = list(cmds)
-                if show_extra and key in self._EXTRA_COMMANDS:
-                    cmd_list.extend(self._EXTRA_COMMANDS[key])
-                setattr(self, attr, CommandList(dict.fromkeys(_fmt(c) for c in cmd_list if c)))
-            else:
-                setattr(self, attr, _fmt(cmds))
+    for key, cmds in commands.items():
+        attr = key if key in ('CancelMirror', 'CategorySelect') else f'{key}Command'
+        vars()[attr] = (
+            CommandList([
+                cmd if not cmd or (cmd.endswith('all') and cmd != 'cancelall') or cmd in _ALL_SUFFIX_ALIASES else f'{cmd}{CMD_SUFFIX}'
+                for cmd in cmds if cmd != ''
+            ])
+            if isinstance(cmds, list)
+            else f'{cmds}{CMD_SUFFIX}'
+        )
 
-BotCommands = _BotCommands()
+    del commands, key, cmds, attr
