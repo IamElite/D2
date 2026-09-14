@@ -4,7 +4,7 @@ from secrets import token_hex
 from sys import executable
 from time import time
 import shlex
-from aiofiles.os import listdir
+from aiofiles.os import listdir, path as aiopath
 
 from .... import (
     LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock
@@ -82,6 +82,8 @@ class GalleryDLHelper:
             "--filename", "{filename}.{extension}",
             "--no-part",
         ]
+        if await aiopath.exists('cookies.txt'):
+            cmd.extend(['--cookies', 'cookies.txt'])
         if opt:
             try:
                 cmd.extend(shlex.split(opt))
