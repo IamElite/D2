@@ -2,7 +2,7 @@
 from time import time
 from asyncio import Event
 
-from ... import bot_cache, config_dict, queued_dl, queued_up, non_queued_up, non_queued_dl, queue_dict_lock, LOGGER, user_data, download_dict
+from ... import bot_cache, config_dict, queued_dl, queued_up, non_queued_up, non_queued_dl, active_tasks, queue_dict_lock, LOGGER, user_data, download_dict
 from ..mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from .fs_utils import get_base_name, check_storage_threshold
 from .bot_utils import get_user_tasks, getdailytasks, sync_to_async, get_telegraph_list, get_readable_file_size, checking_access, get_readable_time
@@ -51,78 +51,68 @@ async def is_queued(uid):
     added_to_queue = False
     if all_limit or dl_limit:
         async with queue_dict_lock:
-            dl = len(non_queued_dl)
-            up = len(non_queued_up)
-            if (all_limit and dl + up >= all_limit and (not dl_limit or dl >= dl_limit)) or (dl_limit and dl >= dl_limit):
+            if (all_limit and len(active_tasks) >= all_limit) \
+                    or (dl_limit and len(non_queued_dl) >= dl_limit):
                 added_to_queue = True
                 event = Event()
                 queued_dl[uid] = event
+            else:
+                non_queued_dl.add(uid)
+                active_tasks.add(uid)
     return added_to_queue, event
 
 
 def start_dl_from_queued(uid):
     queued_dl[uid].set()
     del queued_dl[uid]
+    non_queued_dl.add(uid)
+    active_tasks.add(uid)
 
 
 def start_up_from_queued(uid):
     queued_up[uid].set()
     del queued_up[uid]
+    non_queued_up.add(uid)
 
 
 async def start_from_queued():
-    if all_limit := config_dict['QUEUE_ALL']:
-        dl_limit = config_dict['QUEUE_DOWNLOAD']
-        up_limit = config_dict['QUEUE_UPLOAD']
-        async with queue_dict_lock:
-            dl = len(non_queued_dl)
-            up = len(non_queued_up)
-            all_ = dl + up
-            if all_ < all_limit:
-                f_tasks = all_limit - all_
-                if queued_up and (not up_limit or up < up_limit):
-                    for index, uid in enumerate(list(queued_up.keys()), start=1):
-                        f_tasks = all_limit - all_
-                        start_up_from_queued(uid)
-                        f_tasks -= 1
-                        if f_tasks == 0 or (up_limit and index >= up_limit - up):
-                            break
-                if queued_dl and (not dl_limit or dl < dl_limit) and f_tasks != 0:
-                    for index, uid in enumerate(list(queued_dl.keys()), start=1):
-                        start_dl_from_queued(uid)
-                        if (dl_limit and index >= dl_limit - dl) or index == f_tasks:
-                            break
-        return
+    all_limit = config_dict['QUEUE_ALL']
+    dl_limit = config_dict['QUEUE_DOWNLOAD']
+    up_limit = config_dict['QUEUE_UPLOAD']
+    async with queue_dict_lock:
+        if queued_up and (not up_limit or len(non_queued_up) < up_limit):
+            room = (up_limit - len(non_queued_up)) if up_limit else len(queued_up)
+            for uid in list(queued_up.keys()):
+                if room <= 0:
+                    break
+                start_up_from_queued(uid)
+                room -= 1
+        if queued_dl:
+            rooms = []
+            if all_limit:
+                rooms.append(all_limit - len(active_tasks))
+            if dl_limit:
+                rooms.append(dl_limit - len(non_queued_dl))
+            room = min(rooms) if rooms else len(queued_dl)
+            for uid in list(queued_dl.keys()):
+                if room <= 0:
+                    break
+                start_dl_from_queued(uid)
+                room -= 1
 
-    if up_limit := config_dict['QUEUE_UPLOAD']:
-        async with queue_dict_lock:
-            up = len(non_queued_up)
-            if queued_up and up < up_limit:
-                f_tasks = up_limit - up
-                for index, uid in enumerate(list(queued_up.keys()), start=1):
-                    start_up_from_queued(uid)
-                    if index == f_tasks:
-                        break
-    else:
-        async with queue_dict_lock:
-            if queued_up:
-                for uid in list(queued_up.keys()):
-                    start_up_from_queued(uid)
 
-    if dl_limit := config_dict['QUEUE_DOWNLOAD']:
-        async with queue_dict_lock:
-            dl = len(non_queued_dl)
-            if queued_dl and dl < dl_limit:
-                f_tasks = dl_limit - dl
-                for index, uid in enumerate(list(queued_dl.keys()), start=1):
-                    start_dl_from_queued(uid)
-                    if index == f_tasks:
-                        break
-    else:
-        async with queue_dict_lock:
-            if queued_dl:
-                for uid in list(queued_dl.keys()):
-                    start_dl_from_queued(uid)
+async def finish_task_slot(uid):
+    async with queue_dict_lock:
+        if uid in queued_dl:
+            queued_dl[uid].set()
+            del queued_dl[uid]
+        if uid in queued_up:
+            queued_up[uid].set()
+            del queued_up[uid]
+        non_queued_dl.discard(uid)
+        non_queued_up.discard(uid)
+        active_tasks.discard(uid)
+    await start_from_queued()
 
 
 async def limit_checker(size, listener, isTorrent=False, isMega=False, isDriveLink=False, isYtdlp=False, isPlayList=None):

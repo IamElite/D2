@@ -156,6 +156,7 @@ queued_up = {}
 bot_cache = {}
 non_queued_dl = set()
 non_queued_up = set()
+active_tasks = set()
 
 
 try:

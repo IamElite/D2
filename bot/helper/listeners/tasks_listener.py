@@ -23,7 +23,7 @@ from ..ext_utils.ffmpeg import edit_metadata, edit_attachment
 from ..ext_utils.leech_utils import split_file, format_filename, get_document_type
 from ..ext_utils.exceptions import NotSupportedExtractionArchive
 from ..ext_utils.file_count import FileCountTracker
-from ..ext_utils.task_manager import start_from_queued
+from ..ext_utils.task_manager import start_from_queued, finish_task_slot
 from ..mirror_utils.status_utils.extract_status import ExtractStatus
 from ..mirror_utils.status_utils.zip_status import ZipStatus
 from ..mirror_utils.status_utils.split_status import SplitStatus
@@ -475,12 +475,10 @@ class MirrorLeechListener:
                         o_files.append(file_)
 
         up_limit = config_dict['QUEUE_UPLOAD']
-        all_limit = config_dict['QUEUE_ALL']
         added_to_queue = False
         async with queue_dict_lock:
-            dl = len(non_queued_dl)
             up = len(non_queued_up)
-            if (all_limit and dl + up >= all_limit and (not up_limit or up >= up_limit)) or (up_limit and up >= up_limit):
+            if up_limit and up >= up_limit:
                 added_to_queue = True
                 LOGGER.info(f"Added to Queue/Upload: {name}")
                 event = Event()
@@ -640,10 +638,7 @@ class MirrorLeechListener:
             if self.seed:
                 if self.newDir:
                     await clean_target(self.newDir)
-                async with queue_dict_lock:
-                    if self.uid in non_queued_up:
-                        non_queued_up.remove(self.uid)
-                await start_from_queued()
+                await finish_task_slot(self.uid)
                 return
         else:
             msg += BotTheme('M_TYPE', Mimetype=mime_type)
@@ -735,10 +730,7 @@ class MirrorLeechListener:
                     await clean_target(self.newDir)
                 elif self.compress:
                     await clean_target(f"{self.dir}/{name}")
-                async with queue_dict_lock:
-                    if self.uid in non_queued_up:
-                        non_queued_up.remove(self.uid)
-                await start_from_queued()
+                await finish_task_slot(self.uid)
                 return
         
         await self.drop_start_msgs()
@@ -754,11 +746,7 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
-        async with queue_dict_lock:
-            if self.uid in non_queued_up:
-                non_queued_up.remove(self.uid)
-
-        await start_from_queued()
+        await finish_task_slot(self.uid)
         await delete_links(self.message)
 
 
@@ -787,19 +775,7 @@ class MirrorLeechListener:
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:
             await DbManger().rm_complete_task(self.message.link)
 
-        async with queue_dict_lock:
-            if self.uid in queued_dl:
-                queued_dl[self.uid].set()
-                del queued_dl[self.uid]
-            if self.uid in queued_up:
-                queued_up[self.uid].set()
-                del queued_up[self.uid]
-            if self.uid in non_queued_dl:
-                non_queued_dl.remove(self.uid)
-            if self.uid in non_queued_up:
-                non_queued_up.remove(self.uid)
-
-        await start_from_queued()
+        await finish_task_slot(self.uid)
         await sleep(3)
         await clean_download(self.dir)
         if self.newDir:
@@ -827,19 +803,7 @@ class MirrorLeechListener:
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:
             await DbManger().rm_complete_task(self.message.link)
 
-        async with queue_dict_lock:
-            if self.uid in queued_dl:
-                queued_dl[self.uid].set()
-                del queued_dl[self.uid]
-            if self.uid in queued_up:
-                queued_up[self.uid].set()
-                del queued_up[self.uid]
-            if self.uid in non_queued_dl:
-                non_queued_dl.remove(self.uid)
-            if self.uid in non_queued_up:
-                non_queued_up.remove(self.uid)
-
-        await start_from_queued()
+        await finish_task_slot(self.uid)
         await sleep(3)
         await clean_download(self.dir)
         if self.newDir:
