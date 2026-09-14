@@ -64,6 +64,34 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260914-D (built, pushed)
+**Git:** `PENDING`  
+**Date:** 2026-09-14  
+**Files:** `bot/__init__.py`, `bot/helper/ext_utils/task_manager.py`, `bot/helper/listeners/tasks_listener.py`
+
+**User instruction:**
+- Strict max-active-tasks (e.g. 6, configurable): slot TAB free ho jab DL **aur** UP dono 100% + final cleanup listener chal chuka ho; 7th task strictly pending queue me; queue manager sirf genuine free slot pe next task le; queued tasks "Queued" status me bina koi process trigger kiye wait karein; event-driven (koi polling loop nahi, Heroku 2X CPU); ZERO comments.
+
+**Root causes (3 bugs, code-read se proof):**
+1. `is_queued` gate ka escape-clause: `(all_limit and dl+up>=all and (not dl_limit or dl>=dl_limit))` — total full hone pe bhi agar `dl < dl_limit` tha to 7th task queue skip karke start ho jata tha (QUEUE_ALL=6 + QUEUE_DOWNLOAD=4 pe dl=3,up=3 = 6 active → 7th admitted). Upload-gate me same hole.
+2. Between-window: `onDownloadComplete` uid ko `non_queued_dl` se turant nikal deta tha jabki upload abhi count me gusa hi nahi tha (upload-queue wait possible) → task kisi set me nahi → count girke 5 → `start_from_queued()` agla task kheench leta tha jabki 6 zinda the.
+3. Koi authoritative per-task slot tha hi nahi (count do transient sets se derive); `event.set()` → module `.add()` ke beech race se double-admission possible.
+
+**Fix:**
+- `active_tasks` set (`bot/__init__.py`) = authoritative slot: entry `queue_dict_lock` ke andar admission pe (`is_queued` non-queued path) ya release pe (`start_dl_from_queued`); exit **sirf** `finish_task_slot()` se.
+- `finish_task_slot(uid)`: saare sets se discard (+ task ke apne queued events set) → `start_from_queued()`. Callers: `onUploadComplete` (dono seed-return branches + final), `onDownloadError`, `onUploadError` — har termination pe exactly once.
+- Strict gate: queue iff `QUEUE_ALL and len(active_tasks) >= QUEUE_ALL` OR `QUEUE_DOWNLOAD and len(non_queued_dl) >= QUEUE_DOWNLOAD` — escape-clause deleted.
+- Upload-gate ab sirf `QUEUE_UPLOAD` se (total slot active_tasks pehle se hold karta hai) → between-window upload-queueing khatam.
+- `onDownloadComplete`: sirf `non_queued_dl` sub-limit free karta hai; active slot retained.
+- `start_from_queued()`: EK lock me pehle upload-waiters (QUEUE_UPLOAD bound), phir download-waiters `min(QUEUE_ALL−active, QUEUE_DOWNLOAD−dl)` se, har pop pe live recompute; reservations lock ke andar → over-admission race khatam. Sirf completion/error/config-change events pe call — koi polling nahi.
+- Config keys wahi: **QUEUE_ALL = max active tasks** (user ka MAX_TASKS=6 example), QUEUE_DOWNLOAD/QUEUE_UPLOAD sub-limits. BOT_MAX_TASKS/USER_MAX_TASKS/QueueStatus untouched.
+
+**Verification (asyncio harness, 26/26 PASS, 5 scenarios):**
+- 7th strict-queued at 6 active (normal + purana hole dl=3/up=3 dono); between-window me held; release sirf full-completion pe; per freed slot exactly ONE release; dl/up sub-limits; atomic reservation (released uid sets me reserved).
+- py_compile clean; zero comments; koi nayi dependency nahi.
+
+**Pushed:** `PENDING` → `arnv1`.
+
 ### 260914-C (built, pushed)
 **Git:** `770c739`  
 **Date:** 2026-09-14  
