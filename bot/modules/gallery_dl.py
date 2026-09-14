@@ -46,6 +46,7 @@ async def _gallery_dl(client, message, isLeech=False, compress=False, sameDir=No
         '-c': '', '-category': '',
         '-ud': '', '-dump': '',
         '-t': '', '-thumb': '',
+        '-ss': '0', '-screenshots': '',
         '-opt': '',
         '-i': '0',
         '-b': False, '-bulk': False
@@ -66,6 +67,7 @@ async def _gallery_dl(client, message, isLeech=False, compress=False, sameDir=No
     gd_cat = args['-c'] or args['-category']
     user_dump = args['-ud'] or args['-dump']
     thumb = args['-t'] or args['-thumb']
+    sshots = int(ss) if (ss := (args['-ss'] or args['-screenshots'])).isdigit() else 0
     opt = args['-opt']
     isBulk = args['-b'] or args['-bulk']
     multi = int(args['-i']) if args['-i'].isdigit() else 0
@@ -248,7 +250,7 @@ async def _gallery_dl(client, message, isLeech=False, compress=False, sameDir=No
     listener = MirrorLeechListener(
         message, compress, isLeech=isLeech, tag=tag, sameDir=sameDir,
         rcFlags=rcf, upPath=up, drive_id=drive_id, index_link=index_link,
-        source_url=link, leech_utils={'thumb': thumb}
+        source_url=link, leech_utils={'screenshots': sshots, 'thumb': thumb}
     )
 
     path = f'{DOWNLOAD_DIR}{listener.uid}{folder_name}' if folder_name else f'{DOWNLOAD_DIR}{listener.uid}'

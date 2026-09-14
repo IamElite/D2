@@ -114,8 +114,8 @@ class TgUploader:
     async def __buttons(self, up_path, is_video=False):
         buttons = ButtonMaker()
         try:
-            if config_dict['SCREENSHOTS_MODE'] and is_video and bool(self.__leech_utils['screenshots']):
-                buttons.ubutton(BotTheme('SCREENSHOTS'), await get_ss(up_path, self.__leech_utils['screenshots']))
+            if config_dict['SCREENSHOTS_MODE'] and is_video and bool(self.__leech_utils.get('screenshots')):
+                buttons.ubutton(BotTheme('SCREENSHOTS'), await get_ss(up_path, self.__leech_utils.get('screenshots')))
         except Exception as e:
             LOGGER.error(f"ScreenShots Error: {e}")
         try:
@@ -212,7 +212,7 @@ class TgUploader:
         self.__bot_pm = True if 'bot_pm' not in user_dict else bool(user_dict.get('bot_pm'))
         self.__mediainfo = user_dict.get('mediainfo') or (config_dict['SHOW_MEDIAINFO'] if 'mediainfo' not in user_dict else False)
         self.__upload_dest = ud if (ud := self.__listener.upPath) and isinstance(ud, list) else [ud]
-        self.__has_buttons = bool(config_dict['SAVE_MSG'] or self.__mediainfo or self.__leech_utils['screenshots'])
+        self.__has_buttons = bool(config_dict['SAVE_MSG'] or self.__mediainfo or self.__leech_utils.get('screenshots'))
         if not await aiopath.exists(self.__thumb):
             self.__thumb = None
 
