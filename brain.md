@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260914-D (built, pushed)
-**Git:** `PENDING`  
+**Git:** `713743e`  
 **Date:** 2026-09-14  
 **Files:** `bot/__init__.py`, `bot/helper/ext_utils/task_manager.py`, `bot/helper/listeners/tasks_listener.py`
 
@@ -90,7 +90,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - 7th strict-queued at 6 active (normal + purana hole dl=3/up=3 dono); between-window me held; release sirf full-completion pe; per freed slot exactly ONE release; dl/up sub-limits; atomic reservation (released uid sets me reserved).
 - py_compile clean; zero comments; koi nayi dependency nahi.
 
-**Pushed:** `PENDING` → `arnv1`.
+**Pushed:** `713743e` → `arnv1`.
 
 ### 260914-C (built, pushed)
 **Git:** `770c739`  
