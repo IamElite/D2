@@ -78,7 +78,7 @@ class MirrorStatus:
     STATUS_CHECKING    = "CheckUp"
     STATUS_SEEDING     = "Seed"
     STATUS_METADATA    = "Metadata"
-    STATUS_ATTACHMENT  = "Attachment"
+    STATUS_ATTACHMENT  = "Attachy"
 
 
 class setInterval:
@@ -261,8 +261,9 @@ class EngineStatus:
         self.STATUS_EXT = "pExtract v2"
         self.STATUS_SPLIT_MERGE = f"ffmpeg v{version_cache['ffmpeg']}"
         self.STATUS_ZIP = f"p7zip v{version_cache['p7zip']}"
-        self.STATUS_QUEUE = "Sleep v0"
+        self.STATUS_QUEUE = "NiniMon v2"
         self.STATUS_RCLONE = f"RClone {version_cache['rclone']}"
+        self.STATUS_GDL = "gallery-dl v2"
 
 
 def file_count_line(download):

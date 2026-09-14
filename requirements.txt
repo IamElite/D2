@@ -49,3 +49,4 @@ curl-cffi>=0.10,<0.17
 setuptools
 pymediainfo
 pyaes
+gallery-dl

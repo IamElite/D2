@@ -60,6 +60,10 @@ class BotCommands:
         'AutoRename': 'autorename',
         'Broadcast': ['broadcast', 'bc'],
         'Id': 'id',
+        'Gdl': ['gdl', 'gdlm'],
+        'GdlLeech': ['gdll', 'gdlleech'],
+        'GdlZip': ['gdlz', 'gdlzip'],
+        'GdlZipLeech': ['gdlzl', 'gdlzipleech'],
     }
 
     if config_dict.get('SHOW_EXTRA_CMDS'):
