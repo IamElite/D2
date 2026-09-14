@@ -36,7 +36,7 @@ class GalleryDLStatus:
         return get_readable_file_size(self.__obj.processed_bytes)
 
     def files_count(self):
-        return self.__obj.files_count
+        return self.__obj.files_count()
 
     def download(self):
         return self.__obj

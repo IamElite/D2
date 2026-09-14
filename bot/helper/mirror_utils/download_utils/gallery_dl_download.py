@@ -4,6 +4,7 @@ from secrets import token_hex
 from sys import executable
 from time import time
 import shlex
+from aiofiles.os import listdir
 
 from .... import (
     LOGGER, download_dict, download_dict_lock, non_queued_dl, queue_dict_lock
@@ -22,7 +23,7 @@ class GalleryDLHelper:
         self.name = ""
         self.size = 0
         self.processed_bytes = 0
-        self.files_count = 0
+        self._files_count = 0
         self.speed = 0
         self.eta = "-"
         self.progress = "0%"
@@ -32,8 +33,13 @@ class GalleryDLHelper:
         self._last_downloaded = 0
         self._last_time = time()
 
+    def files_count(self):
+        if self._files_count > 0:
+            return (self._files_count, self._files_count)
+        return None
+
     async def add_download(self, link, path, name=None, opt=None):
-        self.name = name or self.listener.name or "Gallery"
+        self.name = name or getattr(self.listener, 'name', None) or "Gallery"
         msg, button = await stop_duplicate_check(self.name, self.listener)
         if msg:
             await sendMessage(self.listener.message, msg, button)
@@ -110,9 +116,9 @@ class GalleryDLHelper:
                     self._last_time = now
                 self.processed_bytes = size
                 self.size = size
-                self.files_count = files
+                self._files_count = files
                 if files > 0:
-                    self.progress = f"{files} files"
+                    self.progress = "50%"
             except Exception:
                 pass
 
@@ -123,13 +129,22 @@ class GalleryDLHelper:
         final_size, total_files = await get_path_stats(path)
         self.size = final_size
         self.processed_bytes = final_size
-        self.files_count = total_files
+        self._files_count = total_files
+        self.progress = "100%"
 
         if total_files == 0:
             err = stderr.decode().strip() if stderr else "No files downloaded by gallery-dl"
             LOGGER.error(f"gallery-dl failed: {err}")
             await self.listener.onDownloadError(err)
             return
+
+        try:
+            items = await listdir(path)
+            if items and (not name or self.name == "Gallery"):
+                self.name = items[0]
+        except Exception:
+            pass
+        self.listener.name = self.name
 
         LOGGER.info(f"Gallery-dl completed: {self.name} ({total_files} files, {final_size} bytes)")
         await self.listener.onDownloadComplete()

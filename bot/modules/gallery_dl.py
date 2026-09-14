@@ -139,7 +139,22 @@ async def _gallery_dl(client, message, isLeech=False, compress=False, sameDir=No
         link = reply_to.text.split('\n', 1)[0].strip()
 
     if not is_url(link):
-        await sendMessage(message, f'{tag} <b>Send a valid media/gallery URL</b>')
+        help_msg = (
+            f"Hey <b>{tag}</b>,\n\n"
+            f"<b>Usage:</b>\n"
+            f"<code>/{cmd} &lt;link&gt;</code>\n"
+            f"Or reply to any media/album link with <code>/{cmd}</code>\n\n"
+            f"<b>Supported Commands:</b>\n"
+            f"• <code>/{BotCommands.GdlCommand}</code> : Mirror images/album to Drive or Rclone\n"
+            f"• <code>/{BotCommands.GdlLeechCommand}</code> : Leech photos directly to Telegram\n"
+            f"• <code>/{BotCommands.GdlZipCommand}</code> : Compress into ZIP & Mirror\n"
+            f"• <code>/{BotCommands.GdlZipLeechCommand}</code> : Compress into ZIP & Leech\n\n"
+            f"<b>Arguments:</b>\n"
+            f"• <code>-n name</code> : Custom name for file/folder\n"
+            f"• <code>-z</code> : Zip compress\n"
+            f"• <code>-up path</code> : Upload destination (Drive/Rclone/Channel)"
+        )
+        await sendMessage(message, help_msg)
         await delete_links(message)
         return
 
@@ -238,8 +253,13 @@ async def _gallery_dl(client, message, isLeech=False, compress=False, sameDir=No
 
     path = f'{DOWNLOAD_DIR}{listener.uid}{folder_name}' if folder_name else f'{DOWNLOAD_DIR}{listener.uid}'
     LOGGER.info(f'Downloading with gallery-dl: {link}')
-    helper = GalleryDLHelper(listener)
-    await helper.add_download(link, path, name=name, opt=opt)
+    try:
+        helper = GalleryDLHelper(listener)
+        await helper.add_download(link, path, name=name, opt=opt)
+    except Exception as e:
+        LOGGER.error(f'Gallery-dl execution error: {e}')
+        await sendMessage(message, f'{tag} <b>Gallery-dl Error:</b>\n<code>{e}</code>')
+        await delete_links(message)
 
 
 async def gdl_mirror(client, message):
