@@ -27,6 +27,7 @@ from ..helper.ext_utils.fs_utils import DEFAULT_EXCLUDED_EXTS
 from ..helper.mirror_utils.upload_utils.ddlserver.gofile import Gofile
 from ..helper.themes import BotTheme
 from .autorename import validate_autorename_format
+from ..helper.ext_utils.video_tools import get_vtools_text, build_vtools_keyboard, is_vtool_active, task_events
 
 def trun(text, limit=60):
     text = str(text)
@@ -109,6 +110,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Universal Settings", f"userset {user_id} universal")
         buttons.ibutton("Mirror Settings", f"userset {user_id} mirror")
         buttons.ibutton("Leech Settings", f"userset {user_id} leech")
+        buttons.ibutton("Video Tools", f"userset {user_id} vtool")
         buttons.ibutton("Reset Setting", f"userset {user_id} reset_all")
         buttons.ibutton("Close", f"userset {user_id} close")
 
@@ -234,6 +236,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Back", f"userset {user_id} back", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
+    elif key == 'vtool':
+        text = get_vtools_text(user_dict)
+        button = build_vtools_keyboard(user_id, user_dict)
+        return text, button
     elif key == 'metadata_menu':
         meta_str = user_dict.get('metadata', '')
         meta_dict = parse_metadata_str(meta_str)
@@ -614,6 +620,23 @@ async def set_all_metadata(client, message, pre_event):
     if DATABASE_URL:
         await DbManger().update_user_data(user_id)
 
+async def set_vtools_text_input(client, message, pre_event, vt_key):
+    user_id = message.from_user.id
+    handler_dict[user_id] = False
+    value = message.text.strip() if message.text else ""
+    vtools = dict(user_data.get(user_id, {}).get('vtools', {}))
+    if value:
+        vtools[vt_key] = value
+    else:
+        vtools.pop(vt_key, None)
+    update_user_ldata(user_id, 'vtools', vtools)
+    if user_id in task_events:
+        task_events[user_id]['vtools'] = dict(vtools)
+    await deleteMessage(message)
+    await update_user_settings(pre_event, 'vtool')
+    if DATABASE_URL:
+        await DbManger().update_user_data(user_id)
+
 async def set_thumb(client, message, pre_event, key, direct=False):
     user_id = message.from_user.id
     handler_dict[user_id] = False
@@ -701,6 +724,56 @@ async def edit_user_settings(client, query):
     elif data[2] in ['universal', 'mirror', 'leech']:
         await query.answer()
         await update_user_settings(query, data[2])
+    elif data[2] == 'vtool':
+        await query.answer()
+        await update_user_settings(query, 'vtool')
+    elif data[2].startswith('vt_tog_'):
+        await query.answer()
+        toggle_key = data[2][7:]
+        vtools = dict(user_dict.get('vtools', {}))
+        vtools[toggle_key] = not vtools.get(toggle_key, False)
+        update_user_ldata(user_id, 'vtools', vtools)
+        if user_id in task_events:
+            task_events[user_id]['vtools'] = dict(vtools)
+        await update_user_settings(query, 'vtool')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
+    elif data[2] == 'vt_ffmpeg':
+        await query.answer()
+        text = "<b><u>FFMPEG Custom Command</u></b>\n\nSend custom FFmpeg arguments (e.g. <code>-vf scale=1280:720</code>).\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='ffmpeg_cmd')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_megameta':
+        await query.answer()
+        vtools = dict(user_dict.get('vtools', {}))
+        vtools['megametadata'] = not vtools.get('megametadata', False)
+        update_user_ldata(user_id, 'vtools', vtools)
+        await update_user_settings(query, 'vtool')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
+    elif data[2] == 'vt_rename':
+        await query.answer()
+        text = "<b><u>Video Tools Rename</u></b>\n\nSend output filename (without extension).\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='rename')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_done':
+        await query.answer()
+        if user_id in task_events:
+            task_events[user_id]['proceed'] = True
+            task_events[user_id]['event'].set()
+    elif data[2] == 'vt_cancel':
+        await query.answer()
+        if user_id in task_events:
+            task_events[user_id]['proceed'] = False
+            task_events[user_id]['event'].set()
     elif data[2] == "doc":
         update_user_ldata(user_id, 'as_doc', not user_dict.get('as_doc', False))
         await query.answer()

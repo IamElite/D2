@@ -22,6 +22,7 @@ from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import YT_HELP_MESSAGE
 from ..helper.ext_utils.bulk_links import extract_bulk_links
+from ..helper.ext_utils.video_tools import is_vtool_active, show_vtools_task_menu
 from ..helper.ext_utils.multi_tools import (
     collect_i_items, delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
@@ -334,6 +335,7 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
                 '-ud': '', '-dump': '',
                 '-ss': '0', '-screenshots': '',
                 '-t': '', '-thumb': '',
+                '-vt': False,
     }
 
     args = arg_parser(input_list[1:], arg_base)
@@ -362,6 +364,8 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
     pre_bulk    = []
     thumb       = args['-t'] or args['-thumb']
     sshots      = int(ss) if (ss := (args['-ss'] or args['-screenshots'])).isdigit() else 0
+    vtools      = None
+    use_vt      = args['-vt']
 
     if not isinstance(isBulk, bool):
         dargs = isBulk.split(':')
@@ -557,7 +561,17 @@ async def _ytdl(client, message, isLeech=False, sameDir=None, bulk=[], multi_tag
             await delete_links(message)
             return
 
-    listener = MirrorLeechListener(message, compress, isLeech=isLeech, tag=tag, sameDir=sameDir, rcFlags=rcf, upPath=up, drive_id=drive_id, index_link=index_link, isYtdlp=True, source_url=link, leech_utils={'screenshots': sshots, 'thumb': thumb})
+    if use_vt:
+        user_vtools = user_data.get(message.from_user.id, {}).get('vtools', {})
+        if is_vtool_active(user_vtools):
+            vtools = dict(user_vtools)
+        else:
+            proceed, vtools = await show_vtools_task_menu(client, message)
+            if not proceed:
+                await delete_links(message)
+                return
+
+    listener = MirrorLeechListener(message, compress, isLeech=isLeech, tag=tag, sameDir=sameDir, rcFlags=rcf, upPath=up, drive_id=drive_id, index_link=index_link, isYtdlp=True, source_url=link, leech_utils={'screenshots': sshots, 'thumb': thumb, 'vtools': vtools})
 
 
     if 'mdisk.me' in link:

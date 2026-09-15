@@ -34,6 +34,8 @@ from ..mirror_utils.status_utils.rclone_status import RcloneStatus
 from ..mirror_utils.status_utils.queue_status import QueueStatus
 from ..mirror_utils.status_utils.metadata_status import MetadataStatus
 from ..mirror_utils.status_utils.attachment_status import AttachmentStatus
+from ..mirror_utils.status_utils.video_tools_status import VideoToolsStatus
+from ..ext_utils.video_tools import is_vtool_active, execute_video_tools
 from ..mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..mirror_utils.upload_utils.pyrogramEngine import TgUploader
 from ..mirror_utils.upload_utils.ddlEngine import DDLUploader
@@ -325,6 +327,39 @@ class MirrorLeechListener:
                 LOGGER.info("Not any valid archive, uploading file as it is.")
                 self.newDir = ""
                 up_path = dl_path
+
+        vtools = self.leech_utils.get('vtools')
+        if vtools and is_vtool_active(vtools):
+            vt_path = up_path or dl_path
+            self.newDir = f'{self.dir}10000'
+            await makedirs(self.newDir, exist_ok=True)
+            async with download_dict_lock:
+                download_dict[self.uid] = VideoToolsStatus(name, size, gid, self)
+            vt_files = []
+            if await aiopath.isfile(vt_path):
+                _dt = await get_document_type(vt_path)
+                if _dt[0] or _dt[1]:
+                    vt_files.append(vt_path)
+            elif await aiopath.isdir(vt_path):
+                for dirpath, _, files in await sync_to_async(walk, vt_path):
+                    for file in files:
+                        video_file = ospath.join(dirpath, file)
+                        _dt = await get_document_type(video_file)
+                        if _dt[0] or _dt[1]:
+                            vt_files.append(video_file)
+            self.file_count.set_stage('vidtools', len(vt_files))
+            for video_file in vt_files:
+                if self.suproc == 'cancelled':
+                    return
+                base_dir, file = ospath.split(video_file)
+                outfile = ospath.join(self.newDir, file)
+                new_path = await execute_video_tools(self, base_dir, video_file, outfile, vtools)
+                self.file_count.advance(file, failed=not new_path)
+                if video_file == vt_path:
+                    if self.suproc == 'cancelled':
+                        return
+                    if new_path:
+                        up_path = new_path
 
         metadata = self.user_dict.get('metadata') or config_dict.get('METADATA', '')
         stream_titles = self.user_dict.get('stream_titles') or config_dict.get('STREAM_TITLES', '')

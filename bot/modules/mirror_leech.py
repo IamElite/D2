@@ -43,6 +43,7 @@ from ..helper.ext_utils.multi_tools import (
     collect_i_items, delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
 from .gen_pyro_sess import get_decrypt_key
+from ..helper.ext_utils.video_tools import is_vtool_active, show_vtools_task_menu
 
 @new_task
 async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=None, bulk=[], multi_tag=None):
@@ -71,6 +72,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
                 '-h': '', '-headers': '',
                 '-ss': '0', '-screenshots': '',
                 '-t': '', '-thumb': '',
+                '-vt': False,
     }
 
     args = arg_parser(input_list[1:], arg_base)
@@ -106,6 +108,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     reply_to      = None
     file_         = None
     session       = ''
+    vtools        = None
+    use_vt        = args['-vt']
     
     if not isinstance(seed, bool):
         dargs = seed.split(':')
@@ -419,9 +423,19 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             await delete_links(message)
             return
 
+    if use_vt:
+        user_vtools = user_data.get(message.from_user.id, {}).get('vtools', {})
+        if is_vtool_active(user_vtools):
+            vtools = dict(user_vtools)
+        else:
+            proceed, vtools = await show_vtools_task_menu(client, message)
+            if not proceed:
+                await delete_links(message)
+                return
+
     listener = MirrorLeechListener(message, compress, extract, isQbit, isLeech, tag, select, seed,
                                     sameDir, rcf, up, join, drive_id=drive_id, index_link=index_link, 
-                                    source_url=org_link or link, leech_utils={'screenshots': sshots, 'thumb': thumb}, newname=name)
+                                    source_url=org_link or link, leech_utils={'screenshots': sshots, 'thumb': thumb, 'vtools': vtools}, newname=name)
 
     if file_ is not None:
         listener.orig_caption = reply_to.caption or ""

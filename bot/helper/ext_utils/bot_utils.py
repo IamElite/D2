@@ -79,6 +79,7 @@ class MirrorStatus:
     STATUS_SEEDING     = "Seed"
     STATUS_METADATA    = "Metadata"
     STATUS_ATTACHMENT  = "Attachy"
+    STATUS_VID_TOOLS   = "VidTools"
 
 
 class setInterval:
@@ -264,6 +265,7 @@ class EngineStatus:
         self.STATUS_QUEUE = "NiniMon v2"
         self.STATUS_RCLONE = f"RClone {version_cache['rclone']}"
         self.STATUS_GDL = "gallery-dl v2"
+        self.STATUS_VIDEO_TOOL = "notytools v0"
 
 
 def file_count_line(download):
