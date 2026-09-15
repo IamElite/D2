@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260916-B (built, pushed)
-**Git:** `ccb0542`  
+**Git:** `7cee11e`  
 **Date:** 2026-09-16  
 **Files:** `bot/modules/mirror_leech.py`, `bot/helper/ext_utils/video_tools.py`
 
@@ -80,7 +80,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - `video_tools.py`: `sameDir` ho to `scan_dir` = first task ka shared folder (`dirname(dir)/first + name`), warna `vt_path`.
 - Pure code, `py_compile` PASS.
 
-**Pushed:** `ccb0542` → `arnv1`.
+**Pushed:** `7cee11e` → `arnv1`.
 
 ### 260916-A (built, pushed)
 **Git:** `5378ddc`  
