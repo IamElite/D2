@@ -238,7 +238,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         button = buttons.build_menu(2)
     elif key == 'vtool':
         text = get_vtools_text(user_dict)
-        button = build_vtools_keyboard(user_id, user_dict)
+        button = build_vtools_keyboard(user_id, user_dict, is_task=(user_id in task_events))
         return text, button
     elif key == 'metadata_menu':
         meta_str = user_dict.get('metadata', '')
