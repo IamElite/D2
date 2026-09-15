@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260916-D (built, pushed)
-**Git:** `0d0d7e7`  
+**Git:** `58cdb94`  
 **Date:** 2026-09-16  
 **Files:** `bot/helper/listeners/tasks_listener.py`, `bot/helper/ext_utils/video_tools.py`
 
@@ -79,7 +79,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 - `video_tools.py`: `scan_dirs = [shared, vt_dir]` combine dedup, `vmerge` default par `stem_merged`, `-m MergedVideo` par folder naam.
 - `tasks_listener.py`: `if not vt_files:` guard (merge ho to vt_path duplicate skip), `up_path` update `or vtools.get('merge')`.
 
-**Pushed:** `0d0d7e7` → `arnv1`.
+**Pushed:** `58cdb94` → `arnv1`.
 
 ### 260916-C (built, pushed)
 **Git:** `95a1214`  
