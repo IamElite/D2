@@ -637,6 +637,31 @@ async def set_vtools_text_input(client, message, pre_event, vt_key):
     if DATABASE_URL:
         await DbManger().update_user_data(user_id)
 
+async def set_vtools_trim_input(client, message, pre_event):
+    # ponytail: ek hi input "start end", khali bhejo to trim values saaf
+    user_id = message.from_user.id
+    handler_dict[user_id] = False
+    value = message.text.strip() if message.text else ""
+    vtools = dict(user_data.get(user_id, {}).get('vtools', {}))
+    if value:
+        parts = value.split()
+        vtools['trim_start'] = parts[0]
+        if len(parts) > 1:
+            vtools['trim_end'] = parts[1]
+        else:
+            vtools.pop('trim_end', None)
+        vtools['trim'] = True
+    else:
+        vtools.pop('trim_start', None)
+        vtools.pop('trim_end', None)
+    update_user_ldata(user_id, 'vtools', vtools)
+    if user_id in task_events:
+        task_events[user_id]['vtools'] = dict(vtools)
+    await deleteMessage(message)
+    await update_user_settings(pre_event, 'vtool')
+    if DATABASE_URL:
+        await DbManger().update_user_data(user_id)
+
 async def set_thumb(client, message, pre_event, key, direct=False):
     user_id = message.from_user.id
     handler_dict[user_id] = False
@@ -752,9 +777,65 @@ async def edit_user_settings(client, query):
         vtools = dict(user_dict.get('vtools', {}))
         vtools['megametadata'] = not vtools.get('megametadata', False)
         update_user_ldata(user_id, 'vtools', vtools)
+        if user_id in task_events:
+            task_events[user_id]['vtools'] = dict(vtools)
         await update_user_settings(query, 'vtool')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
+    elif data[2] == 'vt_trim':
+        await query.answer()
+        text = "<b><u>Trim Range</u></b>\n\nSend <code>start end</code> (e.g. <code>00:01:00 00:02:30</code>). End khali to end tak.\nEmpty send = clear.\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_trim_input, pre_event=query)
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_wmark':
+        await query.answer()
+        text = "<b><u>Watermark Text</u></b>\n\nSend watermark text. Empty send = clear.\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='watermark_text')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_hardsub':
+        await query.answer()
+        text = "<b><u>Hardsub File</u></b>\n\nSend .srt/.ass subtitle file ka full path (server par).\nEmpty send = clear.\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='hardsub_file')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_convert':
+        await query.answer()
+        text = "<b><u>Convert Target</u></b>\n\nSend container: <code>mp4 mkv webm mov mp3 m4a</code>.\nEmpty send = clear.\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='convert_to')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_extract':
+        await query.answer()
+        text = "<b><u>Extract Option</u></b>\n\nSend <code>audio</code> ya <code>subs</code>.\nEmpty send = clear.\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='extract_what')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
+    elif data[2] == 'vt_subintro':
+        await query.answer()
+        text = "<b><u>Intro Sub Text</u></b>\n\nSend intro line (shuru ke seconds me dikhega).\nEmpty send = clear.\n<b>Timeout:</b> 60 sec"
+        mbuttons = ButtonMaker()
+        mbuttons.ibutton("Cancel / Back", f"userset {user_id} vtool")
+        await editMessage(message, text, mbuttons.build_menu(1))
+        pfunc = partial(set_vtools_text_input, pre_event=query, vt_key='subintro_text')
+        rfunc = partial(update_user_settings, query, 'vtool')
+        await event_handler(client, query, pfunc, rfunc)
     elif data[2] == 'vt_rename':
         await query.answer()
         text = "<b><u>Video Tools Rename</u></b>\n\nSend output filename (without extension).\n<b>Timeout:</b> 60 sec"
