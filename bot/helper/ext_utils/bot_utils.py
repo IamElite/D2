@@ -410,9 +410,9 @@ def get_readable_message(downloads=None):
     button = buttons.build_menu(3)
     cpu, ram, d_stat = get_bot_stats()
     msg += BotTheme('Cpu', cpu=cpu)
-    msg += BotTheme('FREE', free=get_readable_file_size(d_stat.free), free_p=round(100 - d_stat.percent, 1))
+    msg += BotTheme('F', free=get_readable_file_size(d_stat.free), free_p=round(100 - d_stat.percent, 1))
     msg += BotTheme('Ram', ram=ram)
-    msg += BotTheme('uptime', uptime=get_readable_time(time() - botStartTime))
+    msg += BotTheme('up', uptime=get_readable_time(time() - botStartTime))
     msg += BotTheme('DL', DL=get_readable_file_size(dl_speed))
     msg += BotTheme('UL', UL=get_readable_file_size(up_speed))
     return msg, button
