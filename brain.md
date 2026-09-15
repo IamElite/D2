@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260916-A (built, pushed)
-**Git:** `e60d4e4`  
+**Git:** `5378ddc`  
 **Date:** 2026-09-16  
 **Files:** `bot/helper/ext_utils/video_tools.py`, `bot/helper/listeners/tasks_listener.py`, `bot/modules/mirror_leech.py`, `bot/helper/ext_utils/help_messages.py`
 
