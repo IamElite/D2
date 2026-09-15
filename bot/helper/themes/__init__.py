@@ -11,6 +11,10 @@ for theme in listdir('bot/helper/themes'):
         AVL_THEMES[theme[5:-3]] = import_module(f'bot.helper.themes.{theme[:-3]}')
 
 def BotTheme(var_name, **format_vars):
+    if var_name == 'F':
+        var_name = 'FREE'
+    elif var_name == 'up':
+        var_name = 'uptime'
     text = None
     theme_ = config_dict['BOT_THEME']
 
@@ -24,6 +28,7 @@ def BotTheme(var_name, **format_vars):
         text = getattr(rantheme.SyntaXStyle(), var_name, None)
         
     if text is None:
-        text = getattr(syntax_minimal.SyntaXStyle(), var_name)
+        text = getattr(syntax_minimal.SyntaXStyle(), var_name, '')
 
-    return text.format_map(format_vars)
+    return text.format_map(format_vars) if text else ''
+
