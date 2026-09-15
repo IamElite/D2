@@ -64,6 +64,24 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260916-B (built, pushed)
+**Git:** `ccb0542`  
+**Date:** 2026-09-16  
+**Files:** `bot/modules/mirror_leech.py`, `bot/helper/ext_utils/video_tools.py`
+
+**User instruction:**
+- Bug report: `/l -i 3 -vt` with Merge+Vid+Vid ON bhi 3 alag task bane, merge nahi hua, `-m` lagane par bhi nahi.
+
+**Root cause:**
+- `mirror_leech.py` auto-vmerge gate `and not isBulk` → reply `-i 3` via `collect_i_items` → `isBulk=True` → sameDir kabhi bana hi nahi; `video_tools.merge_media_pairs` scan `vt_path` se karta tha, shared folder nahi.
+
+**Fix:**
+- `mirror_leech.py`: `not isBulk` guards hatae (`use_vt and multi>1 and not folder_name → vmerge`), `if folder_name:`; bulk `n=len(bulk)` pe `sameDir['total']=n`.
+- `video_tools.py`: `sameDir` ho to `scan_dir` = first task ka shared folder (`dirname(dir)/first + name`), warna `vt_path`.
+- Pure code, `py_compile` PASS.
+
+**Pushed:** `ccb0542` → `arnv1`.
+
 ### 260916-A (built, pushed)
 **Git:** `5378ddc`  
 **Date:** 2026-09-16  

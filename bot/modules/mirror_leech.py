@@ -135,9 +135,9 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)
 
-    if use_vt and multi > 1 and not folder_name and not isBulk:
+    if use_vt and multi > 1 and not folder_name:
         folder_name = 'vmerge'
-    if folder_name and not isBulk:
+    if folder_name:
         seed = False
         ratio = None
         seed_time = None
@@ -155,6 +155,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             await sendMessage(message, 'Reply to text file or tg message that have links seperated by new line!')
             return
         n = len(bulk)
+        if sameDir is not None:
+            sameDir['total'] = n
         multi_tag = ensure_multi_tag(None, n)
         b_txt = f"{input_list[0]} {bulk[0]} -i {n}"
         origin = message.reply_to_message or message

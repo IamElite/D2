@@ -339,7 +339,19 @@ async def _run_merge_cmd(listener, cmd):
 async def merge_media_pairs(listener, vt_path, out_dir, vtools):
     if not vtools.get('merge'):
         return []
-    scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+    sd = getattr(listener, 'sameDir', None)
+    if sd and sd.get('tasks'):
+        try:
+            first = sorted(sd['tasks'])[0]
+            sd_path = os_path.join(os_path.dirname(listener.dir.rstrip('/')), str(first)) + sd.get('name','')
+            if os_path.isdir(sd_path):
+                scan_dir = sd_path
+            else:
+                scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+        except Exception:
+            scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+    else:
+        scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
     try:
         names = sorted(os_listdir(scan_dir))
     except Exception as e:
