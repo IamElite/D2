@@ -340,26 +340,31 @@ async def merge_media_pairs(listener, vt_path, out_dir, vtools):
     if not vtools.get('merge'):
         return []
     sd = getattr(listener, 'sameDir', None)
+    scan_dirs = []
     if sd and sd.get('tasks'):
         try:
             first = sorted(sd['tasks'])[0]
             sd_path = os_path.join(os_path.dirname(listener.dir.rstrip('/')), str(first)) + sd.get('name','')
             if os_path.isdir(sd_path):
-                scan_dir = sd_path
-            else:
-                scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+                scan_dirs.append(sd_path)
         except Exception:
-            scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+            pass
+        vt_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+        if vt_dir not in scan_dirs:
+            scan_dirs.append(vt_dir)
     else:
-        scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
-    try:
-        names = sorted(os_listdir(scan_dir))
-    except Exception as e:
-        LOGGER.error(f"Video Tools merge scan failed: {e}")
-        return []
+        scan_dirs.append(vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path))
     items = []
-    for name in names:
-        full = os_path.join(scan_dir, name)
+    scan_names = {}
+    for d in scan_dirs:
+        try:
+            for name in sorted(os_listdir(d)):
+                if name not in scan_names:
+                    scan_names[name] = os_path.join(d, name)
+        except Exception as e:
+            LOGGER.error(f"Video Tools merge scan failed: {e}")
+            continue
+    for name, full in scan_names.items():
         if not os_path.isfile(full):
             continue
         kind = _merge_kind(full)

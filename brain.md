@@ -64,6 +64,23 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260916-D (built, pushed)
+**Git:** `0d0d7e7`  
+**Date:** 2026-09-16  
+**Files:** `bot/helper/listeners/tasks_listener.py`, `bot/helper/ext_utils/video_tools.py`
+
+**User instruction:**
+- Live: file alag download + upload stuck, merge ke baad upload nahi.
+
+**Root cause:**
+- Final task ka scan sirf `vt_path` dir dekhta tha, shared `first_id/vmerge` ka 2 file + final ka 1 file scan me nahi ata tha → `part1+part2+part3` group adhura, merge fail → `vt_files` duplicate + `up_path` merge pe set nahi → upload hang.
+
+**Fix:**
+- `video_tools.py`: `scan_dirs = [shared, vt_dir]` combine dedup, `vmerge` default par `stem_merged`, `-m MergedVideo` par folder naam.
+- `tasks_listener.py`: `if not vt_files:` guard (merge ho to vt_path duplicate skip), `up_path` update `or vtools.get('merge')`.
+
+**Pushed:** `0d0d7e7` → `arnv1`.
+
 ### 260916-C (built, pushed)
 **Git:** `95a1214`  
 **Date:** 2026-09-16  

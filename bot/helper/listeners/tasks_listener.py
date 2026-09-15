@@ -341,14 +341,15 @@ class MirrorLeechListener:
                     if self.suproc == 'cancelled':
                         return
                     vt_files.append(merged_path)
-            if await aiopath.isfile(vt_path):
-                _dt = await get_document_type(vt_path)
-                if _dt[0] or _dt[1]:
-                    vt_files.append(vt_path)
-            elif await aiopath.isdir(vt_path):
-                for dirpath, _, files in await sync_to_async(walk, vt_path):
-                    for file in files:
-                        video_file = ospath.join(dirpath, file)
+            if not vt_files:
+                if await aiopath.isfile(vt_path):
+                    _dt = await get_document_type(vt_path)
+                    if _dt[0] or _dt[1]:
+                        vt_files.append(vt_path)
+                elif await aiopath.isdir(vt_path):
+                    for dirpath, _, files in await sync_to_async(walk, vt_path):
+                        for file in files:
+                            video_file = ospath.join(dirpath, file)
                         _dt = await get_document_type(video_file)
                         if _dt[0] or _dt[1]:
                             vt_files.append(video_file)
@@ -360,7 +361,7 @@ class MirrorLeechListener:
                 outfile = ospath.join(self.newDir, file)
                 new_path = await execute_video_tools(self, base_dir, video_file, outfile, vtools)
                 self.file_count.advance(file, failed=not new_path)
-                if video_file == vt_path:
+                if video_file == vt_path or vtools.get('merge'):
                     if self.suproc == 'cancelled':
                         return
                     if new_path:
