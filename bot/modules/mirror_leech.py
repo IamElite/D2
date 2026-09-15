@@ -135,6 +135,8 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
     if drive_id and is_gdrive_link(drive_id):
         drive_id = GoogleDriveHelper.getIdFromUrl(drive_id)
 
+    if use_vt and multi > 1 and not folder_name and not isBulk:
+        folder_name = 'vmerge'
     if folder_name and not isBulk:
         seed = False
         ratio = None

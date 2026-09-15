@@ -64,6 +64,29 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260916-A (built, pushed)
+**Git:** `e60d4e4`  
+**Date:** 2026-09-16  
+**Files:** `bot/helper/ext_utils/video_tools.py`, `bot/helper/listeners/tasks_listener.py`, `bot/modules/mirror_leech.py`, `bot/helper/ext_utils/help_messages.py`
+
+**User instruction:**
+- Video tools merge: `-i 2` se video+video, video+audio, video+sub merge karna hai; pro user shortcut se, beginner settings se (Merge naam ka button, `-m` likhne ki need nahi jab Merge ON ho); file count alag task ki jagah ek task me count (`Merge: 1/2`); minimal code, less RAM/CPU; Merge OFF ho to Vid+Vid/Aud/Sub ka default single-file kaam intact rahe; ZERO comments.
+
+**Root causes (code-read se proof):**
+1. `-m` bina likhe same-folder jama nahi hota tha → `-i 2 -vt` par do file alag task-folder me rehti, merge pair kabhi milega hi nahi.
+2. `video_tools.py` me `vidvid/vidaud/vidsub` sirf single-file `-map` filter the — 2-file `mux/concat` ka koi path nahi.
+3. Status me `vidtools` stage ka count tha, `merge` stage ka nahi — file count dispatcher ready tha (`file_count_line`) par merge ne use nahi kiya.
+4. `-vt` help me documented hi nahi tha — user ko flag ka pata nahi.
+
+**Fix (minimal, copy-mode only — no re-encode):**
+- `video_tools.py`: `merge` ko `is_vtool_active` me add; text `MERGE (2-file, same folder)`; keyboard me `Merge` toggle (Keep Source wali row me, settings+task dono me). Naya engine `merge_media_pairs()` — naam se pairing: exact stem match → `video+audio/sub` mux, sequence `part1/part2/01/02/cd1/a/b` + same ext → concat; gated `vtools.get('merge')` + `vidaud/vidsub/vidvid` flag per pairing; `ffmpeg -c copy` + concat demuxer only; `file_count.set_stage('merge')/advance()` per pair; `keepsource` OFF par consumed sources `clean_target`; `_group_base` me `2024/x264/final` jaise suffix false-positive block + `_is_sequence` consecutive check.
+- `mirror_leech.py`: `use_vt and multi>1 and not folder_name and not isBulk → folder_name='vmerge'` — Merge ON wale multi task auto same-folder (explicit `-m` ab bhi kaam karta hai, no new flag).
+- `tasks_listener.py`: vtools block me merge stage gated `vtools.get('merge')` → `merge_media_pairs()` ke results `vt_files` me; Merge OFF par zero overhead, default single-file kaam untouched.
+- `help_messages.py`: Join ke baad `Video Tools: -vt` + `Merge (video+audio/sub, part1+part2)` docs.
+- Pure code: zero `#`/`'''` comments; `py_compile` PASS; `strip_comments.py` dry-run `0 changed`.
+
+**Pushed:** `e60d4e4` → `arnv1`.
+
 ### 260914-D (built, pushed)
 **Git:** `713743e`  
 **Date:** 2026-09-14  

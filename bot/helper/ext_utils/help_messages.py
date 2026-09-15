@@ -229,6 +229,17 @@ This option is not Merging of Two links/files.
 If you have link which has splitted files:
 <code>/cmd</code> link -j
 
+➲ <b><i>Video Tools</i></b>: -vt
+<code>/cmd</code> link -vt (menu khulega: Encode, Trim, Watermark, Convert, Extract, Merge)
+Menu me value wale button zaroor bharo (TrimSet, WM Text, ConvertTo). Done dabao to start, Cancel to radd. Menu 120 sec khula rehta hai.
+Settings me save karoge to agli baar menu puchega nahi.
+
+➲ <b><i>Merge (video+audio/sub, part1+part2)</i></b>: -vt + Merge button
+<code>/cmd</code> -i 2 -vt (bina -m: Merge ON ho to folder auto jama hoga)
+Menu me Merge ke saath Vid+Aud (audio chipkana), Vid+Sub (subtitle chipkana) ya Vid+Vid (parts jodna) ON karo.
+Naam se jodta hai: movie.mkv + movie.srt, movie.mkv + movie.m4a, part1.mp4 + part2.mp4.
+Joda na mile to normal upload, kuch nahi tootega. Merge OFF ho to purana single-file kaam chalta hai.
+
 ➲ <b><i>RClone Download</i></b>:
 Treat rclone paths exactly like links
 <code>/cmd</code> main:dump/ubuntu.iso or <code>rcl</code>(To select config, remote and path)

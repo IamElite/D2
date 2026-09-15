@@ -2,9 +2,9 @@ from asyncio import create_subprocess_exec
 from asyncio.subprocess import PIPE
 import json
 import logging
-from os import path as os_path, replace as os_replace
+from os import path as os_path, replace as os_replace, listdir as os_listdir
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from re import sub as re_sub
+from re import sub as re_sub, search as re_search, IGNORECASE as RE_I
 import shlex
 
 from ... import bot_cache, LOGGER
@@ -41,7 +41,7 @@ def is_vtool_active(vtools):
     active_keys = (
         'vidvid', 'vidaud', 'vidsub', 'swap', 'extract', 'remove',
         'encode', 'convert', 'watermark', 'subintro', 'hardsub',
-        'trim', 'ffmpeg_cmd', 'megametadata'
+        'trim', 'ffmpeg_cmd', 'megametadata', 'merge'
     )
     return any(bool(vtools.get(k)) for k in active_keys)
 
@@ -62,8 +62,10 @@ def get_vtools_text(user_dict):
     si_val = f"{st('subintro')} ({vt.get('subintro_text') or 'not set'})" if vt.get('subintro') else st('subintro')
 
     text = (
-        "MERGE (single-file map)\n"
-        f"Vid+Vid » {st('vidvid')} | Vid+Aud » {st('vidaud')} | Vid+Sub » {st('vidsub')}\n\n"
+        "MERGE (2-file, same folder)\n"
+        f"Merge » {st('merge')} (needs Vid+Vid/Vid+Aud/Vid+Sub ON)\n"
+        f"Vid+Vid » {st('vidvid')} | Vid+Aud » {st('vidaud')} | Vid+Sub » {st('vidsub')}\n"
+        f"(single-file map bhi inhi se hota hai)\n\n"
         "STREAM\n"
         f"Extract » {ext_val} | Swap » {st('swap')}\n"
         f"Remove » {st('remove')}\n\n"
@@ -114,6 +116,7 @@ def build_vtools_keyboard(user_id, user_dict, is_task=False):
         ],
         [
             InlineKeyboardButton(f"{tick('keepsource')}Keep Source", callback_data=f"userset {user_id} vt_tog_keepsource"),
+            InlineKeyboardButton(f"{tick('merge')}Merge", callback_data=f"userset {user_id} vt_tog_merge"),
         ],
         [
             InlineKeyboardButton("Rename", callback_data=f"userset {user_id} vt_rename"),
@@ -290,6 +293,152 @@ async def execute_video_tools(listener, base_dir, media_file, outfile, vtools):
         err = (await listener.suproc.stderr.read()).decode(errors='ignore')
         LOGGER.error(f"Video Tools failed: {err}")
         return media_file
+
+
+_MERGE_VIDEO_EXTS = ('.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.ts', '.m2ts', '.wmv', '.mpg', '.mpeg', '.3gp')
+_MERGE_AUDIO_EXTS = ('.m4a', '.mp3', '.aac', '.ogg', '.opus', '.flac', '.wav')
+_MERGE_SUB_EXTS = ('.srt', '.ass', '.ssa', '.vtt', '.sub')
+
+
+def _merge_kind(path):
+    ext = os_path.splitext(path)[1].lower()
+    if ext in _MERGE_VIDEO_EXTS:
+        return 'video'
+    if ext in _MERGE_AUDIO_EXTS:
+        return 'audio'
+    if ext in _MERGE_SUB_EXTS:
+        return 'sub'
+    return None
+
+
+def _group_base(stem):
+    m = re_search(r'^(.*?)[\s._-]+(?:part\s*(\d+)|cd\s*(\d+)|(\d{1,2})|([a-f]))$', stem.strip(), RE_I)
+    if not m:
+        return stem.strip().casefold(), None
+    base, suffix = m.group(1), next((g for g in m.groups()[1:] if g is not None))
+    suffix = suffix.lower()
+    order = int(suffix) if suffix.isdigit() else (ord(suffix) - ord('a') + 1)
+    return base.casefold(), order
+
+
+def _is_sequence(orders):
+    orders = sorted(orders)
+    return len(orders) > 1 and all(b - a == 1 for a, b in zip(orders, orders[1:]))
+
+
+async def _run_merge_cmd(listener, cmd):
+    listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
+    code = await listener.suproc.wait()
+    if code != 0:
+        err = (await listener.suproc.stderr.read()).decode(errors='ignore')
+        LOGGER.error(f"Video Tools merge failed: {err}")
+        return False
+    return True
+
+
+async def merge_media_pairs(listener, vt_path, out_dir, vtools):
+    if not vtools.get('merge'):
+        return []
+    scan_dir = vt_path if os_path.isdir(vt_path) else os_path.dirname(vt_path)
+    try:
+        names = sorted(os_listdir(scan_dir))
+    except Exception as e:
+        LOGGER.error(f"Video Tools merge scan failed: {e}")
+        return []
+    items = []
+    for name in names:
+        full = os_path.join(scan_dir, name)
+        if not os_path.isfile(full):
+            continue
+        kind = _merge_kind(full)
+        if kind:
+            items.append((full, os_path.splitext(name)[0], kind))
+    if len(items) < 2:
+        return []
+    ffmpeg_bin = bot_cache.get('pkgs', ['ffmpeg', 'ffprobe', 'ffmpeg'])[2]
+    keep_src = bool(vtools.get('keepsource'))
+    groups = []
+    by_stem = {}
+    for full, stem, kind in items:
+        by_stem.setdefault(stem.casefold(), []).append((full, stem, kind))
+    for stem_key, members in by_stem.items():
+        videos = [m for m in members if m[2] == 'video']
+        audios = [m for m in members if m[2] == 'audio']
+        subs = [m for m in members if m[2] == 'sub']
+        if len(videos) == 1 and (audios or subs):
+            groups.append(('mux', videos[0], audios, subs))
+    by_base = {}
+    for full, stem, kind in items:
+        if kind == 'video':
+            base, order = _group_base(stem)
+            if order is not None:
+                by_base.setdefault(base, []).append((full, order))
+    for base_key, members in by_base.items():
+        uniq = sorted({m[0] for m in members})
+        orders = [m[1] for m in members]
+        if _is_sequence(orders) and len({os_path.splitext(p)[1].lower() for p in uniq}) == 1:
+            groups.append(('concat', uniq, base_key))
+    if not groups:
+        return []
+    listener.file_count.set_stage('merge', len(groups))
+    merged = []
+    for group in groups:
+        if listener.suproc == 'cancelled':
+            break
+        if group[0] == 'mux':
+            _, (v_full, stem, _), audios, subs = group
+            use_aud = [a for a in audios] if vtools.get('vidaud') else []
+            use_sub = [s for s in subs] if vtools.get('vidsub') else []
+            if not use_aud and not use_sub:
+                listener.file_count.advance(stem, failed=True)
+                continue
+            out = os_path.join(out_dir, f"{stem}_merged{os_path.splitext(v_full)[1].lower()}")
+            cmd = [ffmpeg_bin, '-nostdin', '-threads', '2', '-y', '-hide_banner', '-loglevel', 'error',
+                   '-i', v_full]
+            for a_full, _, _ in use_aud:
+                cmd.extend(['-i', a_full])
+            for s_full, _, _ in use_sub:
+                cmd.extend(['-i', s_full])
+            cmd.extend(['-map', '0:v:0?'])
+            for i in range(len(use_aud)):
+                cmd.extend(['-map', f'{1 + i}:a:0?'])
+            for i in range(len(use_sub)):
+                cmd.extend(['-map', f'{1 + len(use_aud) + i}:s:0?'])
+            cmd.extend(['-map', '0:s?', '-c', 'copy'])
+            if use_sub and os_path.splitext(out)[1].lower() in ('.mp4', '.mov', '.m4v'):
+                cmd.extend(['-c:s', 'mov_text'])
+            ok = await _run_merge_cmd(listener, cmd + [out])
+            consumed = [v_full] + [a[0] for a in use_aud] + [s[0] for s in use_sub]
+        else:
+            _, uniq, base_key = group
+            if not vtools.get('vidvid'):
+                listener.file_count.advance(base_key, failed=True)
+                continue
+            out = os_path.join(out_dir, f"{base_key}_merged{os_path.splitext(uniq[0])[1].lower()}")
+            list_file = os_path.join(out_dir, f"{base_key}_concat.txt")
+            try:
+                with open(list_file, 'w', encoding='utf-8') as fh:
+                    for p in uniq:
+                        fh.write(f"file '{p.replace(chr(39), chr(39) + chr(92) + chr(39) + chr(39))}'\n")
+            except Exception as e:
+                LOGGER.error(f"Video Tools merge list failed: {e}")
+                listener.file_count.advance(base_key, failed=True)
+                continue
+            cmd = [ffmpeg_bin, '-nostdin', '-threads', '2', '-y', '-hide_banner', '-loglevel', 'error',
+                   '-f', 'concat', '-safe', '0', '-i', list_file, '-c', 'copy', out]
+            ok = await _run_merge_cmd(listener, cmd)
+            await clean_target(list_file)
+            consumed = list(uniq)
+        listener.file_count.advance(os_path.basename(out), failed=not ok)
+        if ok:
+            merged.append(out)
+            if not keep_src:
+                for p in consumed:
+                    if os_path.abspath(p) != os_path.abspath(out):
+                        await clean_target(p)
+        elif os_path.isfile(out):
+            await clean_target(out)
+    return merged
 
 
 task_events = {}

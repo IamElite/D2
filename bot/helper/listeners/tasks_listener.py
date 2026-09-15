@@ -35,7 +35,7 @@ from ..mirror_utils.status_utils.queue_status import QueueStatus
 from ..mirror_utils.status_utils.metadata_status import MetadataStatus
 from ..mirror_utils.status_utils.attachment_status import AttachmentStatus
 from ..mirror_utils.status_utils.video_tools_status import VideoToolsStatus
-from ..ext_utils.video_tools import is_vtool_active, execute_video_tools
+from ..ext_utils.video_tools import is_vtool_active, execute_video_tools, merge_media_pairs
 from ..mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from ..mirror_utils.upload_utils.pyrogramEngine import TgUploader
 from ..mirror_utils.upload_utils.ddlEngine import DDLUploader
@@ -336,6 +336,11 @@ class MirrorLeechListener:
             async with download_dict_lock:
                 download_dict[self.uid] = VideoToolsStatus(name, size, gid, self)
             vt_files = []
+            if vtools.get('merge'):
+                for merged_path in await merge_media_pairs(self, vt_path, self.newDir, vtools):
+                    if self.suproc == 'cancelled':
+                        return
+                    vt_files.append(merged_path)
             if await aiopath.isfile(vt_path):
                 _dt = await get_document_type(vt_path)
                 if _dt[0] or _dt[1]:
