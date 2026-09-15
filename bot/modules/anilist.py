@@ -365,7 +365,7 @@ async def character(_, message, aniid=None, u_id=None):
         description = json['description']
         site_url = json.get('siteUrl')
         siteid = json.get('id')
-        if '~!' in description and '!~' in description: #Spoiler
+        if '~!' in description and '!~' in description: 
             btn = ButtonMaker()
             sptext = description.split('~!', 1)[1].rsplit('!~', 1)[0].replace('~!', '').replace('!~', '')
             btn.ibutton("🔍 View Spoiler", f"cha {user_id} spoil {siteid}")

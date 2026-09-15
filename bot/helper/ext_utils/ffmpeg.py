@@ -123,7 +123,6 @@ _MP4_FMT_KEYS = {'title', 'artist', 'album', 'composer', 'genre', 'copyright', '
 _MP4_EXTS = ('.mp4', '.m4v', '.mov', '.m4a')
 
 async def media_muxer(path):
-    """Probe-based container detect — ext-less files ke liye. Non-media → None."""
     out, _, _ = await cmd_exec(['ffprobe', '-v', 'error', '-show_entries', 'format=format_name',
                                 '-of', 'default=nw=1:nk=1', path])
     tokens = {t.strip().lower() for t in (out or '').split(',') if t.strip()}
@@ -164,8 +163,6 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     tag_args = await probe_tag_args(media_file, overlay, md_streams)
     cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
-    # MP4-family: mdta keys mode — custom/unknown keys bhi RAW likhe jate (mediainfo me dikhte),
-    # mkv-jaisa full parity (warna muxer sirf whitelist likhta, baaki silently drop)
     if os_path.splitext(outfile)[1].lower() in _MP4_EXTS:
         cmd.extend(['-movflags', 'use_metadata_tags'])
     cmd.extend(tag_args)
@@ -176,18 +173,17 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
 
     if code == 0:
         if inplace:
-            os_replace(outfile, media_file)  # atomic in-place (sync syscall)
+            os_replace(outfile, media_file)  
             return media_file
         await clean_target(media_file)
         final_path = os_path.join(base_dir, os_path.basename(outfile))
         if final_path != outfile:
-            # newDir<->base_dir same-fs: os_replace atomic + overwrite (duplicate-completion safe)
             os_replace(outfile, final_path)
         listener.seed = False
         return final_path
     else:
         if os_path.abspath(outfile) != os_path.abspath(media_file):
-            await clean_target(outfile)  # guard: original kabhi delete nahi
+            await clean_target(outfile)  
         LOGGER.error('%s. Changing metadata failed, Path %s', (await listener.suproc.stderr.read()).decode(errors='ignore'), media_file)
         return None
 

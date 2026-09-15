@@ -1,8 +1,3 @@
-"""WZML-X HypertgUpload (wzv3 hyperul_utils) adapted to this repo.
-
-HyperUL is least-loaded helper/user/bot + send_video/document — not chunk-split.
-HELPER_TOKENS extra bots must be admin in LEECH_LOG. Failures never abort boot.
-"""
 from asyncio import gather, sleep
 from logging import getLogger
 from os import path as ospath
@@ -28,7 +23,7 @@ from ..telegram_helper.tg_transfer import (
 LOGGER = getLogger(__name__)
 
 _started_tokens = set()
-_helper_lock = None  # lazy asyncio.Lock (loop-bound safe)
+_helper_lock = None  
 
 
 def get_active_helper_tokens():
@@ -58,7 +53,6 @@ async def start_helper_bots(tokens: str):
 
 
 async def _start_helper_bots_locked(tokens: str):
-    # purane extra helpers clean stop (leak-free rebuild; main bot {0} bacha rehta)
     for no, c in list(helper_bots.items()):
         if no != 0 and c is not bot:
             await _stop_client(c)
@@ -328,7 +322,6 @@ class HypertgUpload(HypertgTransfer):
         return await self._try_send(key, client, kwargs)
 
     async def send_media(self, file_path, key, **kwargs):
-        """Used by pyrogramEngine: WZML _hyper_send if helpers/user, else _direct_send."""
         self._up_file = ospath.basename(file_path)
         up_size = ospath.getsize(file_path) if ospath.exists(file_path) else 0
         hyper_user_only = False

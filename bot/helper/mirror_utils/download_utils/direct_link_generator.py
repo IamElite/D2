@@ -337,8 +337,6 @@ def _resolve_wrapper_or_embed(link, _depth=0):
 
 
 def real_debrid(url: str, tor=False):
-    """ Real-Debrid Link Extractor (VPN Maybe Needed)
-    Based on Real-Debrid v1 API (Heroku/VPS) [Without VPN]"""
     def __unrestrict(url, tor=False):
         cget = create_scraper().request
         resp = cget('POST', f"https://api.real-debrid.com/rest/1.0/unrestrict/link?auth_token={config_dict['REAL_DEBRID_API']}", data={'link': url})
@@ -523,9 +521,6 @@ def fembed(link):
 
 
 def sbembed(link):
-    """ Sbembed direct link generator
-    Based on https://github.com/zevtyardt/lk21
-    """
     try:
         dl_url = Bypass().bypass_sbembed(link)
         count = len(dl_url)
@@ -1172,9 +1167,6 @@ _GOFILE_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
 
 
 def _gofile_salt(session):
-    """The signing secret is baked into /js/wt.obf.js and rotated server-side
-    (retired secrets get the caller's IP banned), so it is read at request time
-    instead of hardcoded. The fallback only covers an unfetchable bundle."""
     try:
         js = session.get('https://gofile.io/js/wt.obf.js', timeout=15).text
         js = sub(r'\\x([0-9a-f]{2})', lambda m: chr(int(m.group(1), 16)), js)
@@ -1186,16 +1178,6 @@ def _gofile_salt(session):
 
 
 def gofile(url, auth=None):
-    """GoFile direct link — free/guest access, no premium needed.
-
-    Flow: POST /accounts mints a guest token, then
-    GET /contents/<code>?cache=true is signed with
-      X-Website-Token = sha256(userAgent :: en-US :: token :: slot :: salt)
-    where slot = int(time()) // 14400 (a 4-hour bucket — missing it is what
-    makes the API answer error-notPremium) and salt comes from wt.obf.js.
-    The download url needs the account cookie, so a header travels with it.
-    Verified live: 795 MB mkv, HTTP 200, md5 matched the API's.
-    """
     try:
         if '::' in url:
             password = sha256(url.split('::')[-1].encode('utf-8')).hexdigest()
@@ -1267,7 +1249,6 @@ def gofile(url, auth=None):
         if acc.get('status') != 'ok':
             raise DirectDownloadLinkException(f"ERROR: Gofile could not mint a token ({acc.get('status')})")
         token = acc['data']['token']
-        # The download url is bound to this account, so the cookie must travel with it.
         details['header'] = f'Cookie: accountToken={token}'
         try:
             __fetch(session, token, _gofile_salt(session), content_id)
@@ -1450,8 +1431,6 @@ def nexdrive(url):
 
 
 def sourceforge(url):
-    """SourceForge direct link. Chrome impersonation is load-bearing here: with
-    cloudscraper the page comes back without the meta-refresh (verified live)."""
     try:
         from curl_cffi.requests import Session as CurlSession
     except ImportError as e:
@@ -1473,9 +1452,6 @@ def sourceforge(url):
 
 
 def gdflix(url):
-    """GDFlix direct link. Cloudflare serves a challenge to anything but a real
-    browser fingerprint, so curl-cffi impersonation is load-bearing here
-    (cloudscraper gets HTTP 403). Verified live: 96 MB mkv, HTTP 200."""
     if '/pack/' in url:
         raise DirectDownloadLinkException(
             'ERROR: GDFlix pack (multi-file) links are not supported yet — send a /file/ link.')

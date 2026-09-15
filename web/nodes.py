@@ -74,12 +74,6 @@ def make_tree(res, aria2=False):
                         file_id=i['index'], progress=round((int(i['completedLength'])/int(i['length']))*100, 5))
     return create_list(parent, ["", 0])
 
-"""
-def print_tree(parent):
-    for pre, _, node in RenderTree(parent):
-        treestr = u"%s%s" % (pre, node.name)
-        print(treestr.ljust(8), node.is_folder, node.is_file)
-"""
 
 def create_list(par, msg):
     if par.name != ".unwanted":

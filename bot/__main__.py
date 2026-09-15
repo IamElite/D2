@@ -113,7 +113,6 @@ async def restart(client, message):
             interval[0].cancel()
     await sync_to_async(clean_all)
     proc1 = await create_subprocess_exec('pkill', '-9', '-f', f'gunicorn|{bot_cache["pkgs"][-1]}')
-    # update.py ko bot ke current (proven) repo/branch ke saath chalao — config.env drift na ho
     proc2 = await create_subprocess_exec(
         'python3', 'update.py',
         env={**environ, 'UPSTREAM_REPO': str(config_dict.get('UPSTREAM_REPO', '')),
@@ -250,7 +249,6 @@ async def log_check():
     
 
 async def _helper_watcher():
-    # 30s safety: DB-direct/env edits bhi pick — drift ho to bina-restart resync
     from .helper.ext_utils.hyperul_utils import start_helper_bots, get_active_helper_tokens
     while True:
         await asleep(30)

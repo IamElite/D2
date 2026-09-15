@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""wzgram / pyrogram leech uploader (rewrite).
-
-Same TgUploader API for tasks_listener. send_* kwargs filtered by
-inspect.signature so wzgram extra/missing args cannot crash.
-Thumb, caption, remux, leech-log, bot-PM, dumps, media-group kept.
-"""
 from traceback import format_exc
 from logging import getLogger, ERROR
 from inspect import signature
@@ -376,7 +370,6 @@ class TgUploader:
         if not await self.__msg_to_reply():
             return
         isDeleted = False
-        # One walk up-front: it both keeps the old order and gives the stage a real total.
         pending = []
         for dirpath, _, files in sorted(await sync_to_async(walk, self.__path)):
             if dirpath.endswith('/yt-dlp-thumb'):
@@ -499,7 +492,6 @@ class TgUploader:
                 key = 'videos'
                 duration = (await get_media_info(self.__up_path))[0]
                 if not duration:
-                    # TG-pipeline holes / moov-issues: same-container index rebuild (fast) — duration wapas
                     healed = await repair_moov(self.__up_path)
                     if healed:
                         if healed != self.__up_path:

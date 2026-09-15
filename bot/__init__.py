@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 
-# ── Early wzgram upload-rate patch (MUST run before any `import pyrogram`) ─────
-# wzgram save_file.py hardcodes per-file upload pacing: bot rate_limit=40
-# (~20 MiB/s cap), non-premium user=50, media pool 8/12. We raise the LOW caps
-# (premium 300 / pool 14 untouched) by rewriting the source ON DISK before the
-# package is ever imported — no importlib.reload (that raced with the already
-# built Client and made the patch silently no-op / risked boot hangs). Stdlib
-# only, idempotent, exception-safe (never blocks startup).
 def _early_patch_wzgram():
     import os as _os
     import re as _re
     import sys as _sys
 
     def _find_save_file():
-        # locate pyrogram/methods/advanced/save_file.py without importing pyrogram
         try:
             import importlib.util as _iu
             spec = _iu.find_spec('pyrogram')
@@ -44,7 +36,7 @@ def _early_patch_wzgram():
 
         def _rl(m):
             old = int(m.group(2))
-            if old < 100:                      # raise low caps (bot 40 / user 50), keep 300
+            if old < 100:                      
                 matched.append(f'rate {old}->{bot_rate}')
                 return f'{m.group(1)}{bot_rate}{m.group(3)}'
             return m.group(0)
@@ -69,13 +61,11 @@ def _early_patch_wzgram():
             print(f'[TG patch] APPLIED wzgram upload cap removed: {", ".join(matched)} '
                   f'(save_file.py now loads unthrottled on import)')
         else:
-            # no low caps left -> already patched/already high (idempotent; normal)
             print('[TG patch] wzgram upload pacing already high (rate 300 / pool 14) — nothing to do')
     except Exception as e:
         print(f'[TG patch] skipped (non-fatal): {e}')
 
 _early_patch_wzgram()
-# ──────────────────────────────────────────────────────────────────────────────
 
 from tzlocal import get_localzone
 from pytz import timezone
@@ -102,9 +92,6 @@ faulthandler_enable()
 install()
 setdefaulttimeout(600)
 
-# --- Benign Python-3.10 deprecation noise (yt-dlp + google.api_core warn on 3.10
-# until the container image moves to 3.11; harmless and they drown the real
-# startup logs). Suppress via warnings + logging BEFORE heavy imports. ---
 try:
     import warnings as _warnings
     _warnings.filterwarnings('ignore', message=r'.*Support for Python version.*deprecated.*')
@@ -114,10 +101,6 @@ try:
 except Exception:
     pass
 
-# Upload rate-cap patch is applied at the VERY TOP of this file (before the
-# pyrogram import) by _early_patch_wzgram() — it edits save_file.py on disk so
-# the first fresh import loads the unthrottled constants; no importlib.reload
-# (which raced with the already-built Client and made the patch unreliable).
 
 try:
     pyroutils.MIN_CHAT_ID = -999999999999
@@ -127,7 +110,7 @@ except Exception:
 
 botStartTime = time()
 
-basicConfig(format="[%(asctime)s] [%(levelname)s] - %(message)s", #  [%(filename)s:%(lineno)d]
+basicConfig(format="[%(asctime)s] [%(levelname)s] - %(message)s", 
             datefmt="%d-%b-%y %I:%M:%S %p",
             handlers=[FileHandler('log.txt'), StreamHandler()],
             level=INFO)
@@ -324,7 +307,6 @@ def wztgClient(*args, **kwargs):
 
 
 def _start_tg(client):
-    """pyrofork Client.start() is sync; wzgram returns a coroutine."""
     started = client.start()
     if iscoroutine(started):
         try:
@@ -337,12 +319,6 @@ def _start_tg(client):
         return loop.run_until_complete(started)
     return client if started is None else started
 
-# --- Add this block to ensure an event loop exists ---
-# try:
-#     loop = get_event_loop()
-# except RuntimeError:
-#     loop = new_event_loop()
-#     set_event_loop(loop)
 
 IS_PREMIUM_USER = False
 user = ''
@@ -531,8 +507,6 @@ MEDIA_GROUP = environ.get('MEDIA_GROUP', '')
 MEDIA_GROUP = MEDIA_GROUP.lower() == 'true'
 
 def _parse_port(raw, name, default):
-    """Port config ko safely int me badlo. Galat value pe clear error + exit —
-    pehle import-time pe cryptic `ValueError: invalid literal for int()` aata tha."""
     raw = (raw or '').strip()
     if not raw:
         return default
@@ -909,10 +883,6 @@ if ospath.exists('shorteners.txt'):
             if len(temp) == 2:
                 shorteners_list.append({'domain': temp[0],'api_key': temp[1]})
 
-# CI: gunicorn process hataya — web UI ab in-bot aiohttp (bot_loop ke baad start hota)
-# D2 web server (file selector) ka source of truth BASE_URL_PORT hai. PORT sirf
-# Heroku router ke liye precedence rakhta hai. Pehle PORT hi gate tha, isliye VPS
-# pe BASE_URL_PORT set hone ke bawajood web server start hi nahi hota tha.
 PORT = _parse_port(environ.get('PORT'), 'PORT', 0)
 WEB_SERVER_PORT = PORT or BASE_URL_PORT
 
@@ -991,14 +961,6 @@ else:
     aria2.set_global_options(a2c_glo)
 
 def _host_profile():
-    """PaaS vs VPS, decided once at boot.
-
-    One image has to serve both hosts, and they want opposite things: Heroku
-    injects PORT (and DYNO), has no inbound path and an ephemeral disk, so
-    preallocation and mmap only cost CPU there; a VPS/Docker host sets BASE_URL,
-    can accept inbound peers on listen-port, and has a real filesystem where
-    falloc is instant. HOST_PROFILE only exists to override a wrong guess.
-    """
     forced = environ.get('HOST_PROFILE', '').strip().lower()
     if forced in ('vps', 'paas', 'heroku'):
         return 'paas' if forced in ('paas', 'heroku') else 'vps'
@@ -1009,9 +971,6 @@ def _host_profile():
 
 HOST_PROFILE = _host_profile()
 
-# Values verified against a live aria2c 1.37.0: every key below is accepted by
-# changeGlobalOption. disk-cache and socket-recv-buffer-size are NOT - aria2
-# accepts them and silently keeps the a2c.conf value - so those stay in the conf.
 _A2_PROFILE = {
     'paas': {'max-concurrent-downloads': '4',  'bt-max-peers': '300',
              'bt-max-open-files': '300', 'file-allocation': 'none',
@@ -1020,9 +979,6 @@ _A2_PROFILE = {
              'bt-max-open-files': '500', 'file-allocation': 'falloc',
              'enable-mmap': 'true', 'bt-enable-lpd': 'true'},
 }
-# 260905-Z: the exact qBit prefs from 260905-U, the last build the user confirmed
-# was downloading. QBIT_PROFILE=safe restores them wholesale, so a regression in
-# any of the tuned knobs can be ruled out with one env change instead of a guess.
 _QBIT_SAFE = {
     'async_io_threads': 1, 'hashing_threads': 1, 'disk_cache': 16,
     'disk_io_type': 0, 'max_connec': 120, 'max_connec_per_torrent': 60,
@@ -1034,12 +990,6 @@ _QBIT_SAFE = {
     'recheck_completed_torrents': False, 'up_limit': 256, 'dl_limit': 0,
 }
 
-# 260905-AB: qBittorrent's own stock defaults, for testing whether libtorrent is
-# really faster here than aria2. Only the values that are documented defaults are
-# listed - everything else is deliberately omitted so qBit keeps its own setting
-# rather than one I guessed at. Sources: max_connec 500 / per-torrent 100 /
-# upload slots 8 / per-torrent 4 (qBittorrent issue #7197), queueing 3/3/5, and
-# up_limit/dl_limit unlimited by default.
 _QBIT_STOCK = {
     'max_connec': 500, 'max_connec_per_torrent': 100,
     'max_uploads': 8, 'max_uploads_per_torrent': 4,
@@ -1058,10 +1008,6 @@ _QBIT_PROFILE = {
              'max_active_torrents': 15},
 }
 
-# CH-REVERT: force-overlay ne 15M peer-speed-limit + DHT-off force kiya tha → thin-swarm pe
-# aria2 permanent peer-hunt churn (CPU 59.8%). Is block se BT peer keys hata diye — woh ab
-# neeche bounded throughput-overlay me hain (DHT on, peers capped 200). ARIA2_PERF=1 ab
-# sirf HTTP disk-perf (falloc) opt-in karta hai; ARIA2_NO_DHT=1 dht/lpd/pex off karta hai.
 _a2_perf = {}
 if environ.get('ARIA2_PERF', '').lower() in ('1', 'true', 'yes'):
     _a2_perf.update({
@@ -1076,12 +1022,6 @@ if _a2_perf:
     except Exception as e:
         log_error(f"Aria2 perf overlay skipped: {e}")
 
-# 260904-CK: throughput defaults enforced AFTER Mongo restore (DB may carry old
-# conservative prefs = 8 conn / 80 peers / 1K peer-speed-limit -> 19MB/s cap).
-# CH lesson respected: DHT/PEX are NOT force-toggled here (DHT stays on), and the
-# peer-speed-limit is bounded by bt-max-peers=200 (no unbounded announce churn).
-#   ARIA2_PROFILE=safe            -> old conservative baseline (8/8/80/1K)
-#   ARIA2_PEER_SPEED_LIMIT / ARIA2_MAX_PEERS / ARIA2_CONN_PER_SERVER override
 if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
     _a2_boost = dict(_A2_PROFILE[HOST_PROFILE])
     _a2_boost.update({
@@ -1093,20 +1033,11 @@ if environ.get('ARIA2_PROFILE', '').lower() != 'safe':
         'bt-max-peers': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'bt-max-open-files': environ.get('ARIA2_MAX_PEERS', _a2_boost['bt-max-peers']),
         'optimize-concurrent-downloads': 'true',
-        # Upload must stay uncapped. BitTorrent is tit-for-tat: a 512K/1M ceiling
-        # meant we could never repay peers, so they choked us and downloads
-        # crawled at KB/s while the CPU burned on churn.
         'max-overall-upload-limit': environ.get('ARIA2_TORRENT_UP_GLOBAL', '0'),
         'max-upload-limit': environ.get('ARIA2_TORRENT_UP', '0'),
-        # 260905-AC: max-overall-download-limit is in aria2c_global, so Mongo's
-        # settings.aria2c can set it globally at boot, and nothing here overrode
-        # it. Force it off (0 = unlimited) so no stale value can cap throughput.
         'max-overall-download-limit': environ.get('ARIA2_DL_LIMIT', '0'),
     })
-    _a2_boost.update(_a2_perf)   # explicit ARIA2_PERF / ARIA2_NO_DHT opt-ins win
-    # bt-request-peer-speed-limit is deliberately left at aria2's 50K default.
-    # A 10M target is unreachable on ordinary swarms, so aria2 kept adding peers
-    # forever (the CPU spike) without ever gaining throughput.
+    _a2_boost.update(_a2_perf)   
     if environ.get('ARIA2_PEER_SPEED_LIMIT'):
         _a2_boost['bt-request-peer-speed-limit'] = environ['ARIA2_PEER_SPEED_LIMIT']
     try:
@@ -1133,23 +1064,8 @@ else:
             del qb_opt[k]
     qb_client.app_set_preferences(qb_opt)
 
-# Overlay after Mongo so DB cannot restore mmap/1-hash-thread (CPU spike, slow DL)
 try:
-    # 260905-Z: back to opt-in. 260905-V flipped this on by default, but the host
-    # was recorded as UDP-dead (the old log line said so) and DHT/PEX are UDP.
-    # Set QBIT_DHT=1 to turn them back on.
     _qbit_dht = environ.get('QBIT_DHT', '1').lower() in ('1', 'true', 'yes')
-    # 260905-Z: 'safe' (the 260905-U values) is the DEFAULT. We have exactly one
-    # configuration the user confirmed was downloading and none for the tuned
-    # profiles, so the known-good one ships by default and tuning is opt-in:
-    #   QBIT_PROFILE=tuned    -> _QBIT_PROFILE[HOST_PROFILE]
-    #   QBIT_PROFILE=vps|paas -> that profile regardless of detection
-    # 260905-AC: the default is now 'stock' (qBittorrent's own documented
-    # defaults), not 'safe'. The safe/260905-U profile caps up_limit at 256
-    # BYTES/s with DHT/PEX off, which measurably produced KB/s - it was tuned for
-    # a CPU-starved dyno, not a VPS. Stock is also what the reference bot the
-    # user compares against is effectively running. QBIT_PROFILE=safe still
-    # restores the old baseline; tuned/vps/paas are unchanged.
     _qbit_want = environ.get('QBIT_PROFILE', '').strip().lower()
     _qbit_safe = _qbit_want == 'safe'
     if not _qbit_want:
@@ -1162,10 +1078,6 @@ try:
         _qp = _QBIT_PROFILE['paas' if _qbit_want in ('paas', 'heroku') else 'vps']
     else:
         _qp = _QBIT_PROFILE[HOST_PROFILE]
-    # 260905-AA: now that every torrent lands on qBit, the 260905-U queue limits
-    # (2 active downloads / 3 active torrents) would cap concurrent tasks and the
-    # rest would sit queued at 0%. QBIT_MAX_ACTIVE_DL lifts just those two, in
-    # either profile, without adopting the rest of the tuned values.
     _qbit_madl = int(environ.get('QBIT_MAX_ACTIVE_DL') or 0)
     qb_client.app_set_preferences({
         **_qp,
@@ -1191,10 +1103,6 @@ try:
         'slow_torrent_inactive_timer': 120,
         'preallocate_all': False,
         'recheck_completed_torrents': False,
-        # up_limit/dl_limit are BYTES per second (0 = unlimited). This used to be
-        # 256, i.e. 256 B/s of upload — almost certainly meant as 256 KiB/s, since
-        # the Qt UI shows KiB/s while the Web API takes bytes. At 256 B/s we could
-        # never repay peers, so tit-for-tat choked us into KB/s downloads.
         **({} if _qbit_safe else {
             'up_limit': int(environ.get('QBIT_UP_LIMIT', '0')),
             'dl_limit': int(environ.get('QBIT_DL_LIMIT', '0')),
@@ -1209,8 +1117,6 @@ try:
 except Exception as e:
     log_error(f"qBit runtime prefs failed: {e}")
 
-# qBit LAZY: boot pe overlay laga ke turant stop (0 torrents) — RAM boot-baseline se out.
-# Pehla qBit task ensure_qbit() se wapas aayega. Aria2-tasks isse rok nahi sakte.
 try:
     from .helper.ext_utils.engine_lifecycle import stop_heavy, qbit_port_down
     stop_heavy()
@@ -1226,11 +1132,8 @@ bot = _start_tg(wztgClient('bot', TELEGRAM_API, TELEGRAM_HASH, bot_token=BOT_TOK
                parse_mode=enums.ParseMode.HTML))
 bot_loop = bot.loop
 from concurrent.futures import ThreadPoolExecutor as _TPE
-bot_loop.set_default_executor(_TPE(max_workers=12, thread_name_prefix="sync"))  # sync_to_async thread-explosion guard
+bot_loop.set_default_executor(_TPE(max_workers=12, thread_name_prefix="sync"))  
 
-# CI: in-bot web server (aiohttp) — gunicorn replacement.
-# Gate wahi hai jo bot_settings ke runtime path pe hai: PORT set ho (Heroku) ya
-# BASE_URL set ho (VPS/Docker). Dono na ho to server start nahi hota.
 if PORT or BASE_URL:
     try:
         from web.aio_wserver import start_web_server
@@ -1240,7 +1143,6 @@ if PORT or BASE_URL:
     except Exception as e:
         log_error(f"Web server start failed: {e}")
 
-# CL: process-wise RAM breakdown — boot pe ek baar (qBit lazy/gunicorn verify ka saboot)
 try:
     from .helper.ext_utils.engine_lifecycle import log_mem
     log_mem('boot')

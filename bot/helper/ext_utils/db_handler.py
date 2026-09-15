@@ -18,7 +18,7 @@ class DbManger:
     def __connect(self):
         try:
             self.__conn = AsyncIOMotorClient(DATABASE_URL)
-            self.__db = self.__conn.kpsmlx # New Section for not conflicting with mltb section !!
+            self.__db = self.__conn.kpsmlx 
         except PyMongoError as e:
             LOGGER.error(f"Error in DB connection: {e}")
             self.__err = True
@@ -26,18 +26,13 @@ class DbManger:
     async def db_load(self):
         if self.__err:
             return
-        # Save bot settings
         await self.__db.settings.config.update_one({'_id': bot_id}, {'$set': config_dict}, upsert=True)
-        # Save Aria2c options
         if await self.__db.settings.aria2c.find_one({'_id': bot_id}) is None:
             await self.__db.settings.aria2c.update_one({'_id': bot_id}, {'$set': aria2_options}, upsert=True)
-        # Save qbittorrent options
         if await self.__db.settings.qbittorrent.find_one({'_id': bot_id}) is None:
             await self.__db.settings.qbittorrent.update_one({'_id': bot_id}, {'$set': qbit_options}, upsert=True)
-        # User Data
         if await self.__db.users[bot_id].find_one():
             rows = self.__db.users[bot_id].find({})
-            # return a dict ==> {_id, is_sudo, is_auth, as_doc, thumb, yt_opt, media_group, equal_splits, split_size, rclone}
             async for row in rows:
                 uid = row['_id']
                 del row['_id']
@@ -58,9 +53,7 @@ class DbManger:
                 user_data[uid] = row
             LOGGER.info("Users data has been imported from Database")
 
-        # Rss Data
         if await self.__db.rss[bot_id].find_one():
-            # return a dict ==> {_id, title: {link, last_feed, last_name, inf, exf, command, paused}
             rows = self.__db.rss[bot_id].find({})
             async for row in rows:
                 user_id = row['_id']
@@ -196,7 +189,6 @@ class DbManger:
         if self.__err:
             return notifier_dict
         if await self.__db.tasks[bot_id].find_one():
-            # return a dict ==> {_id, cid, tag, source}
             rows = self.__db.tasks[bot_id].find({})
             async for row in rows:
                 if row['cid'] in list(notifier_dict.keys()):
@@ -208,7 +200,7 @@ class DbManger:
                     notifier_dict[row['cid']] = {row['tag']: [{row['_id']: row['source']}]}
         await self.__db.tasks[bot_id].drop()
         self.__conn.close
-        return notifier_dict  # return a dict ==> {cid: {tag: [{_id: source}, {_id, source}, ...]}}
+        return notifier_dict  
 
     async def trunc_table(self, name):
         if self.__err:

@@ -5,15 +5,12 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMedi
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex
 
-# Leech Bot imports
 from .. import bot, LOGGER
 from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.bot_commands import BotCommands
 
-# TMDB API Key
 TMDB_API_KEY = "4b061466449ce519d5884948a9671e63"
 
-# Helper function for async API calls
 async def fetch_json(url):
     try:
         async with aiohttp.ClientSession() as session:
@@ -30,7 +27,6 @@ async def get_poster_menu(client, message):
         return await message.reply_text("<b>⚠️ ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴍᴏᴠɪᴇ ᴏʀ ᴛᴠ ꜱʜᴏᴡ ɴᴀᴍᴇ.\n\n📌 ᴇxᴀᴍᴘʟᴇ:</b> <code>/poster naruto</code>")
 
     query = " ".join(message.command[1:])
-    # Short query for callback data (max 20 chars to fit 64-byte limit)
     short_query = query[:20].replace(" ", "-").replace("_", "-")
     safe_query = urllib.parse.quote_plus(query)
     msg = await message.reply_text(f"<b>🔎 ꜱᴇᴀʀᴄʜɪɴɢ ᴛᴍᴅʙ ꜰᴏʀ</b> <code>{query}</code> <b>...</b>")
@@ -60,7 +56,6 @@ async def get_poster_menu(client, message):
             m_type_str = "ᴛᴠ" if media_type == "tv" else "ᴍᴏᴠɪᴇ"
             btn_text = f"{m_icon} {title} ({year}) [{m_type_str}]"
             
-            # Pass short_query to support the Back to Search button
             buttons.append([InlineKeyboardButton(btn_text, callback_data=f"p_menu_{media_type}_{tmdb_id}_{short_query}")])
             
         buttons.append([InlineKeyboardButton("❌ ᴄʟᴏꜱᴇ", callback_data="p_close")])
@@ -156,7 +151,6 @@ async def show_poster_categories(client, callback_query):
         posters = images.get("posters", [])
         logos = images.get("logos", [])
 
-        # Filter: Landscape (with language/text) vs Clean Landscape (No language/textless)
         landscape = [img for img in backdrops if img.get("iso_639_1") not in (None, "xx")]
         landscape.sort(key=lambda x: (0 if x.get("iso_639_1") == 'en' else 1, x.get("iso_639_1", "")))
         
@@ -323,7 +317,6 @@ async def close_callback(client, callback_query):
         await callback_query.answer("⚠️ I don't have permission to delete this message!", show_alert=True)
 
 
-# --- Handlers Registering ---
 bot.add_handler(MessageHandler(get_poster_menu, filters=command(BotCommands.PosterCommand) & CustomFilters.authorized))
 bot.add_handler(CallbackQueryHandler(handle_back_to_search, filters=regex(r"^p_search_")))
 bot.add_handler(CallbackQueryHandler(show_poster_categories, filters=regex(r"^p_menu_")))

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# HTML constants — single source (aio_wserver + legacy wserver dono yahin se)
 
 page = """
 <html lang="en">

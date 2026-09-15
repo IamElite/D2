@@ -1,4 +1,3 @@
-"""HyperDL: pipelined GetFile. Never pin FileId.dc_id — start on bot DC, FileMigrate follows."""
 from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, sleep, wait, wait_for
 from logging import getLogger
 from os import O_RDWR, O_CREAT, close as os_close, environ, makedirs, open as os_open, path as ospath, pwrite
@@ -27,11 +26,6 @@ NSLOT = 4
 WINDOW = 4
 PIPELINE_MIN_SIZE = 50 * 1024 * 1024
 
-# Circuit breaker: on this host cross-DC bot GetFile is slow — HyperDL's first
-# window stalls at ~1 MiB on every task and falls back to native (which is fast).
-# Retrying the 4-5s dead pipeline for every large file is pure waste. After
-# _HYPERDL_MAX_FAILS incomplete pipelines, go native for the rest of the boot.
-# Env HYPERDL=1 forces always-on (ignore breaker); HYPERDL=0 disables the pipeline.
 try:
     _HYPERDL_MAX_FAILS = int(environ.get('HYPERDL_MAX_FAILS', '1'))
 except Exception:
@@ -77,8 +71,6 @@ class HypertgDownload(HypertgTransfer):
                         and (_force_on or _hyperdl_fails < _HYPERDL_MAX_FAILS))
         if size >= PIPELINE_MIN_SIZE and not use_pipeline and not _force_off:
             LOGGER.info("HyperDL breaker open (fails=%s) — native download_media for this file", _hyperdl_fails)
-        # Bade files pe CDN-pipeline pehle (wzv3-style redirect->GetCdnFile+ctr256);
-        # CDN engage nahi hua -> native download_media (~20MB/s @ ~15% CPU, light).
         if use_pipeline:
             try:
                 out = await self._pipeline(client, media, path, size, progress, cancelled)
@@ -169,7 +161,6 @@ class HypertgDownload(HypertgTransfer):
         fd = os_open(path, O_RDWR | O_CREAT)
 
         bot_dc = await client.storage.dc_id()
-        # Do not lock FileId.dc_id (often stale vs bot DC). Start on bot DC; Telegram FileMigrate.
         self._dc = bot_dc
         slots = NSLOT if self._dc == bot_dc else 2
         sesses = []
@@ -263,8 +254,6 @@ class HypertgDownload(HypertgTransfer):
                 t.cancel()
             os_close(fd)
         if done < size:
-            # STRICT 100%: holes = corrupt media (moov/END chunks missing -> duration 00:00).
-            # Purana 95% allow TG-file me holes chhod raha tha — ab native fallback self-heal karega.
             LOGGER.error("HyperDL incomplete %s/%s err=%s using_dc=%s — fallback", done, size, first_err[0], self._dc)
             return None
         LOGGER.info("HyperDL done %s bytes dc=%s", done, self._dc)

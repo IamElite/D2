@@ -58,13 +58,8 @@ class DDLUploader:
     @retry(wait=wait_exponential(multiplier=2, min=4, max=8), stop=stop_after_attempt(3),
         retry=retry_if_exception_type(Exception))
     async def upload_aiohttp(self, url, file_path, req_file, data, filename=None):
-        # Retry pe file 0 se dobara padhi jaati hai, isliye progress reset karo
-        # warna chunk_size negative ho kar processed_bytes ulta chala jaata tha.
         self.last_uploaded = 0
         with ProgressFileReader(filename=file_path, read_callback=self.__progress_callback) as file:
-            # FormData hi use karo: plain dict me (filename, file) tuple daalne se
-            # aiohttp proper multipart nahi banata aur server "400 No boundary
-            # found" deta hai (live verify kiya). filename= se naam set hota hai.
             form = FormData()
             for key, value in data.items():
                 form.add_field(key, value)
@@ -74,15 +69,12 @@ class DDLUploader:
                 form.add_field(req_file, file, filename=filename)
             async with ClientSession() as self.__asyncSession:
                 async with self.__asyncSession.post(url, data=form) as resp:
-                    # Non-200 pe pehle None return hota tha, jisse caller me
-                    # AttributeError aata tha. Ab asal wajah surface hoti hai.
                     if resp.status != 200:
                         body = (await resp.text())[:300]
                         raise Exception(f"HTTP {resp.status}: {body}")
                     try:
                         return await resp.json()
                     except (ContentTypeError, JSONDecodeError):
-                        # String return karne se caller ka .get() toot jaata tha.
                         return {"status": "ok", "data": {"downloadPage": "Uploaded"}}
 
     async def __upload_to_ddl(self, file_path):
@@ -97,10 +89,6 @@ class DDLUploader:
                     all_links['GoFile'] = nlink
                 if serv == 'streamtape':
                     self.__engine = 'StreamTape API'
-                    # except IndexError yahan kabhi kaam nahi karta: split() hamesha
-                    # list deta hai, aur galat format pe unpack ValueError deta hai
-                    # ("not enough values to unpack"), IndexError nahi. Isliye
-                    # validate karo, exception pakadne ki koshish mat karo.
                     parts = (api_key or '').split(':')
                     if len(parts) != 2 or not parts[0] or not parts[1]:
                         raise Exception("StreamTape Login & Key not Found, Kindly Recheck !")
@@ -128,7 +116,6 @@ class DDLUploader:
                 return
             LOGGER.info(f"Uploaded To DDL: {item_path}")
         except Exception as err:
-            # Pehle har error "Cancelled" log hota tha, jisse asli wajah chhup jaati thi.
             LOGGER.info(f"DDL Upload Failed: {err}")
             if self.__asyncSession:
                 await self.__asyncSession.close()

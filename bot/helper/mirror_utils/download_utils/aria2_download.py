@@ -15,17 +15,14 @@ from ...telegram_helper.message_utils import sendStatusMessage, sendMessage
 from ...ext_utils.task_manager import is_queued
 
 
-TORRENT_MAX_SIZE = 10 * 1024 * 1024  # 10MB cap — .torrent files are KB-scale
+TORRENT_MAX_SIZE = 10 * 1024 * 1024  
 
 BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
-# Wget/1.12 UA qBit-route pe proven hai — kai trackers aria2/Chrome-fingerprint ko block karte hain
 UA_CANDIDATES = ('Wget/1.12', BROWSER_UA)
 
 
 async def _rclone_fetch(link, tmp_path):
-    """aiohttp/aria2 fingerprints (TLS-level) block hon to rclone try karo —
-    Go-HTTP client, qBit/Qt jaisa alag family (pornrips-type blockers ke liye)."""
     if not swhich('rclone'):
         LOGGER.warning('Torrent pre-fetch [rclone]: binary not found, skip')
         return False
@@ -53,9 +50,6 @@ async def _rclone_fetch(link, tmp_path):
 
 
 async def _prefetch_torrent(link, user_headers=None):
-    """HTTP(S) .torrent URL ko bot-side fetch karo — kuch trackers aria2c ke
-    server-side fetch ko HTTP 500 dete hain (IP/TLS block). Fetch OK ho to temp
-    file path return, warna None (caller direct aria2.add pe fallback karega)."""
     if not isinstance(link, str) or not link.startswith(('http://', 'https://')) or not _bt_link(link):
         return None
     p = urlparse(link)
@@ -73,8 +67,6 @@ async def _prefetch_torrent(link, user_headers=None):
                     req_headers[k.strip()] = v.strip()
     uas = (user_ua,) if user_ua else UA_CANDIDATES
     tmp_path = f'/tmp/{uuid4().hex}.torrent'
-    # Generic unblock: TORRENT_PREFETCH_PROXY env — relay-template ('...{url}...') ya HTTP proxy.
-    # Direct 4xx/5xx pe hi engage hota hai; koi bhi blocked site ke liye kaam karta hai.
     attempts = [(link, None, ua) for ua in uas]
     relay = environ.get('TORRENT_PREFETCH_PROXY', '').strip()
     if relay:
@@ -140,12 +132,6 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
     await sync_to_async(ensure_aria2)
     a2c_opt = {**aria2_options}
     [a2c_opt.pop(k) for k in aria2c_global if k in aria2_options]
-    # Same stale-Mongo trap as 260905-S, this time for throughput. Mongo's
-    # settings.aria2c is seeded once from get_global_option() and never
-    # refreshed, so it still carries the old caps; none of these keys are in
-    # aria2c_global, so they would be sent per-download and override both
-    # a2c.conf and the boot overlay. Dropping them lets a2c.conf govern, and
-    # the ARIA2_* env overrides still apply through the global overlay.
     for _stale in ('max-upload-limit', 'max-overall-upload-limit',
                    'max-download-limit', 'max-overall-download-limit',
                    'bt-request-peer-speed-limit', 'bt-max-peers',
@@ -153,14 +139,6 @@ async def add_aria2c_download(link, path, listener, filename, header, ratio, see
                    'split', 'min-split-size', 'peer-id-prefix', 'peer-agent',
                    'file-allocation', 'enable-mmap', 'bt-enable-lpd'):
         a2c_opt.pop(_stale, None)
-    # 260905-S: pipelining must stay OFF. A server that mishandles Range answers
-    # with the WHOLE file, so aria2 aborts with `Invalid range header. Request:
-    # a-b/N, Response: 0-(N-1)/N` (exit 8) and the task dies. `aria2_options` can
-    # come from Mongo's settings.aria2c, which db_load() seeds only ONCE
-    # (`if find_one() is None`) and never refreshes — so it can still carry the
-    # old 'true'. A per-download option overrides a2c.conf, which is why fixing
-    # the conf alone did not help. Forced here, at the single place per-download
-    # options are assembled. Verified against real aria2c 1.37.0 over RPC.
     a2c_opt['enable-http-pipelining'] = environ.get('ARIA2_PIPELINING', 'false')
     a2c_opt['dir'] = path
     if filename:

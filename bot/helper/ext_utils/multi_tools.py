@@ -54,7 +54,6 @@ def _items_in_msg(m):
 async def collect_i_items(client, start, cmd, n):
     if start is None or n <= 0:
         return []
-    # Reply-to TXT FILE: -b jaisa — file ke ANDAR ke links (first n), file khud item nahi
     doc = getattr(start, 'document', None)
     if doc is not None and getattr(doc, 'mime_type', '') == 'text/plain':
         from ..ext_utils.bulk_links import get_links_from_file
@@ -184,7 +183,6 @@ async def send_multi_cmd(origin, cmd_text, tag, multi):
 
 
 async def stop_multi(tag, notice=None):
-    """Drop queue, delete last /cmd -i line, one notice only."""
     drop_multi_tag(tag)
     await delete_own(_cmd_by_tag.pop(tag, None))
     if notice is not None:

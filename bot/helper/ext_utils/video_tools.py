@@ -13,7 +13,6 @@ from .fs_utils import clean_target
 
 LOGGER = logging.getLogger(__name__)
 
-# ponytail: drawtext bina fontfile ke kai ffmpeg build me fail hota hai, mila to jodo
 _FONT_CANDIDATES = (
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
     '/usr/share/fonts/TTF/DejaVuSans.ttf',
@@ -55,7 +54,6 @@ def get_vtools_text(user_dict):
 
     custom_name = vt.get('rename') or "Not Set"
     keep_source = st('keepsource')
-    # ponytail: har toggle ka status dikhao taaki ON karke bhoola na rahe
     trim_val = f"{st('trim')} ({vt.get('trim_start') or '?'}->{vt.get('trim_end') or 'end'})" if vt.get('trim') else st('trim')
     wm_val = f"{st('watermark')} ({vt.get('watermark_text') or 'notytools'})" if vt.get('watermark') else st('watermark')
     hs_val = f"{st('hardsub')} ({'set' if vt.get('hardsub_file') else 'no file'})" if vt.get('hardsub') else st('hardsub')
@@ -149,7 +147,6 @@ async def execute_video_tools(listener, base_dir, media_file, outfile, vtools):
         return media_file
 
     ffmpeg_bin = bot_cache.get('pkgs', ['ffmpeg', 'ffprobe', 'ffmpeg'])[2]
-    # ponytail: convert target pehle nikalo taaki inplace naam sahi ext le
     target_ext = os_path.splitext(media_file)[1].lower()
     audio_only_out = False
     if vtools.get('convert'):
@@ -164,11 +161,9 @@ async def execute_video_tools(listener, base_dir, media_file, outfile, vtools):
     elif os_path.splitext(outfile)[1].lower() != target_ext:
         outfile = os_path.splitext(outfile)[0] + target_ext
 
-    # ponytail: extract sidecar (audio/subs) alag pre-pass, fail ho to main pass fir bhi chale
     if vtools.get('extract'):
         what = str(vtools.get('extract_what') or 'audio').strip().lower()
         stem = os_path.splitext(os_path.basename(media_file))[0]
-        # ponytail: sidecar output ke folder me taaki upload me saath jaye
         side_dir = os_path.dirname(os_path.abspath(outfile)) or base_dir
         if what.startswith('sub'):
             sidecar = os_path.join(side_dir, f"{stem}_sub.srt")
@@ -245,7 +240,6 @@ async def execute_video_tools(listener, base_dir, media_file, outfile, vtools):
     else:
         cmd.extend(['-c', 'copy'])
 
-    # ponytail: map priority remove > swap > vid-preset, ek se zyada ON ho to pehla jeete
     if vtools.get('remove'):
         cmd.extend(['-map', '0', '-map', '-0:s?'])
     elif vtools.get('swap'):

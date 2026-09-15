@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 class SyntaXStyle:
-    # ----------------------
-    # async def start(client, message) ---> __main__.py
     ST_BN1_NAME = 'ʟᴇᴇᴄʜ ɢʀᴏᴜᴘ'
     ST_BN1_URL = 'https://t.me/SyntaxRealm'
     ST_BN2_NAME = 'ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ'
@@ -17,21 +15,13 @@ Type {help_command} to get a list of available commands</b>'''
     TOKEN_MSG = '''<b><u>Generated Temporary Login Token!</u></b>
 <b>Temp Token:</b> <code>{token}</code>
 <b>Validity:</b> {validity}'''
-    # ---------------------
-    # async def token_callback(_, query): ---> __main__.py
     ACTIVATED = '✅️ Activated ✅'
-    # ---------------------
-    # async def login(_, message): --> __main__.py
     LOGGED_IN = '<b>Already Bot Login In!</b>'
     INVALID_PASS = '<b>Invalid Password!</b>\n\nKindly put the correct Password .'
     PASS_LOGGED = '<b>Bot Permanent Login Successfully!</b>'
     LOGIN_USED = '<b>Bot Login Usage :</b>\n\n<code>/cmd [password]</code>'
-    # ---------------------
-    # async def log(_, message): ---> __main__.py
     LOG_DISPLAY_BT = '📑 Log Display'
     WEB_PASTE_BT = '📨 Web Paste (SB)'
-    # ---------------------
-    # async def bot_help(client, message): ---> __main__.py
     BASIC_BT = 'Basic'
     USER_BT = 'Users'
     MICS_BT = 'Mics'
@@ -39,7 +29,6 @@ Type {help_command} to get a list of available commands</b>'''
     CLOSE_BT = 'Close'
     HELP_HEADER = "㊂ <b><i>Help Guide Menu!</i></b>\n\n<b>NOTE: <i>Click on any CMD to see more minor detalis.</i></b>"
 
-    # async def stats(client, message):
     BOT_STATS = '''⌬ <b><i>BOT STATISTICS :</i></b>
 ┖ <b>Bot Uptime :</b> {bot_uptime}
 
@@ -101,27 +90,19 @@ Type {help_command} to get a list of available commands</b>'''
 ┠ <b>User Parallel Tasks :</b> {UT}
 ┖ <b>Bot Parallel Tasks :</b> {BT}
     '''
-    # ---------------------
 
-    # async def restart(client, message): ---> __main__.py
     RESTARTING = '<i>Restarting...</i>'
-    # ---------------------
 
-    # async def restart_notification(): ---> __main__.py
     RESTART_SUCCESS = '''⌬ <b><i>Restarted Successfully!</i></b>
 ┠ <b>Date:</b> {date}
 ┠ <b>Time:</b> {time}
 ┠ <b>TimeZone:</b> {timz}
 ┖ <b>Version:</b> {version}'''
     RESTARTED = '''⌬ <b><i>Bot Restarted!</i></b>'''
-    # ---------------------
 
-    # async def ping(client, message): ---> __main__.py
     PING = '<i>Starting Ping..</i>'
     PING_VALUE = '<b>Pong</b>\n<code>{value} ms..</code>'
-    # ---------------------
 
-    # async def onDownloadStart(self): --> tasks_listener.py
     LINKS_START = """<b><i>Task Started</i></b>
 ┠ <b>Mode:</b> {Mode}
 ┖ <b>By:</b> {Tag}\n\n"""
@@ -131,11 +112,9 @@ Type {help_command} to get a list of available commands</b>'''
 {Source}
 ------------------------------------------\n\n"""
     
-    # async def __msg_to_reply(self): ---> pyrogramEngine.py
     PM_START =            "➲ <b><u>Task Started :</u></b>\n┃\n┖ <b>Link:</b> <a href='{msg_link}'>Click Here</a>"
     L_LOG_START =           "➲ <b><u>Leech Started :</u></b>\n┃\n┠ <b>User :</b> {mention} ( #ID{uid} )\n┖ <b>Source :</b> <a href='{msg_link}'>Click Here</a>"
 
-    # async def onUploadComplete(): ---> tasks_listener.py
     NAME =                  '<b><i>{Name}</i></b>\n┃\n'
     SIZE =                  '┠ <b>Size: </b>{Size}\n'
     ELAPSE =                '┠ <b>Elapsed: </b>{Time}\n'
@@ -143,7 +122,6 @@ Type {help_command} to get a list of available commands</b>'''
     MAXSPD =                '┠ <b>Max DL Speed:</b> {DL}\n┠ <b>Max UL Speed:</b> {UL}\n'
     MODE =                  '┠ <b>Mode: </b>{Mode}\n'
 
-    # ----- LEECH -------
     L_TOTAL_FILES =         '┠ <b>Total Files: </b>{Files}\n'
     L_CORRUPTED_FILES =     '┠ <b>Corrupted Files: </b>{Corrupt}\n'
     L_CC =                  '┖ <b>By: </b>{Tag}\n\n'
@@ -151,14 +129,12 @@ Type {help_command} to get a list of available commands</b>'''
     L_BOT_MSG =             '➲ <b><i>File(s) have been Sent to Bot PM (Private)</i></b>'
     L_LL_MSG =              '➲ <b><i>File(s) have been Sent. Access via Links...</i></b>\n'
     
-    # ----- MIRROR -------
     M_TYPE =                '┠ <b>Type: </b>{Mimetype}\n'
     M_SUBFOLD =             '┠ <b>SubFolders: </b>{Folder}\n'
     TOTAL_FILES =           '┠ <b>Files: </b>{Files}\n'
     RCPATH =                '┠ <b>Path: </b><code>{RCpath}</code>\n'
     M_CC =                  '┖ <b>By: </b>{Tag}\n\n'
     M_BOT_MSG =             '➲ <b><i>Link(s) have been Sent to Bot PM (Private)</i></b>'
-    # ----- BUTTONS -------
     CLOUD_LINK =      '☁️ Cloud Link'
     SAVE_MSG =        '📨 Save Message'
     RCLONE_LINK =     '♻️ RClone Link'
@@ -171,13 +147,9 @@ Type {help_command} to get a list of available commands</b>'''
     CHECK_LL =        '🖇 View in Links Log'
     MEDIAINFO_LINK =  '📃 MediaInfo'
     SCREENSHOTS =     '🖼 ScreenShots'
-    # ---------------------
 
-    # def get_readable_message(): ---> bot_utilis.py
-    ####--------OVERALL MSG HEADER----------
     STATUS_NAME =       '{Tno} <b><i>{Name}</i></b>'
 
-    #####---------PROGRESSIVE STATUS-------
     FILE_COUNT =        '\n┠ <b>File Count:</b> ( {Done} / {Total} )'
     BAR =               '\n┃ {Bar}'
     PROCESSED =         '\n┠ <b>Done:</b> {Processed}'
@@ -190,7 +162,6 @@ Type {help_command} to get a list of available commands</b>'''
     SEEDERS =           '\n┠ <b>Seeders:</b> {Seeders} | '
     LEECHERS =                                           '<b>Leechers:</b> {Leechers}'
 
-    ####--------SEEDING----------
     SEED_SIZE =      '\n┠ <b>Size: </b>{Size}'
     SEED_SPEED =     '\n┠ <b>Speed: </b> {Speed} | '
     UPLOADED =                                     '<b>Uploaded: </b> {Upload}'
@@ -198,17 +169,14 @@ Type {help_command} to get a list of available commands</b>'''
     TIME =                                         '<b>Time: </b> {Time}'
     SEED_ENGINE =    '\n┠ <b>Engine:</b> {Engine}'
 
-    ####--------NON-PROGRESSIVE + NON SEEDING----------
     STATUS_SIZE =    '\n┠ <b>Size: </b>{Size}'
     NON_ENGINE =     '\n┠ <b>Engine:</b> {Engine}'
 
-    ####--------OVERALL MSG FOOTER----------
     USER =              '\n┎ <b>User</b>: <a href="tg://user?id={Id}">{Id}</a>'
     ID =                                                        '<b>ID:</b> <code>{Id}</code>'
     BTSEL =          '\n┠ <b>Select:</b> {Btsel}'
     CANCEL =         '\n┖ {Cancel}\n\n'
 
-    ####------FOOTER--------
     FOOTER = '❑ <b><i>Bot Stats</i></b>\n'
     TASKS =  '┠ <b>Tasks:</b> {Tasks}\n'
     BOT_TASKS = '┠ <b>Tasks:</b> {Tasks}/{Ttask} | <b>AVL:</b> {Free}\n'
@@ -219,17 +187,12 @@ Type {help_command} to get a list of available commands</b>'''
     DL = '\n┖ <b>DL:</b> {DL}/s | '
     UL =                        '<b>UL:</b> {UL}/s'
 
-    ###--------BUTTONS-------
     PREVIOUS = '⫷'
     REFRESH = 'ᴘᴀɢᴇs\n{Page}'
     NEXT = '⫸'
-    # ---------------------
 
-    #STOP_DUPLICATE_MSG: ---> clone.py, aria2_listener.py, task_manager.py
     STOP_DUPLICATE = 'File/Folder is already available in Drive.\nHere are {content} list results:'
-    # ---------------------
 
-    # async def countNode(_, message): ----> gd_count.py
     COUNT_MSG = '<b>Counting:</b> <code>{LINK}</code>'
     COUNT_NAME = '<b><i>{COUNT_NAME}</i></b>\n┃\n'
     COUNT_SIZE = '┠ <b>Size: </b>{COUNT_SIZE}\n'
@@ -237,24 +200,18 @@ Type {help_command} to get a list of available commands</b>'''
     COUNT_SUB =  '┠ <b>SubFolders: </b>{COUNT_SUB}\n'
     COUNT_FILE = '┠ <b>Files: </b>{COUNT_FILE}\n'
     COUNT_CC =   '┖ <b>By: </b>{COUNT_CC}\n'
-    # ---------------------
 
-    # LIST ---> gd_list.py
     LIST_SEARCHING = '<b>Searching for <i>{NAME}</i></b>'
     LIST_FOUND = '<b>Found {NO} result for <i>{NAME}</i></b>'
     LIST_NOT_FOUND = 'No result found for <i>{NAME}</i>'
-    # ---------------------
 
-    # async def mirror_status(_, message): ----> status.py
     NO_ACTIVE_DL = '''<i>No Active Downloads!</i>
     
 ⌬ <b><i>Bot Stats</i></b>
 ┠ <b>CPU:</b> {cpu}% | <b>F:</b> {free} [{free_p}%]
 ┖ <b>RAM:</b> {ram}% | <b>UP:</b> {uptime}
     '''
-    # ---------------------
 
-    # USER Setting --> user_setting.py 
     USER_SETTING = '''㊂ <b><u>User Settings :</u></b>
         
 ┎<b> Name :</b> {NAME} ( <code>{ID}</code> )

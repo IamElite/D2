@@ -16,58 +16,32 @@ def trun(text, limit=60):
     text = str(text)
     return text[:limit] + "..." if len(text) > limit else text
 
-# Auto Rename ফরম্যাটে ব্যবহারযোগ্য একমাত্র বৈধ Tag গুলো
 VALID_AUTORENAME_TAGS = {'title', 'season', 'episode',
                           'quality', 'codec', 'audio', 'sub', 'size', 'language'}
 
 def validate_autorename_format(format_str):
-    """
-    ইউজারের ফরম্যাটে থাকা {tag} গুলোর মধ্যে কোনটা ভুল/Unsupported (যেমন Typo:
-    {qualilty}) তা রিটার্ন করে। এই ধরনের ভুল Tag থাকলে get_autorename() একটা
-    KeyError রেইজ করে চুপচাপ Original Filename রিটার্ন করে দেয় (নিচে দেখুন),
-    যেটা ইউজারের কাছে মনে হয় "Auto Rename কাজ করছে না" - অথচ কারণ বোঝা যায় না।
-    তাই Format সেভ করার আগেই এটা Validate করে নেওয়া উচিত।
-    """
     used_tags = set(re.findall(r'\{([a-zA-Z_]+)\}', format_str))
     return used_tags - VALID_AUTORENAME_TAGS
 
 def get_autorename(filename, user_id, size="", media_quality="", lang="", subs="", caption="", skip=False):
-    """
-    Advanced Auto Rename Logic: Cleans the filename and applies user format.
-    Available Tags: {title}, {season}, {episode}, {quality}, {codec}, {audio}, {sub}, {size}, {language}
-
-    - `caption`   : original Telegram caption of the file. Used as a fallback source to find
-                    Season/Episode when the filename itself doesn't contain them.
-    - `skip`      : if True, Auto Rename is bypassed completely and the original filename is
-                    returned as-is. Used when the user has explicitly renamed the file via a
-                    manual rename command/flag (e.g. "/l -n filename.mkv") so that command
-                    should win over Auto Rename.
-    """
     user_dict = user_data.get(user_id, {})
 
-    # ম্যানুয়াল Rename Command (-n / -name) ব্যবহার করা হলে Autorename কাজ করবে না
     if skip:
         return filename
 
-    # যদি ইউজারের Auto Rename বন্ধ থাকে, তবে অরিজিনাল নাম রিটার্ন করবে
     if not user_dict.get('autorename', False):
         return filename
 
-    # Default format set
     format_str = user_dict.get('autorename_format', '{title} - S{season}E{episode} - {quality} {codec} {audio} {sub}')
     if not format_str:
         format_str = '{title} - S{season}E{episode} - {quality}'
 
     name, ext = os.path.splitext(filename)
 
-    # ইউজার Format এর একদম শেষে নিজে Extension (.mkv, .mp4 ইত্যাদি) বসিয়েছেন কিনা চেক করা।
-    # দিলে সেটাই ব্যবহার হবে, না দিলে Old/Original Video এর Extension অনুযায়ী যোগ হবে।
     has_custom_ext = bool(re.search(r'\.[A-Za-z0-9]{2,5}$', format_str.strip()))
 
-    # ফাইলের নামে না পেলে File Caption থেকে Season/Episode খোঁজার জন্য ব্যাকআপ টেক্সট
     caption_name = os.path.splitext(caption.split('\n')[0])[0] if caption else ""
 
-    # তথ্য বের করা (শুধুমাত্র সংখ্যা বের করা হবে যাতে S{season}E{episode} কাস্টমাইজ করা যায়)
     season_match = re.search(r'(?:S|Season\s*)(\d{1,2})', name, re.IGNORECASE)
     if not season_match and caption_name:
         season_match = re.search(r'(?:S|Season\s*)(\d{1,2})', caption_name, re.IGNORECASE)
@@ -90,18 +64,15 @@ def get_autorename(filename, user_id, size="", media_quality="", lang="", subs="
     sub_match = re.search(r'(ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed)', name, re.IGNORECASE)
     sub = sub_match.group(1) if sub_match else subs
 
-    # ফাইলের নাম পরিষ্কার করা (Cleaning the Original Name & Brackets)
     clean_title = re.sub(r'\[.*?\]|\(.*?\)', '', name) 
     noise_pattern = r'(S\d{1,2}|E\d{1,3}|Ep\s*\d{1,3}|Episode\s*\d{1,3}|480p|720p|1080p|1440p|2160p|4K|x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC|BluRay|WEB-DL|WEBRip|HDRip|HDTV|Dual[\s\-]?Audio|Multi[\s\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali|ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed|Audio)'
     clean_title = re.sub(noise_pattern, '', clean_title, flags=re.IGNORECASE)
     clean_title = re.sub(r'(\s|-|\.)+', ' ', clean_title).strip() 
 
-    # ইউজারের Custom Title চেক করা
     custom_title = user_dict.get('custom_title', '')
     final_title = custom_title if custom_title else clean_title
 
     try:
-        # ইউজারের ফরম্যাট অনুযায়ী নাম সাজানো
         new_name = format_str.format(
             title=final_title,
             season=season,
@@ -114,30 +85,21 @@ def get_autorename(filename, user_id, size="", media_quality="", lang="", subs="
             language=audio
         )
         
-        # যদি ফাইলে সিজন বা এপিসোড না থাকে, তবে ফাঁকা 'SE' মুছে ফেলা
         if not season and not episode:
             new_name = new_name.replace('SE', '').replace('S E', '')
         elif not season and episode:
             new_name = new_name.replace('SE', 'E')
         elif season and not episode:
-            # Episode না পেলে "S02E" এর মতো একটা ঝুলে থাকা 'E' রয়ে যেত
-            # (যেমন: "...S2..." থাকা ফাইলে Episode না থাকলে ফলাফল হতো
-            # "S02E.mp4")। এখানে শুধু Season এর ঠিক পরের ফাঁকা E-টাই সরানো
-            # হচ্ছে, টাইটেলের অন্য কোনো 'E' অক্ষর নয়।
             new_name = re.sub(rf'S{re.escape(season)}E(?!\d)', f'S{season}', new_name)
             
-        # তৈরি হওয়া এক্সট্রা স্পেস, ড্যাশ বা ডট ক্লিন করা (Safeguard)
         new_name = re.sub(r'\s+', ' ', new_name)
         new_name = re.sub(r'-\s*-', '-', new_name)
         new_name = re.sub(r'\.\s*\.', '.', new_name)
         new_name = new_name.strip(' -.')
         
-        # যদি কোনো কারণে নতুন নাম খালি হয়ে যায়, তবে ব্যাকআপ হিসেবে টাইটেল দিবে
         if not new_name:
             new_name = final_title
 
-        # Extension Handling: Format এ ইউজার নিজে Extension দিলে সেটাই থাকবে,
-        # না দিলে Original/Old Video এর Extension যোগ হবে।
         final_name = new_name if has_custom_ext else f"{new_name}{ext}"
 
         LOGGER.info(f"Auto Renamed: {filename} -> {final_name}")
@@ -150,9 +112,6 @@ def get_autorename(filename, user_id, size="", media_quality="", lang="", subs="
         LOGGER.error(f"Auto Rename Error: {e}")
         return filename
 
-# ==========================================
-# /autorename Command Logic
-# ==========================================
 
 async def autorename_cmd(client, message):
     user_id = message.from_user.id
@@ -200,11 +159,9 @@ async def autorename_cmd(client, message):
     if custom_title != 'Not Exists':
         buttons.ibutton("↻ Delete Title", f"userset {user_id} dcustom_title")
     
-    # Back button removed as requested, only Close remains.
     buttons.ibutton("Close", f"userset {user_id} close", "footer")
     
     button = buttons.build_menu(2)
     await sendMessage(message, text, button)
 
-# Command Handler
 bot.add_handler(MessageHandler(autorename_cmd, filters=command(BotCommands.AutoRenameCommand) & CustomFilters.authorized_uset))

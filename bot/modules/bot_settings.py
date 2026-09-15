@@ -356,8 +356,6 @@ async def load_config():
         BASE_URL = ''
         await stop_web_server()
     else:
-        # PORT (Heroku router) set ho to wahi authoritative hai — warna server us
-        # port pe chala jaata jahan platform route hi nahi karta.
         _port_override = _parse_port(environ.get('PORT'), 'PORT', 0)
         await restart_web_server(_port_override or BASE_URL_PORT)
 
@@ -949,12 +947,9 @@ async def edit_variable(_, message, pre_message, key):
         if value not in ['b', 'i', 'u', 's', 'spoiler', 'code']:
             value = 'code'
     elif key == 'BASE_URL_PORT':
-        # Khaali value pe purana value hi rehne do — warna 0 store ho kar server
-        # kisi random ephemeral port pe bind ho jaata.
         value = _parse_port(value, 'BASE_URL_PORT', config_dict['BASE_URL_PORT'])
         if config_dict['BASE_URL']:
             from web.aio_wserver import restart_web_server
-            # Boot jaisa hi rule: PORT (Heroku) precedence, warna BASE_URL_PORT.
             await restart_web_server(_parse_port(environ.get('PORT'), 'PORT', 0) or value)
     elif key == 'EXTENSION_FILTER':
         fx = value.split()

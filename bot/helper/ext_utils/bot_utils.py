@@ -22,7 +22,7 @@ from psutil import virtual_memory, cpu_percent, disk_usage
 from requests import get as rget
 try:
     from mega import MegaApi
-except Exception:      # MEGA SDK image me na ho to bhi bot chale (mega links disabled)
+except Exception:      
     MegaApi = None
 from pyrogram.enums import ChatType
 from pyrogram.types import BotCommand
@@ -98,12 +98,6 @@ class setInterval:
 
 
 def as_bytes(value):
-    """Untrusted numeric (int/float/numeric-string) -> int bytes; junk/None -> 0.
-
-    yt-dlp info dicts are extractor-written: filesize/filesize_approx come back as
-    int, float, None OR a numeric string depending on the extractor/version. Any
-    caller that does arithmetic or size-formatting on them must not assume a type.
-    """
     if value is None or isinstance(value, bool):
         return 0
     if isinstance(value, (int, float)):
@@ -119,9 +113,6 @@ def as_bytes(value):
 def get_readable_file_size(size_in_bytes):
     if size_in_bytes is None:
         return '0B'
-    # Untrusted sources (yt-dlp info dicts, DB/env limits) may hand us a numeric
-    # string ("12345") — comparing str with int raises TypeError and kills the
-    # whole callback task. Coerce, and treat junk as unknown (0B) instead.
     if isinstance(size_in_bytes, str):
         try:
             size_in_bytes = float(size_in_bytes)
@@ -269,12 +260,6 @@ class EngineStatus:
 
 
 def file_count_line(download):
-    """`( done / total )` of the stage being shown; '' when it is not multi-file.
-
-    Source order: the status object itself (engines like aria2/qBit/Direct know
-    their own file counts), then the task's shared FileCountTracker (extract,
-    metadata, attachment, split, upload and any future stage).
-    """
     counts = None
     try:
         if hasattr(download, 'files_count'):
@@ -287,7 +272,6 @@ def file_count_line(download):
         if tracker is not None:
             counts = tracker.current()
     if counts:
-        # engines report (done, total); the shared tracker adds a failed count
         done = counts[0]
         total = counts[1] if len(counts) > 1 else 0
         failed = counts[2] if len(counts) > 2 else 0
@@ -299,13 +283,6 @@ def file_count_line(download):
 
 
 def get_readable_message(downloads=None):
-    """Status page render karo.
-
-    `downloads` = caller ka snapshot (download_dict.values()). Snapshot lock ke
-    andar lekar render lock ke BAHAR karna zaroori hai — warna har command
-    handler download_dict_lock ke liye queue karti hai jab tak poora page (jisme
-    engine RPCs hain) ban raha ho.
-    """
     if downloads is None:
         downloads = list(download_dict.values())
     msg = ""
@@ -442,12 +419,12 @@ def clock_fmt(seconds):
     try:
         if seconds is None:
             return ''
-        if hasattr(seconds, 'total_seconds'):      # aria2p: datetime.timedelta
+        if hasattr(seconds, 'total_seconds'):      
             seconds = seconds.total_seconds()
         seconds = max(0, int(float(seconds)))
     except (TypeError, ValueError):
         return ''
-    if seconds > 31536000:               # >1yr = aria2p timedelta.max sentinel (speed=0 / metadata wait)
+    if seconds > 31536000:               
         return '00:00:00'
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
@@ -477,13 +454,8 @@ def is_torrent_link(url):
 
 
 def embed_discovery_hosts():
-    """Universal embed-resolver ke enabled hosts (default + env override).
-    Env `YTDL_EMBED_HOSTS="site1.com,site2.com"` se nayi site bina code change
-    ke add hoti hai — uska embed-host (streamtape/byse/...) pehle se supported ho
-    to bas yeh kaafi hai."""
     hosts = set(_EMBED_DISCOVERY_DEFAULT)
     try:
-        # Authoritative default yt_dlp_download se — LAZY import (circular se bachao)
         from ..mirror_utils.download_utils.yt_dlp_download import _EMBED_DISCOVERY_HOSTS
         hosts |= set(_EMBED_DISCOVERY_HOSTS)
     except Exception:
@@ -621,7 +593,6 @@ def _cg_read(path):
 
 
 def get_container_memory():
-    """Container-cgroup RAM (used, limit) bytes — dyno pe host-wide psutil misleading hota hai."""
     v2c, v2l = _cg_read('/sys/fs/cgroup/memory.current'), _cg_read('/sys/fs/cgroup/memory.max')
     if v2c and v2l and v2l != 'max':
         try:
@@ -642,9 +613,6 @@ def get_container_memory():
 
 
 def get_container_memory_breakdown():
-    """(anon_bytes, file_bytes) cgroup v2 memory.stat; None/0 if unavailable.
-    anon = real process RAM (the number that matters). file = page cache,
-    reclaimable under pressure — inflates memory.current but is not a leak."""
     stat = _cg_read('/sys/fs/cgroup/memory.stat')
     anon = file_ = None
     if stat:
@@ -654,7 +622,6 @@ def get_container_memory_breakdown():
             elif line.startswith('file '):
                 file_ = int(line.split()[1])
         return anon, file_
-    # cgroup v1: memory.stat has 'rss' (anon) and 'cache' (page cache)
     v1 = _cg_read('/sys/fs/cgroup/memory/memory.stat')
     if v1:
         rss = cache = None
@@ -675,7 +642,6 @@ def _is_paas():
 
 
 def get_container_cpu():
-    """Live process tree CPU% (bot + aria2 + qbit + ffmpeg) normalized to environment vCPUs."""
     total = 0.0
     try:
         current_pids = set()

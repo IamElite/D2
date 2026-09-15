@@ -28,7 +28,6 @@ DEFAULT_EXCLUDED_EXTS = frozenset({'aria2', '!qb', 'index', 'html', 'nfo', 'text
 
 
 def is_ext_allowed(file_name, inc_exts=frozenset(), exc_exts=DEFAULT_EXCLUDED_EXTS):
-    """User extension filter: inc_exts set -> only those pass, else exc_exts are skipped."""
     ext = file_name.rsplit('.', 1)[-1].lower() if '.' in file_name else ''
     if inc_exts:
         return ext in inc_exts
@@ -63,7 +62,6 @@ async def clean_target(path):
 
 
 def trim_memory():
-    """Trigger glibc malloc_trim(0) to surrender freed heap memory to the OS/cgroup."""
     try:
         from ctypes import CDLL
         CDLL('libc.so.6').malloc_trim(0)
@@ -92,7 +90,6 @@ def _qbit_up():
 
 
 def _qbit_purge_all():
-    # qBit idle-shutdown (CB) ke baad down ho sakta hai — down = torrents bhi nahi, skip fast
     if not _qbit_up():
         LOGGER.info('qBit down — torrent purge skipped (nothing to clean)')
         return
@@ -152,7 +149,6 @@ async def clean_unwanted(path):
 
 
 async def get_path_stats(path):
-    """Same single walk as get_path_size, but also returns the file count."""
     if await aiopath.isfile(path):
         return await aiopath.getsize(path), 1
     total_size = 0
@@ -182,12 +178,6 @@ async def count_files_and_folders(path):
 
 
 async def list_archive_files(path, pswd=''):
-    """Entry count of an archive, counted once at the start of the stage.
-
-    Reads 7z's technical listing (`-slt`) and counts non-folder entries.
-    Returns 0 when 7z is missing or the listing cannot be parsed, in which
-    case the stage simply reports no total instead of a wrong one.
-    """
     cmd = ["7z", "l", "-slt", "-ba"]
     if pswd:
         cmd.append(f"-p{pswd}")
@@ -200,8 +190,6 @@ async def list_archive_files(path, pswd=''):
     entries = folders = 0
     listed = False
     for line in out.decode(errors='ignore').split('\n'):
-        # the archive's own header carries a 'Path = ' line too; entries start
-        # after the separator, otherwise every total comes out one too high
         if line.startswith('----------'):
             listed = True
         elif not listed:
@@ -209,7 +197,6 @@ async def list_archive_files(path, pswd=''):
         elif line.startswith('Path = '):
             entries += 1
         elif line.startswith('Folder = +'):
-            # 7z marks files with 'Folder = -', so only '+' is a real folder
             folders += 1
     return max(0, entries - folders)
 

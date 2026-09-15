@@ -13,9 +13,6 @@ def get_download(gid):
         return None
 
 
-# Per-file list ko kitne second me ek baar refresh karein. Status tick har
-# STATUS_UPDATE_INTERVAL (2-6s) pe chalta hai; pehle har tick pe poori file list
-# RPC se aati thi, jo bade multi-file torrent pe MBs JSON har 2 second tha.
 _FILES_REFRESH = 15.0
 
 
@@ -86,15 +83,6 @@ class Aria2Status:
             return MirrorStatus.STATUS_DOWNLOADING
 
     def files_count(self):
-        """(done, total) for a multi-file download.
-
-        Status-render path pe I/O-free: per-file list at most once per
-        _FILES_REFRESH seconds. Pehle har status tick pe live
-        tell_status(['files']) hota tha — download_dict_lock hold karte hue, aur
-        async_to_sync worker thread ko event loop ka wait karata tha. Bahut task
-        hone par commands isi me phans kar minutes late hoti thin.
-        Baaki status classes (qBit/direct/extract/split/...) pehle se I/O-free hain.
-        """
         try:
             total = self.__download.num_files
             if total < 2:
@@ -112,7 +100,6 @@ class Aria2Status:
             self.__files_done = done
             return done, total
         except Exception:
-            # Purani value rakho — 0,0 return karne se status line flicker karti thi.
             try:
                 return self.__files_done, self.__download.num_files
             except Exception:

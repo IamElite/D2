@@ -84,17 +84,17 @@ def release_hyper_client(idx):
     loads[idx] = max(0, loads.get(idx, 1) - 1)
 
 
-_auth_cache = {}      # (client_key, dc_id) -> auth_key (DC-agnostic: koi bhi DC, 1 export per client+DC)
-_auth_imported = set()  # (client_key, dc_id) jinka export+import ho chuka
+_auth_cache = {}      
+_auth_imported = set()  
 _auth_locks = {}
-_auth_block = {}      # (client_key, dc_id) -> epoch; flood ke dauran koi export API call nahi
+_auth_block = {}      
 
 
 class ExportBlocked(Exception):
     def __init__(self, wait):
         self.wait = wait
         super().__init__(f'TG auth export blocked {wait}s (flood)')
-_auth_imported = set()  # (client_key, dc_id) jinka export+import ho chuka
+_auth_imported = set()  
 _auth_locks = {}
 
 

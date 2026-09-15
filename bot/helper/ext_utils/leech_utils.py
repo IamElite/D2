@@ -24,18 +24,6 @@ from .ffmpeg import probe_tag_args, media_muxer
 
 
 async def remux_container(inp_path, out_path):
-    """
-    Extension change = REAL remux (stream-copy, no re-encode, fast + lossless).
-
-    MKV->MP4 maximum-feature strategy (spec-honest, no fake support):
-      - Global metadata: -movflags use_metadata_tags (mdta) -> ANY key written raw (mkv-parity).
-      - Chapters/Languages/Multi-streams: native, carried via -map 0.
-      - Text subs (srt/ass->tx3g): -c:s mov_text (tiny stream transcode only).
-      - Bitmap subs (PGS/DVD/DVB): MP4-impossible (spec) -> probe-index exclude + log.
-      - Attachments (fonts/cover): MP4-impossible -> -map -0:t? exclude + log.
-      - Per-stream titles: MP4-impossible -> folded file-level ("Video Title=x") so info survives.
-    Single pass, probe once, no temp files. Fallback: v+a copy only (fixed NameError).
-    """
     out_ext = ospath.splitext(out_path)[1].lower()
     cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-hide_banner', '-loglevel', 'error',
            '-i', inp_path, '-map', '0', '-map_metadata', '0', '-map_chapters', '0', '-c', 'copy']
@@ -58,7 +46,6 @@ async def remux_container(inp_path, out_path):
             LOGGER.warning(f'Remux mp4 probe skipped ({e}) — default mapping')
         cmd += ['-c:s', 'mov_text']
     elif out_ext in ('.mkv', '.webm'):
-        # reverse-remux: mov_text (mp4-subs) mkv me nahi jaate — text me convert (cheap)
         cmd += ['-c:s', 'srt']
     cmd.append(out_path)
 
@@ -73,7 +60,6 @@ async def remux_container(inp_path, out_path):
         await aioremove(out_path)
 
     if out_ext == '.mp4':
-        # Last resort: video+audio only (no subs/attachments) — metadata still mdta-full
         cmd2 = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-hide_banner', '-loglevel', 'error',
                 '-i', inp_path, '-map', '0:v', '-map', '0:a?', '-c', 'copy',
                 '-map_metadata', '0', '-movflags', 'use_metadata_tags']
@@ -130,7 +116,6 @@ async def get_media_info(path, metadata=False):
     ffresult = eval(result[0])
     fields = ffresult.get('format')
     if fields is None or not fields.get('duration'):
-        # diagnosis: moov-missing/truncated/hole files ka sign — downstream heal/verify inko pakdega
         LOGGER.warning(f"Media duration missing (size={await aiopath.getsize(path) if await aiopath.exists(path) else '?'}): ff-stderr={result[1][-200:] or 'none'}")
     if fields is None:
         LOGGER.error(f"Media Info Sections: {result}")
@@ -207,15 +192,10 @@ async def get_audio_thumb(audio_file):
 
 
 async def repair_moov(path):
-    """Duration-0 videos ka index/moov repair — stream-copy (re-encode NahiN, CPU-light).
-    SAME-container heal (mkv->mkv, mp4->mp4): attachments/titles/chapters preserve,
-    koi doubling nahi (BM wale mp4-conversion ke artifacts ka fix).
-    Atomic os.replace -> ORIGINAL filename (koi .heal suffix leak nahi). Return: path ya None."""
     ext = ospath.splitext(path)[1].lower()
     mp4_mode = ext in ('.mp4', '.m4v')
     new_path = path
     if ext == '':
-        # ext-less: probe-se media confirm, phir default .mkv heal (user-spec)
         if not await media_muxer(path):
             LOGGER.warning(f'Media heal skipped (not media): {path}')
             return None
@@ -246,9 +226,9 @@ async def repair_moov(path):
             await aioremove(tmp)
             return None
         if new_path != path:
-            os_replace(tmp, new_path)        # ext-less → default .mkv naam (engine purana remove karta)
+            os_replace(tmp, new_path)        
         else:
-            os_replace(tmp, path)            # wapas ORIGINAL naam — atomic (sync syscall)
+            os_replace(tmp, path)            
         return new_path
     except Exception as e:
         LOGGER.warning(f'Media heal error: {e}')
@@ -409,7 +389,6 @@ async def format_filename(file_, user_id, dirpath=None, isMirror=False, has_cust
     orig_file = file_
     up_path = ospath.join(dirpath, orig_file) if dirpath else None
     
-    # Extract meta info once to feed both autorename and caption dynamically
     dur, qual, lang, subs = 0, "", "", ""
     fsize = ""
     if up_path and await aiopath.exists(up_path):
@@ -426,10 +405,8 @@ async def format_filename(file_, user_id, dirpath=None, isMirror=False, has_cust
     suffix = config_dict.get(f'{ctag}_FILENAME_SUFFIX', '') if (val:=user_dict.get(f'{ftag}suffix', '')) == '' else val
     lcaption = config_dict.get('LEECH_FILENAME_CAPTION', '') if (val:=user_dict.get('lcaption', '')) == '' else val
  
-    # Remove URLs starting with "www"
     file_ = re_sub(r'www\S+', '', file_, flags=IGNORECASE)
 
-    # Remove leading/trailing dashes and extra spaces
     file_ = re_sub(r'(^\s*-\s*|(\s*-\s*){2,})', '', file_)
         
     if remname:

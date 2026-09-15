@@ -36,8 +36,6 @@ def _ffmpeg_bin():
 
 
 class _NullYdlLog:
-    """Silent logger for import-time YoutubeDL (suppresses the py3.10
-    deprecation stderr notice before bot logging is wired up)."""
     @staticmethod
     def debug(*a, **k): pass
     @staticmethod
@@ -47,9 +45,6 @@ class _NullYdlLog:
 
 
 def _detect_impersonate():
-    """curl_cffi + yt-dlp impersonation available ho tabhi target — warna None.
-    Validation wahi jo YoutubeDL init karta hai (missing dep pe hard-error hota hai,
-    isliye blind-set kabhi nahi — /yl CF-403 sites ke liye chrome TLS-fingerprint)."""
     try:
         from curl_cffi import __version__ as _ccv  # noqa: F401
         from yt_dlp import YoutubeDL as _YDL
@@ -67,23 +62,16 @@ _IMPERSONATE_WARNED = False
 
 
 def normalize_ydl_link(link):
-    """Host-quirks jo extractor nahi sambhalte:
-    beeg.com — leading-zero video-id par facts-API 400 deta hai (int-parse);
-    zero-strip karke URL do to extractor+API dono khush (E2E-verified)."""
     if link and 'beeg.com/' in link:
         link = re_sub(r'(beeg\.com/-?)0+(\d)', r'\1\2', link)
     return link
 
 
 def is_generic_title(title):
-    """yt-dlp ka fallback: 'Beeg video #123' / 'generic video #..' — asli title na mile to yahi banta hai."""
     return not title or bool(re_search(r'^\w+ video #\d+$', str(title)))
 
 
 def fix_generic_title(link, title, ydl=None):
-    """Scoped repair: sirf generic-fallback titles pe, sirf un hosts jinke paas verified
-    asli-title source hai (beeg facts-API: file.data[].cd_column=='sf_name').
-    Good titles / non-beeg links bilkul untouched — sab kuch force nahi hota."""
     if not link or 'beeg.com/' not in link or not is_generic_title(title):
         return title
     vid = re_search(r'beeg\.com/-?0*(\d+)', link)
@@ -108,11 +96,6 @@ def fix_generic_title(link, title, ydl=None):
 
 
 def _content_length_size(url, headers=None):
-    """HEAD -> Content-Length. Extractors that do not publish filesize (eporner
-    returns None for every format) leave self.__size = 0, which silently skips
-    both the size-limit and the disk-space checks -> a multi-GB 4K file only
-    fails minutes later with 'No space left on device'. One cheap HEAD request
-    gives the real size up front."""
     from urllib.request import Request, urlopen
     try:
         req = Request(url, headers={**(headers or {}), 'Range': 'bytes=0-0'})
@@ -127,15 +110,11 @@ def _content_length_size(url, headers=None):
 
 
 def add_impersonate(opts):
-    """opts me impersonation add karo (agar available + user ne khud set na kiya ho)."""
     global _IMPERSONATE_WARNED
     if _IMPERSONATE_TARGET is not None and 'impersonate' not in opts:
         opts = dict(opts)
         opts['impersonate'] = _IMPERSONATE_TARGET
     elif _IMPERSONATE_TARGET is None and not _IMPERSONATE_WARNED:
-        # Without curl_cffi there are zero impersonate targets, and extractors that
-        # set require_impersonation (Dailymotion m3u8, CF-403 sites) then fail with
-        # a misleading "targets are available: firefox" error. Say why, once.
         _IMPERSONATE_WARNED = True
         LOGGER.warning('yt-dlp impersonation UNAVAILABLE (curl_cffi missing) — sites '
                        'needing a TLS fingerprint (Dailymotion, CF-403) will fail. '
@@ -145,8 +124,6 @@ def add_impersonate(opts):
 
 
 class MyLogger:
-    # yt-dlp logs a benign "Deprecated Feature: Support for Python version 3.10"
-    # notice on old stacks; harmless (works on 3.10) and irrelevant on 3.11+. Drop it.
     _IGNORE_SUBSTR = ('deprecated feature: support for python version',)
 
     @classmethod
@@ -160,7 +137,6 @@ class MyLogger:
     def debug(self, msg):
         if self._ignored(msg):
             return
-        # Hack to fix changing extension
         if not self.obj.is_playlist:
             if match := re_search(r'.Merger..Merging formats into..(.*?).$', msg) or \
                     re_search(r'.ExtractAudio..Destination..(.*?)$', msg):
@@ -202,7 +178,7 @@ class YoutubeDLHelper:
         self.playlist_count = 0
         self.opts = {'progress_hooks': [self.__onDownloadProgress],
                      'logger': MyLogger(self),
-                     'no_warnings': True,   # drop yt-dlp benign notices (py3.10 deprecation etc.); errors still logged
+                     'no_warnings': True,   
                      'usenetrc': True,
                      'age_limit': 99,
                      'cookiefile': 'cookies.txt',
@@ -213,8 +189,6 @@ class YoutubeDLHelper:
                      'overwrites': True,
                      'writethumbnail': True,
                      'trim_file_name': 220,
-                     # 3 bounded retries: transient network errors still recover,
-                     # a dead/permanent URL fails in seconds instead of minutes.
                      'retries': 3,
                      'fragment_retries': 3,
                      'concurrent_fragment_downloads': int(environ.get('YDLP_CONCURRENT_FRAGMENTS', '4') or 4),
@@ -297,8 +271,8 @@ class YoutubeDLHelper:
         link = normalize_ydl_link(link)
         if link.startswith(('rtmp', 'mms', 'rstp', 'rtmps')):
             self.opts['external_downloader'] = 'ffmpeg'
-        from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy
-        register_embed_resolver()   # universal embed IE — YoutubeDL init se PEHLE
+        from yt_dlp import YoutubeDL, DownloadError  
+        register_embed_resolver()   
         with YoutubeDL(self.opts) as ydl:
             try:
                 result = ydl.extract_info(link, download=False)
@@ -318,8 +292,6 @@ class YoutubeDLHelper:
                         continue
                     if entry.get('ext') == 'unknown_video':
                         entry['ext'] = 'mp4'
-                    # as_bytes: extractor may give numeric strings -> '+=' would
-                    # raise TypeError (int + str) and kill the whole task
                     _fa = as_bytes(entry.get('filesize_approx'))
                     _fs = as_bytes(entry.get('filesize'))
                     if _fa:
@@ -344,10 +316,7 @@ class YoutubeDLHelper:
                 self.__size = as_bytes(result.get('filesize')) or as_bytes(result.get('filesize_approx')) or 0
 
     def __download(self, link, path):
-        from yt_dlp import YoutubeDL, DownloadError  # CJ: lazy
-        # Fail fast instead of filling the disk: yt-dlp only errors with
-        # "No space left on device" after it has already pulled data (a 4K file
-        # can be several GB while a dyno disk is ~1 GB).
+        from yt_dlp import YoutubeDL, DownloadError  
         need = self.__size
         if not need and self.__extracted_info:
             fmts = self.__extracted_info.get('formats') or []
@@ -368,7 +337,7 @@ class YoutubeDLHelper:
                 pass
         primary = None
         try:
-            register_embed_resolver()   # idempotent — extractMetaData na chala ho to bhi safe
+            register_embed_resolver()   
             with YoutubeDL(self.opts) as ydl:
                 try:
                     if self.__extracted_info is not None:
@@ -594,12 +563,6 @@ class YoutubeDLHelper:
         if self.__listener.isLeech:
             self.opts['postprocessors'].append(
                 {'format': 'jpg', 'key': 'FFmpegThumbnailsConvertor', 'when': 'before_dl'})
-        # 260904-CO: EmbedThumbnail HATA DIYA — yt-dlp ka thumbnail-embed postprocessor
-        # corrupt/bad thumbnail pe (e.g. source ne invalid image di) FATAL error deta hai
-        # ("Unable to embed... Invalid data found") aur poora task mar jata hai — jabki
-        # video download ho chuka hota hai. Sidecar thumbnail (yt-dlp-thumb/, FFmpeg
-        # converter upar) TG preview ke liye already banta+upload hota hai, to embed
-        # zero-value pure risk tha.
         if not self.__listener.isLeech:
             self.opts['writethumbnail'] = False
 
@@ -663,30 +626,8 @@ class YoutubeDLHelper:
                 self.opts[key] = value
 
 
-# ============================================================================
-#  UNIVERSAL EMBED BYPASS - page -> player-iframe -> embed-host backend
-# ============================================================================
-# Design: koi bhi site jo ek known video-host embed karti hai, wo yahan se
-# automatically chal jaati hai - site ka naam kahin hardcode NAHI hota.
-# Flow:  page fetch -> saare player <iframe> (absolute https, ads filtered)
-#        -> har embed pe backend-dispatch (host/path pattern) -> yt-dlp formats.
-# Multi-server (?tape=N jaise tabs) bhi generic hain: jitne player iframes/tabs
-# mile, sab try hote hain; jo fail ho us pe warning + aage badho.
-#
-# Yeh section deliberately EK file me hai (user requirement) aur deliberately
-# module-level pe `yt_dlp` import NAHI karta - InfoExtractor class factory ke
-# andar banti hai, warna boot pe 1751 extractor modules load ho jaate.
-# (measure kiya: `from yt_dlp.aes import ...` module-level = +29.8 MB RSS,
-#  69 submodules; `cryptography` ka AESGCM = +0 KB.)
-# AES ke liye `cryptography` use hota hai (requirements.txt me already hai) -
-# `yt_dlp.aes` nahi, kyunki wo poora yt_dlp kheench leta hai. Tag layout
-# identical hai (blob = ciphertext + 16-byte GCM tag) - parity live-test kiya.
 
 
-# -- S1. embed-host backend registry (naya host = 1 entry, nayi class nahi) ---
-# Naya embed host aaye to sirf yahan ek tuple add karo:
-#   (host-regex-compiled, path-regex-compiled, resolver-attribute-name)
-# Dono me se koi bhi None ho sakta hai (sirf host, ya sirf path se match).
 _ST_HOST_RE = re_compile(r'(?:^|\.)(?:streamtape\.\w+|streamta\.pe|tapecontent\.net)$')
 _BYSE_PATH_RE = re_compile(r'/[edfv]/[\w-]+/?$')
 _STREAM_EMBED_PATH_RE = re_compile(r'/(?:stream|embed)/.+/(?:sub|dub)/?$')
@@ -710,46 +651,25 @@ _SP_LANG_CODES = {
 }
 
 _EMBED_BACKENDS = (
-    # StreamTape family: obfuscated `robotlink` assignment in the embed page.
     ('streamtape', _ST_HOST_RE, None, '_st_formats'),
-    # Byse family: GET /api/videos/<code> -> `playback` blob -> AES-256-GCM
-    # -> HLS master playlist ya progressive MP4.
     ('byse', None, _BYSE_PATH_RE, '_byse_formats'),
     ('vidara', _VIDARA_HOST_RE, None, '_vidara_formats'),
     ('streamlang', None, _STREAM_EMBED_PATH_RE, '_sp_formats'),
-    # voe.sx: DDoS-Guard JS challenge -> 403 (curl_cffi chrome impersonate bhi
-    # fail). Browser-less bypass namumkin, isliye koi backend nahi - embed
-    # warning ke saath skip hota hai aur baaki servers chalte rehte hain.
 )
 
-# Protocol-relative (`//host/...`) iframes is site-family pe ADS hote hain -
-# live verify kiya: `//a.magsrv.com/iframe.php?...`, `//a.letsjerk.tv/api/spots/`.
-# Player iframe hamesha ABSOLUTE `https://` hota hai. Isliye sirf absolute src
-# lete hain + yeh host-blocklist lagate hain.
 _AD_HOST_BLOCKLIST = (
     'magsrv', 'exoclick', 'juicyads', 'popads', 'tsyndicate', 'adsterra',
     'propellerads', 'clickadu', 'hilltopads', 'trafficjunky', 'a-ads', 'whitetrafsa',
 )
 
-# Jin hosts pe embed-discovery enabled hai. Default = letsjerk family.
-# `YTDL_EMBED_HOSTS="site1.com,site2.com"` se bina code change ke add karo -
-# nayi site ka embed-host pehle se supported ho to sirf yeh env var kaafi hai.
 _EMBED_DISCOVERY_HOSTS = {'letsjerk.tv', 'letsjerk.com'}
 
-# Server-tab query params jo multi-server pages use karte hain (?tape=1 etc).
-# Generic rakha hai taaki doosri sites ke ?server=2 / ?srv=3 bhi pakde jaayein.
 _SERVER_TAB_RE = re_compile(r'[?&](?:tape|server|srv|s|v|vno|embed|source)\s*=\s*\d+')
 _IFRAME_SRC_RE = re_compile(r'<iframe[^>]+?\bsrc=(["\'])(?P<src>https?://[^"\']+)\1')
 _HREF_RE = re_compile(r'href=(["\'])([^"\']+)\1')
 _JS_STR_RE = re_compile(r"""(['"])((?:\\.|(?!\1).)*)\1""")
 _JS_METH_RE = re_compile(r'[\s)]*\.\s*(substring|substr|slice)\s*\(\s*(-?\d+)\s*(?:,\s*(-?\d+)\s*)?\)')
 
-# StreamTape ka `robotlink` assignment. Split point HAR PAGE-LOAD pe move karta
-# hai (live verify kiya - do loads me do alag shapes):
-#   '//streamtape.com/get_video?id=m' + ('xcdQMGg...').substring(2).substring(1)
-#   '//streamtape.com/'               + ('xcdget_video?id=m...').substring(2).substring(1)
-# Isliye fixed prefix/payload regex kabhi reliable nahi - poora expression
-# evaluate karna padta hai. Purana `ideoooolink` naam bhi accept karte hain
 _ROBOTLINK_RE = re_compile(
     r"(?:norobotlink|robotlink|captchalink|ideoooolink)(?!\w)[\s'\")\]]*\.innerHTML\s*=\s*(?P<expr>[^\n]+)")
 
@@ -757,7 +677,6 @@ _HEIGHT_WHITELIST_RE = re_compile(r'\b(240|360|480|576|720|1080|1440|2160)p\b')
 
 
 def embed_enabled_hosts():
-    """Discovery ke liye enabled hosts (default + env override)."""
     hosts = set(_EMBED_DISCOVERY_HOSTS)
     extra = environ.get('YTDL_EMBED_HOSTS', '').strip()
     if extra:
@@ -783,12 +702,6 @@ def is_embed_discovery_url(url):
 
 
 def eval_js_concat(expr):
-    """JS ka chhota subset evaluate karo: string literals `+` se jude hue,
-    optional chained `.substring/.substr/.slice` calls ke saath.
-
-    `eval()`/`exec()` use NAHI hota - sirf tokenizer. Garbage input pe
-    ValueError (verified), isliye koi code-injection nahi.
-    """
     parts, i, n = [], 0, len(expr)
     while i < n:
         if expr[i].isspace() or expr[i] in '+();':
@@ -796,10 +709,6 @@ def eval_js_concat(expr):
             continue
         m = _JS_STR_RE.match(expr, i)
         if not m:
-            # Trailing garbage tolerate karo: real pages pe assignment ke baad
-            # `;</script>` jaisa HTML usi line pe ho sakta hai. Agar ab tak ek
-            # bhi string-literal mil chuka hai to wahin ruk jao. FAIL-CLOSED:
-            # kuch mila hi nahi to ValueError (pehle jaisa).
             if parts:
                 break
             raise ValueError(f'unexpected token {expr[i]!r} at {i}')
@@ -840,15 +749,6 @@ def base64url_decode(value):
 
 
 def byse_decrypt_playback(playback, warn=None):
-    """Byse-family `playback` blob -> sources dict (AES-256-GCM).
-
-    Key schedule (site ke videoPagesBundle se nikala, decryption se prove kiya):
-        version n -> base64url(key_parts[n]) + base64url(key_parts[31 - n])  (1-based)
-    Do asli parts chhote (22-char) hote hain; 32-char entries decoys hain.
-    Index server-supplied `version` se aata hai, isliye version bump pe code
-    change ki zaroorat nahi. LIVE VERIFY: version 9 (260905-T) -> version 5
-    (aaj) - parts 5 aur 26, dono exactly 22-char. Schedule abhi bhi sahi.
-    """
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     except Exception as e:
@@ -952,7 +852,6 @@ def sp_lang_from_url(embed_url):
     return None
 
 
-# -- S2. InfoExtractor factory (class LAZY banti hai - boot pe yt_dlp load nahi)
 _EMBED_IE_CLASS = None
 
 
@@ -965,7 +864,6 @@ def _make_embed_ie():
 
     class D2EmbedIE(InfoExtractor):
         IE_NAME = 'd2embed'
-        # Broad rakha hai; asli gating `suitable()` me hoti hai (host allow-list).
         _VALID_URL = r'https?://.+'
         _WORKING = True
         _AGE_LIMIT = 18
@@ -975,8 +873,6 @@ def _make_embed_ie():
 
         @classmethod
         def suitable(cls, url):
-            """Sirf enabled hosts pe match - warna built-in extractors (YouTube,
-            Vimeo, pornhub, ...) aur GenericIE apna kaam karte rehte hain."""
             if is_embed_discovery_url(url):
                 return super().suitable(url)
             try:
@@ -1074,16 +970,6 @@ def _make_embed_ie():
             }
 
         def _clean_title(self, raw):
-            """Right-to-left trailing dash-segments hatao jab tak branding mile;
-            pehla non-branding segment milte hi ruk jao (title ka hissa safe).
-
-            Purana plugin regex (`\\s+-\\s+.*Letsjerk.*$`) GREEDY tha aur pehle
-            ' - ' pe cut kar deta tha -> 'Ava Addams - NEW BG Fucks Her Number 1
-            Fan - Free Full Porn HD Videos - Letsjerk.com' se sirf 'Ava Addams'
-            bachta tha (har letsjerk file ka naam adhoora tha). Regex se yeh
-            theek bhi nahi ho sakta: `[^-]*` dash-cross nahi karta, to match
-            galat jagah anchor hota hai (live debug karke dekha, start=10).
-            """
             raw = (raw or '').strip()
             if not raw:
                 return ''
@@ -1095,8 +981,6 @@ def _make_embed_ie():
             return ' - '.join(parts) if len(parts) > 1 else (parts[0] if parts else raw)
 
         def _server_pages(self, url, webpage):
-            """Har multi-server tab (?tape=N / ?server=N / ...), page order me,
-            current page pehle, koi duplicate nahi. Same-host links only."""
             base_host = (urlparse(url).hostname or '').lower()
             found, pages = [], []
             for href in re_findall(_HREF_RE, webpage):
@@ -1304,7 +1188,6 @@ def _make_embed_ie():
                 pass
             raise ExtractorError(f'no backend for embed host {host}', expected=True)
 
-        # ---- backends ----
         def _st_formats(self, embed_url, video_id, note):
             page = self._download_webpage(embed_url, video_id, note=f'{note}: embed page')
             try:
@@ -1317,8 +1200,6 @@ def _make_embed_ie():
                 'ext': 'mp4',
                 'http_headers': {'Referer': 'https://streamtape.com/'},
             }
-            # Ek 2-byte request real filesize + resolution de deti hai (embed page
-            # inko expose nahi karta). Failure non-fatal hai.
             try:
                 resp = self._request_webpage(
                     media_url, video_id, note=f'{note}: probing',
@@ -1363,9 +1244,6 @@ def _make_embed_ie():
                 tbr = int_or_none(traverse_obj(src, 'bitrate_kbps'))
                 filesize = int_or_none(traverse_obj(src, 'size_bytes'))
                 if 'mpegurl' in mime or media_url.split('?')[0].endswith(('.m3u8', '.m3u')):
-                    # API ka `label`/`height` JHOOT bol sakta hai - live dekha:
-                    # API ne 1080p bola, actual playlist se height 720 aayi.
-                    # Isliye real height playlist se aati hai, API label se nahi.
                     got = self._extract_m3u8_formats(
                         media_url, video_id, 'mp4', m3u8_id=f'byse-{height or "hls"}',
                         headers=headers, fatal=False, note=f'{note}: hls')
@@ -1424,44 +1302,29 @@ def _make_embed_ie():
     return D2EmbedIE
 
 
-# -- S3. registration (yt-dlp ke andar, GenericIE se PEHLE) --------------------
 _EMBED_REGISTERED = False
 
 
 def register_embed_resolver():
-    """Universal embed IE ko yt-dlp me inject karo. Boot-safe + idempotent.
-
-    Do zaroori baatein - DONO live-test se pakdi gayi, guess se nahi:
-      1. Pehle `gen_extractor_classes()` se extractors dict POPULATE karo. Warna
-         `extractor/extractors.py` ka `setdefault()` loop humare baad chalega aur
-         GenericIE humse PEHLE insert ho jaayega. Order matter karta hai -
-         `YoutubeDL.extract_info()` pehla `ie.suitable(url)` match use karta hai.
-         (Pehla attempt bina populate kiye = 1751 extractors ud gaye, total 2.)
-      2. Dict key = CLASS name (`D2EmbedIE`), kyunki `get_info_extractor()`
-         `f'{ie_key}IE'` lookup karta hai. Galat key -> KeyError at extract time.
-
-    Fail hone pe bot NAHI rukega - sirf warning. (brain.md 260902-BE: ek chhoti
-    si boot-time galti se poora bot down ho gaya tha, isliye yeh guard zaroori.)
-    """
     global _EMBED_REGISTERED
     if _EMBED_REGISTERED:
         return True
     try:
         from yt_dlp.extractor import gen_extractor_classes
-        gen_extractor_classes()                       # lazy dict bharo (zaroori)
+        gen_extractor_classes()                       
         from yt_dlp.globals import extractors as _extractors
         cls = _make_embed_ie()
-        key = cls.__name__                            # 'D2EmbedIE'
+        key = cls.__name__                            
         if key not in _extractors.value:
             generic = _extractors.value.get('GenericIE')
             new = {k: v for k, v in _extractors.value.items() if k != 'GenericIE'}
             new[key] = cls
             if generic is not None:
-                new['GenericIE'] = generic            # Generic hamesha LAST (fallback)
+                new['GenericIE'] = generic            
             _extractors.value = new
     except Exception as e:
         LOGGER.warning(
             f'embed-resolver register failed ({e.__class__.__name__}: {e}) - '
             f'yt-dlp update ne globals API badla hoga; baaki ytdl kaam karega')
-    _EMBED_REGISTERED = True   # retry-spam se bachao (fail ho ya pass)
+    _EMBED_REGISTERED = True   
     return _EMBED_REGISTERED
