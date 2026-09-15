@@ -64,6 +64,20 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260916-C (built, pushed)
+**Git:** `9873dc8`  
+**Date:** 2026-09-16  
+**Files:** `bot/helper/ext_utils/video_tools.py`, `bot/helper/ext_utils/help_messages.py`
+
+**User instruction:**
+- `-m` hi merged output ka naam hai, `-n` nahi; video tools global base.
+
+**Fix:**
+- `video_tools.py`: mux/concat output `sameDir['name']` se (`-m MergedVideo → MergedVideo.ext`), `vmerge` default par purana `stem_merged`.
+- `help_messages.py`: Merge docs me `-m` naam, `-n` ignore, button auto `vmerge` (fixed, no random hash — `sameDir` parent ID se already unique).
+
+**Pushed:** `9873dc8` → `arnv1`.
+
 ### 260916-B (built, pushed)
 **Git:** `7cee11e`  
 **Date:** 2026-09-16  

@@ -404,7 +404,9 @@ async def merge_media_pairs(listener, vt_path, out_dir, vtools):
             if not use_aud and not use_sub:
                 listener.file_count.advance(stem, failed=True)
                 continue
-            out = os_path.join(out_dir, f"{stem}_merged{os_path.splitext(v_full)[1].lower()}")
+            mbase = (getattr(listener,'sameDir',{}) or {}).get('name','').strip('/').split('/')[-1] or None
+            out_name = f"{mbase}{os_path.splitext(v_full)[1].lower()}" if mbase and mbase.lower()!='vmerge' else f"{stem}_merged{os_path.splitext(v_full)[1].lower()}"
+            out = os_path.join(out_dir, out_name)
             cmd = [ffmpeg_bin, '-nostdin', '-threads', '2', '-y', '-hide_banner', '-loglevel', 'error',
                    '-i', v_full]
             for a_full, _, _ in use_aud:
@@ -426,7 +428,9 @@ async def merge_media_pairs(listener, vt_path, out_dir, vtools):
             if not vtools.get('vidvid'):
                 listener.file_count.advance(base_key, failed=True)
                 continue
-            out = os_path.join(out_dir, f"{base_key}_merged{os_path.splitext(uniq[0])[1].lower()}")
+            mbase2 = (getattr(listener,'sameDir',{}) or {}).get('name','').strip('/').split('/')[-1] or None
+            out_name2 = f"{mbase2}{os_path.splitext(uniq[0])[1].lower()}" if mbase2 and mbase2.lower()!='vmerge' else f"{base_key}_merged{os_path.splitext(uniq[0])[1].lower()}"
+            out = os_path.join(out_dir, out_name2)
             list_file = os_path.join(out_dir, f"{base_key}_concat.txt")
             try:
                 with open(list_file, 'w', encoding='utf-8') as fh:

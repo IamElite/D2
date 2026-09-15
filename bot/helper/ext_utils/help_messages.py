@@ -235,8 +235,9 @@ Menu me value wale button zaroor bharo (TrimSet, WM Text, ConvertTo). Done dabao
 Settings me save karoge to agli baar menu puchega nahi.
 
 ➲ <b><i>Merge (video+audio/sub, part1+part2)</i></b>: -vt + Merge button
-<code>/cmd</code> -i 2 -vt (bina -m: Merge ON ho to folder auto jama hoga)
+<code>/cmd</code> -i 2 -vt -m MergedVideo (Merge ON ho to -m hi final naam hai)
 Menu me Merge ke saath Vid+Aud (audio chipkana), Vid+Sub (subtitle chipkana) ya Vid+Vid (parts jodna) ON karo.
+Button se Merge (bina -m): folder auto vmerge. -n merge par ignore.
 Naam se jodta hai: movie.mkv + movie.srt, movie.mkv + movie.m4a, part1.mp4 + part2.mp4.
 Joda na mile to normal upload, kuch nahi tootega. Merge OFF ho to purana single-file kaam chalta hai.
 
