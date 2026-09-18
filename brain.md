@@ -64,6 +64,31 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260919-A (built)
+**Git:** `3ffb727`
+**Date:** 2026-09-19
+**Files:** `bot/helper/ext_utils/ffmpeg.py`, `bot/modules/users_settings.py`
+
+**User log:**
+- MediaInfo me container tag "Movie name" hota hai aur video/audio/sub streams me "Title".
+- User ko "Movie Name" ka dedicated option/button chahiye: agar Movie Name set ho toh container ke Movie name me jaye; agar Movie Name set na ho toh Title fallback hokar Movie name par lag jaye.
+- Video/audio/sub stream titles me jo Title hoga wo apply ho sake aur `{movie_name}` tag bhi available ho.
+
+**Root causes & Fixes:**
+1. **Dedicated Movie Name Button & Key (`users_settings.py`):**
+   - `META_KEYS` me `Movie Name` ko pehle position par add kiya taaki metadata configurator menu me dedicated `Movie Name` button appear ho.
+   - Shortcut `/us -s mt movie {value}` / `/us -s mt moviename {value}` (aur reply mode) ko `Movie Name` key par route kiya.
+   - Available tags list me `{movie_name}` add kiya.
+2. **Smart Movie Name vs Title Hierarchy in `ffmpeg.py`:**
+   - Container-level title (`-metadata title=...` / MediaInfo `Movie name`):
+     `overlay.get('movie name') or overlay.get('title')`. Agar user ne `Movie Name` diya hai toh wahi lagega; agar nahi diya toh jo `Title` me hoga wo container par fallback hoga.
+   - Streams (Video/Audio/Subtitle) me:
+     Agar user ne explicit `Movie Name` aur `Title` dono diye hain, toh streams ko `Title` (stream title) milega aur container ko `Movie Name`.
+     Agar specific stream title (`audio`, `video`, `subtitle`) diya hai, toh specific stream title override karega.
+     Container ka `Movie Name` streams ke original titles ko blindly overwrite nahi karega.
+   - `extract_media_tags` me `{movie_name}` aur `{moviename}` aliases add kiye.
+3. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260918-A (built)
 **Git:** `a70835a`
 **Date:** 2026-09-18
