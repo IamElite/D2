@@ -243,6 +243,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
+        text += "\n\n➲ <b>Available Tags:</b> <code>{title}</code>, <code>{season}</code>, <code>{episode}</code>, <code>{quality}</code>, <code>{codec}</code>, <code>{audio}</code>, <code>{sub}</code>, <code>{size}</code>, <code>{language}</code>\n"
         text += "\n➲ <b>Stream Tags</b> — toggle streams to apply metadata tags:"
         md_streams = user_dict.get('md_streams', [])
         for sname in STREAM_SECTIONS:
@@ -422,8 +423,70 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
 
 async def user_settings(client, message):
     if len(message.command) > 1 and (message.command[1] == '-s' or message.command[1] == '-set'):
-        set_arg = message.command[2].strip() if len(message.command) > 2 else None
+        set_arg = message.command[2].strip().lower() if len(message.command) > 2 else None
         msg = await sendMessage(message, '<i>Fetching Settings...</i>', photo='IMAGES')
+        if set_arg in ['metadata', 'mt']:
+            user_id = message.from_user.id
+            tag = message.command[3].strip() if len(message.command) > 3 else None
+            val = ' '.join(message.command[4:]).strip() if len(message.command) > 4 else ''
+            reply_to = message.reply_to_message
+            if not val and reply_to:
+                val = (reply_to.text or reply_to.caption or '').strip()
+            if tag and val:
+                t_low = tag.lower()
+                if t_low in ('title', 't', 'movie', 'moviename'):
+                    mkey = 'Title'
+                elif t_low in ('video', 'v', 'video title', 'video_title'):
+                    mkey = 'Video'
+                elif t_low in ('audio', 'a', 'audio title', 'audio_title'):
+                    mkey = 'Audio'
+                elif t_low in ('sub', 'subs', 'subtitle', 's', 'subtitle title', 'subtitle_title'):
+                    mkey = 'Subtitle'
+                elif t_low in ('author',):
+                    mkey = 'Author'
+                elif t_low in ('artist',):
+                    mkey = 'Artist'
+                elif t_low in ('comment',):
+                    mkey = 'Comment'
+                elif t_low in ('copyright',):
+                    mkey = 'Copyright'
+                elif t_low in ('publisher',):
+                    mkey = 'Publisher'
+                elif t_low in ('studio',):
+                    mkey = 'Studio'
+                elif t_low in ('encoded by', 'encoded_by', 'encoder'):
+                    mkey = 'Encoded By'
+                elif t_low in ('custom tag', 'custom_tag'):
+                    mkey = 'Custom Tag'
+                elif t_low in ('dubbed by', 'dubbed_by'):
+                    mkey = 'Dubbed By'
+                elif t_low in ('channel',):
+                    mkey = 'Channel'
+                elif t_low in ('website',):
+                    mkey = 'Website'
+                elif t_low in ('source',):
+                    mkey = 'Source'
+                elif t_low in ('official site', 'official_site'):
+                    mkey = 'Official Site'
+                else:
+                    mkey = tag.title()
+                user_dict = user_data.get(user_id, {})
+                meta_dict = parse_metadata_str(user_dict.get('metadata', ''))
+                if val.lower() in ('clear', 'none', 'remove', 'delete', 'd', 'rm'):
+                    meta_dict.pop(mkey, None)
+                    vmsg = "<i>Removed / Cleared</i>"
+                else:
+                    meta_dict[mkey] = val
+                    vmsg = f"<code>{escape(val)}</code>"
+                new_meta = '|'.join([f"{k}:{v}" for k, v in meta_dict.items() if v])
+                update_user_ldata(user_id, 'metadata', new_meta)
+                if DATABASE_URL:
+                    await DbManger().update_user_data(user_id)
+                return await editMessage(msg, f"➲ <b>Leech Metadata Updated:</b>\n➲ <b>{mkey}:</b> {vmsg}")
+            elif tag and not val:
+                return await editMessage(msg, f"➲ <b>Usage:</b>\n<code>/us -s mt {tag} {{value}}</code>\n<i>Or reply to a message containing the value:</i>\n<code>/us -s mt {tag}</code>")
+            elif not tag and reply_to and (reply_val := (reply_to.text or reply_to.caption or '').strip()):
+                return await set_custom(client, reply_to, msg, 'metadata', True)
         if set_arg and (reply_to := message.reply_to_message):
             if message.from_user.id != reply_to.from_user.id:
                 return await editMessage(msg, '<i>Reply to Your Own Message for Setting via Args Directly</i>')
@@ -445,7 +508,9 @@ async def user_settings(client, message):
 ➲ <b>Leech Filename Caption :</b>
     /cmd -s lcaption
 ➲ <b>Leech Filename Metadata :</b>
-    /cmd -s metadata
+    /cmd -s metadata {tag} {value}
+    /cmd -s mt {tag} {value}
+    (Or reply with /cmd -s mt {tag})
 ➲ <b>Leech Filename Attachment :</b>
     /cmd -s lattachment
 ➲ <b>Auto Rename Format :</b>

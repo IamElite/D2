@@ -1,7 +1,7 @@
 from os import path as os_path, replace as os_replace
 import json
 import logging
-from re import sub as re_sub
+from re import sub as re_sub, search as re_search, IGNORECASE as re_IGNORECASE
 from aioshutil import move
 from asyncio import create_subprocess_exec
 from asyncio.subprocess import PIPE
@@ -17,15 +17,72 @@ _TAG_SKIP = {
 }
 
 
-def parse_meta_overlay(metadata: str, basenameX: str = '') -> dict:
+class SafeTagDict(dict):
+    def __missing__(self, key):
+        return f"{{{key}}}"
+
+
+def extract_media_tags(filename: str, size: str = '') -> dict:
+    name, _ = os_path.splitext(filename)
+    season_match = re_search(r'(?:S|Season\s*)(\d{1,2})', name, re_IGNORECASE)
+    season = season_match.group(1).zfill(2) if season_match else ''
+    episode_match = re_search(r'(?:E|Ep|Episode\s*)(\d{1,3})', name, re_IGNORECASE)
+    episode = episode_match.group(1).zfill(2) if episode_match else ''
+    quality_match = re_search(r'(480p|720p|1080p|1440p|2160p|4K)', name, re_IGNORECASE)
+    quality = quality_match.group(1) if quality_match else ''
+    codec_match = re_search(r'(x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC)', name, re_IGNORECASE)
+    codec = codec_match.group(1) if codec_match else ''
+    audio_match = re_search(r'(Dual[\s\.\-]?Audio|Multi[\s\.\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali)', name, re_IGNORECASE)
+    audio = audio_match.group(1).title().replace('.', ' ') if audio_match else ''
+    sub_match = re_search(r'(ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed)', name, re_IGNORECASE)
+    sub = sub_match.group(1) if sub_match else ''
+    clean_title = re_sub(r'\[.*?\]|\(.*?\)', '', name)
+    clean_title = re_sub(r'(\s|-|\.)+', ' ', clean_title).strip()
+    noise_pattern = r'\b(S\d{1,2}(?:E\d{1,3})?|E\d{1,3}|Ep\s*\d{1,3}|Episode\s*\d{1,3}|480p|720p|1080p|1440p|2160p|4K|x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC|BluRay|WEB-DL|WEBRip|HDRip|HDTV|Dual[\s\-]?Audio|Multi[\s\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali|ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed|Audio|Dual)\b'
+    clean_title = re_sub(noise_pattern, '', clean_title, flags=re_IGNORECASE)
+    clean_title = re_sub(r'\s+', ' ', clean_title).strip()
+    return {
+        'title': clean_title or name,
+        'season': season,
+        'episode': episode,
+        'quality': quality,
+        'codec': codec,
+        'audio': audio,
+        'sub': sub,
+        'size': size or '',
+        'language': audio,
+    }
+
+
+def apply_dynamic_tags(val: str, tags: dict) -> str:
+    if not val or not isinstance(val, str) or '{' not in val:
+        return val
+    try:
+        res = val.format_map(SafeTagDict(tags))
+        if not tags.get('season') and not tags.get('episode'):
+            res = res.replace('SE', '').replace('S E', '')
+        elif not tags.get('season') and tags.get('episode'):
+            res = res.replace('SE', 'E')
+        return re_sub(r'\s+', ' ', res).strip()
+    except Exception:
+        return val
+
+
+def parse_meta_overlay(metadata: str, basenameX: str = '', tags: dict = None) -> dict:
     overlay = {}
     if metadata and ':' in metadata:
         for pair in metadata.split('|'):
             if ':' in pair:
                 k, v = pair.split(':', 1)
-                overlay[k.strip().lower()] = v.strip()
+                val = v.strip()
+                if tags:
+                    val = apply_dynamic_tags(val, tags)
+                overlay[k.strip().lower()] = val
     elif metadata:
-        overlay['title'] = metadata
+        val = metadata
+        if tags:
+            val = apply_dynamic_tags(val, tags)
+        overlay['title'] = val
     return overlay
 
 
@@ -49,6 +106,9 @@ async def probe_tag_args(path, overlay=None, md_streams=None):
         for sname in ('video', 'audio', 'subtitle'):
             if uk.startswith(sname + ' '):
                 stream_meta.setdefault(sname, {})[uk[len(sname) + 1:]] = uv
+                break
+            elif uk == sname:
+                stream_meta.setdefault(sname, {})['title'] = uv
                 break
     has_user_meta = any(not k.startswith('__') and v for k, v in overlay.items())
     orig_fmt = dict((data.get('format') or {}).get('tags') or {})
@@ -104,7 +164,7 @@ async def probe_tag_args(path, overlay=None, md_streams=None):
                 tags['title'] = custom_st[1]
         if ctype in active_streams:
             for k, v in fmt.items():
-                if str(k).lower() not in _TAG_SKIP and v:
+                if str(k).lower() not in _TAG_SKIP and str(k).lower() != 'title' and v:
                     tags[k] = v
         for stk, stv in stream_meta.get(ctype, {}).items():
             tags[stk] = stv
@@ -123,7 +183,6 @@ _MP4_FMT_KEYS = {'title', 'artist', 'album', 'composer', 'genre', 'copyright', '
 _MP4_EXTS = ('.mp4', '.m4v', '.mov', '.m4a')
 
 async def media_muxer(path):
-    """Probe-based container detect — ext-less files ke liye. Non-media → None."""
     out, _, _ = await cmd_exec(['ffprobe', '-v', 'error', '-show_entries', 'format=format_name',
                                 '-of', 'default=nw=1:nk=1', path])
     tokens = {t.strip().lower() for t in (out or '').split(',') if t.strip()}
@@ -139,7 +198,9 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     basenameX = re_sub(r'www\S+', '', basename)
     basenameX = re_sub(r'(^\s*-\s*|(\s*-\s*){2,})', '', basenameX)
 
-    overlay = parse_meta_overlay(metadata, basenameX)
+    size_str = getattr(listener, 'size', '') or ''
+    tags = extract_media_tags(file_name, size=size_str)
+    overlay = parse_meta_overlay(metadata, basenameX, tags=tags)
     if stream_titles:
         overlay['__purge_stream_titles__'] = True
         for part in stream_titles.split('|')[1:]:
@@ -164,8 +225,6 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     tag_args = await probe_tag_args(media_file, overlay, md_streams)
     cmd = [bot_cache['pkgs'][2], '-nostdin', '-threads', '1', '-y', '-hide_banner', '-loglevel', 'error',
            '-i', media_file, '-map', '0', '-c', 'copy']
-    # MP4-family: mdta keys mode — custom/unknown keys bhi RAW likhe jate (mediainfo me dikhte),
-    # mkv-jaisa full parity (warna muxer sirf whitelist likhta, baaki silently drop)
     if os_path.splitext(outfile)[1].lower() in _MP4_EXTS:
         cmd.extend(['-movflags', 'use_metadata_tags'])
     cmd.extend(tag_args)
@@ -176,18 +235,17 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
 
     if code == 0:
         if inplace:
-            os_replace(outfile, media_file)  # atomic in-place (sync syscall)
+            os_replace(outfile, media_file)
             return media_file
         await clean_target(media_file)
         final_path = os_path.join(base_dir, os_path.basename(outfile))
         if final_path != outfile:
-            # newDir<->base_dir same-fs: os_replace atomic + overwrite (duplicate-completion safe)
             os_replace(outfile, final_path)
         listener.seed = False
         return final_path
     else:
         if os_path.abspath(outfile) != os_path.abspath(media_file):
-            await clean_target(outfile)  # guard: original kabhi delete nahi
+            await clean_target(outfile)
         LOGGER.error('%s. Changing metadata failed, Path %s', (await listener.suproc.stderr.read()).decode(errors='ignore'), media_file)
         return None
 
