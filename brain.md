@@ -64,6 +64,28 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260918-A (built)
+**Git:** `a70835a`
+**Date:** 2026-09-18
+**Files:** `bot/helper/ext_utils/ffmpeg.py`, `bot/modules/users_settings.py`
+
+**User log:**
+- Metadata me movie title stream ke title (video, audio, subtitle) ko blindly overwrite kar raha hai; container title alag stream tak rahe aur stream title tabhi overwrite ho jab user ne explicitly us stream ka title set kiya ho.
+- Auto rename jaise dynamic tags `{title}`, `{season}`, `{episode}`, `{quality}`, `{codec}`, `{audio}`, `{sub}`, `{size}`, `{language}` metadata me bhi support hon.
+- Shortcut commands `/us -s metadata {stream_tag} {value}` aur `/us -s mt {stream_tag} {value}` add hon, jisme message par reply karke command dene par reply text automatically `{value}` pick ho sake.
+
+**Root causes & Fixes:**
+1. **Container vs Stream Title Overwrite in `ffmpeg.py`:**
+   - `probe_tag_args` me jab streams active hoti theen, `for k, v in fmt.items(): tags[k] = v` chalta tha, jisme container `title` (movie name) video/audio/subtitle ke original titles ko overwrite kar deta tha.
+   - Fix: Stream tags me copy karte waqt `str(k).lower() != 'title'` filter lagaya aur `stream_meta` mapping me direct stream names (`video`, `audio`, `subtitle`) ko `stream_meta[sname]['title']` map kiya. Stream titles tabhi update honge jab user ne explicitly stream title diya ho; warna original stream titles preserve rahenge.
+2. **Dynamic Template Tags Support in Metadata (`ffmpeg.py`):**
+   - `extract_media_tags`, `SafeTagDict`, aur `apply_dynamic_tags` helper functions implement kiye jo filename aur file size se `{title}`, `{season}`, `{episode}`, `{quality}`, `{codec}`, `{audio}`, `{sub}`, `{size}`, `{language}` extract karke metadata overlay me dynamically resolve karte hain. Unknown tags crash kiye bina safely preserve rehte hain.
+3. **Shortcuts `/us -s metadata` / `/us -s mt` & Reply Support (`users_settings.py`):**
+   - `/us -s` me `mt` alias add kiya.
+   - `/us -s mt {tag} {value}` inline value support ki, aur agar reply message ho toh reply message ka text/caption automatically `{value}` ban jata hai bina inline value likhe.
+   - Metadata menu me available tags ki documentation render ki.
+4. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260914-D (built, pushed)
 **Git:** `713743e`  
 **Date:** 2026-09-14  
