@@ -43,6 +43,8 @@ def extract_media_tags(filename: str, size: str = '') -> dict:
     clean_title = re_sub(r'\s+', ' ', clean_title).strip()
     return {
         'title': clean_title or name,
+        'movie_name': clean_title or name,
+        'moviename': clean_title or name,
         'season': season,
         'episode': episode,
         'quality': quality,
@@ -99,6 +101,9 @@ async def probe_tag_args(path, overlay=None, md_streams=None):
     args = []
     purge_streams = bool(overlay.get('__purge_stream_titles__'))
     custom_st = (overlay.get('__stream_title_v__'), overlay.get('__stream_title_a__'))
+    movie_val = overlay.get('movie name') or overlay.get('moviename') or overlay.get('movie') or overlay.get('title')
+    has_explicit_movie = bool(overlay.get('movie name') or overlay.get('moviename') or overlay.get('movie'))
+    stream_title_override = overlay.get('title') if has_explicit_movie else None
     stream_meta = {}
     for uk, uv in overlay.items():
         if uk.startswith('__') or not uv:
@@ -123,13 +128,17 @@ async def probe_tag_args(path, overlay=None, md_streams=None):
     for uk, fk in key_map.items():
         if overlay.get(uk):
             fmt[fk] = overlay[uk]
+    if movie_val:
+        fmt['title'] = movie_val
     for uk, uv in overlay.items():
-        if uk.startswith('__') or uk in key_map or uk.split(' ', 1)[0] in ('video', 'audio', 'subtitle'):
+        if uk.startswith('__') or uk in key_map or uk.split(' ', 1)[0] in ('video', 'audio', 'subtitle') or uk in ('movie name', 'moviename', 'movie'):
             continue
         if uv:
             fmt[uk] = uv
     if has_user_meta:
         ukeys = {key_map.get(uk, uk).lower() for uk in overlay if not uk.startswith('__') and overlay.get(uk)}
+        if has_explicit_movie:
+            ukeys.add('title')
         for k in list(orig_fmt):
             kl = str(k).lower()
             if kl in _TAG_SKIP or kl in ukeys or kl.replace('_', ' ') in ukeys:
@@ -166,6 +175,8 @@ async def probe_tag_args(path, overlay=None, md_streams=None):
             for k, v in fmt.items():
                 if str(k).lower() not in _TAG_SKIP and str(k).lower() != 'title' and v:
                     tags[k] = v
+            if stream_title_override:
+                tags['title'] = stream_title_override
         for stk, stv in stream_meta.get(ctype, {}).items():
             tags[stk] = stv
         if purge_streams and 'title' not in tags:

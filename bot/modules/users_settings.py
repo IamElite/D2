@@ -43,7 +43,7 @@ def parse_metadata_str(string):
     return d
 
 handler_dict = {}
-META_KEYS = ["Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
+META_KEYS = ["Movie Name", "Title", "Author", "Artist", "Audio", "Subtitle", "Video", "Encoded By", "Custom Tag", "Comment", "Dubbed By", "Channel", "Website", "Copyright", "Publisher", "Encoder", "Source", "Studio", "Official Site"]
 STREAM_SECTIONS = ('Video', 'Audio', 'Subtitle')
 GENERAL_META_KEYS = [k for k in META_KEYS if k not in STREAM_SECTIONS]
 
@@ -243,7 +243,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 text += f"➲ <b>{k}:</b> <code>{escape(v)}</code>\n"
         else:
             text += "➲ <i>No custom metadata configured yet. Default values will be used.</i>"
-        text += "\n\n➲ <b>Available Tags:</b> <code>{title}</code>, <code>{season}</code>, <code>{episode}</code>, <code>{quality}</code>, <code>{codec}</code>, <code>{audio}</code>, <code>{sub}</code>, <code>{size}</code>, <code>{language}</code>\n"
+        text += "\n\n➲ <b>Available Tags:</b> <code>{title}</code>, <code>{movie_name}</code>, <code>{season}</code>, <code>{episode}</code>, <code>{quality}</code>, <code>{codec}</code>, <code>{audio}</code>, <code>{sub}</code>, <code>{size}</code>, <code>{language}</code>\n"
         text += "\n➲ <b>Stream Tags</b> — toggle streams to apply metadata tags:"
         md_streams = user_dict.get('md_streams', [])
         for sname in STREAM_SECTIONS:
@@ -434,7 +434,9 @@ async def user_settings(client, message):
                 val = (reply_to.text or reply_to.caption or '').strip()
             if tag and val:
                 t_low = tag.lower()
-                if t_low in ('title', 't', 'movie', 'moviename'):
+                if t_low in ('movie', 'moviename', 'movie name', 'movie_name', 'm'):
+                    mkey = 'Movie Name'
+                elif t_low in ('title', 't'):
                     mkey = 'Title'
                 elif t_low in ('video', 'v', 'video title', 'video_title'):
                     mkey = 'Video'
@@ -508,7 +510,10 @@ async def user_settings(client, message):
 ➲ <b>Leech Filename Caption :</b>
     /cmd -s lcaption
 ➲ <b>Leech Filename Metadata :</b>
-    /cmd -s metadata {tag} {value}
+    /cmd -s mt movie {movie_name}
+    /cmd -s mt title {stream_title}
+    /cmd -s mt audio {audio_title}
+    /cmd -s mt video {video_title}
     /cmd -s mt {tag} {value}
     (Or reply with /cmd -s mt {tag})
 ➲ <b>Leech Filename Attachment :</b>
