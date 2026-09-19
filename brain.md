@@ -64,6 +64,22 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260919-B (built)
+**Git:** `6e159b2`
+**Date:** 2026-09-19
+**Files:** `bot/modules/autorename.py`, `bot/helper/ext_utils/ffmpeg.py`
+
+**User log:**
+- Auto-rename mein season aur episode ke auto-detection ke liye unique pattern mila jaise `[ΛV] Ep-14 S1 Ascendance of a Bookworm [Dual Audio] [1080p].mkv` jisko current code handle nahi kar raha tha (Episode miss ho raha tha aur `Ep 14` title me ghus raha tha).
+
+**Root causes & Fixes:**
+1. **Separator-Aware Episode & Season Detection (`autorename.py`, `ffmpeg.py`):**
+   - Purana regex `(?:E|Ep|Episode\s*)(\d{1,3})` hyphen ya dot separators (`Ep-14`, `Episode-05`, `Ep.08`, `Ep_1071`) ko match nahi kar pata tha aur Episode blank reh jata tha.
+   - Fix: `r'\b(?:E|EP|Episode)[.\-_\s]*(\d{1,4})\b'` aur `r'\b(?:S|Season)[.\-_\s]*(\d{1,2})\b'` implement kiya jo dash, dot, underscore, space sabhi separators ko safely extract karta hai bina kisi generic risky fallback (`-\s*(\d+)`) ke.
+2. **Noise Pattern Updated:**
+   - Title cleaner noise filter me separator-aware pattern lagaya taaki `Ep-14` ya `S1` title me se cleanly strip ho jaye aur clean title extract ho.
+3. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260919-A (built)
 **Git:** `3ffb727`
 **Date:** 2026-09-19

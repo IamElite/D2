@@ -67,15 +67,14 @@ def get_autorename(filename, user_id, size="", media_quality="", lang="", subs="
     # ফাইলের নামে না পেলে File Caption থেকে Season/Episode খোঁজার জন্য ব্যাকআপ টেক্সট
     caption_name = os.path.splitext(caption.split('\n')[0])[0] if caption else ""
 
-    # তথ্য বের করা (শুধুমাত্র সংখ্যা বের করা হবে যাতে S{season}E{episode} কাস্টমাইজ করা যায়)
-    season_match = re.search(r'(?:S|Season\s*)(\d{1,2})', name, re.IGNORECASE)
+    season_match = re.search(r'\b(?:S|Season)[.\-_\s]*(\d{1,2})\b', name, re.IGNORECASE)
     if not season_match and caption_name:
-        season_match = re.search(r'(?:S|Season\s*)(\d{1,2})', caption_name, re.IGNORECASE)
+        season_match = re.search(r'\b(?:S|Season)[.\-_\s]*(\d{1,2})\b', caption_name, re.IGNORECASE)
     season = season_match.group(1).zfill(2) if season_match else ""
 
-    episode_match = re.search(r'(?:E|Ep|Episode\s*)(\d{1,3})', name, re.IGNORECASE)
+    episode_match = re.search(r'\b(?:E|EP|Episode)[.\-_\s]*(\d{1,4})\b', name, re.IGNORECASE)
     if not episode_match and caption_name:
-        episode_match = re.search(r'(?:E|Ep|Episode\s*)(\d{1,3})', caption_name, re.IGNORECASE)
+        episode_match = re.search(r'\b(?:E|EP|Episode)[.\-_\s]*(\d{1,4})\b', caption_name, re.IGNORECASE)
     episode = episode_match.group(1).zfill(2) if episode_match else ""
 
     quality_match = re.search(r'(480p|720p|1080p|1440p|2160p|4K)', name, re.IGNORECASE)
@@ -90,9 +89,8 @@ def get_autorename(filename, user_id, size="", media_quality="", lang="", subs="
     sub_match = re.search(r'(ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed)', name, re.IGNORECASE)
     sub = sub_match.group(1) if sub_match else subs
 
-    # ফাইলের নাম পরিষ্কার করা (Cleaning the Original Name & Brackets)
     clean_title = re.sub(r'\[.*?\]|\(.*?\)', '', name) 
-    noise_pattern = r'(S\d{1,2}|E\d{1,3}|Ep\s*\d{1,3}|Episode\s*\d{1,3}|480p|720p|1080p|1440p|2160p|4K|x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC|BluRay|WEB-DL|WEBRip|HDRip|HDTV|Dual[\s\-]?Audio|Multi[\s\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali|ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed|Audio)'
+    noise_pattern = r'(\b(?:S|Season)[.\-_\s]*\d{1,2}\b|\b(?:E|EP|Episode)[.\-_\s]*\d{1,4}\b|480p|720p|1080p|1440p|2160p|4K|x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC|BluRay|WEB-DL|WEBRip|HDRip|HDTV|Dual[\s\-]?Audio|Multi[\s\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali|ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed|Audio)'
     clean_title = re.sub(noise_pattern, '', clean_title, flags=re.IGNORECASE)
     clean_title = re.sub(r'(\s|-|\.)+', ' ', clean_title).strip() 
 

@@ -24,9 +24,9 @@ class SafeTagDict(dict):
 
 def extract_media_tags(filename: str, size: str = '') -> dict:
     name, _ = os_path.splitext(filename)
-    season_match = re_search(r'(?:S|Season\s*)(\d{1,2})', name, re_IGNORECASE)
+    season_match = re_search(r'\b(?:S|Season)[.\-_\s]*(\d{1,2})\b', name, re_IGNORECASE)
     season = season_match.group(1).zfill(2) if season_match else ''
-    episode_match = re_search(r'(?:E|Ep|Episode\s*)(\d{1,3})', name, re_IGNORECASE)
+    episode_match = re_search(r'\b(?:E|EP|Episode)[.\-_\s]*(\d{1,4})\b', name, re_IGNORECASE)
     episode = episode_match.group(1).zfill(2) if episode_match else ''
     quality_match = re_search(r'(480p|720p|1080p|1440p|2160p|4K)', name, re_IGNORECASE)
     quality = quality_match.group(1) if quality_match else ''
@@ -38,7 +38,7 @@ def extract_media_tags(filename: str, size: str = '') -> dict:
     sub = sub_match.group(1) if sub_match else ''
     clean_title = re_sub(r'\[.*?\]|\(.*?\)', '', name)
     clean_title = re_sub(r'(\s|-|\.)+', ' ', clean_title).strip()
-    noise_pattern = r'\b(S\d{1,2}(?:E\d{1,3})?|E\d{1,3}|Ep\s*\d{1,3}|Episode\s*\d{1,3}|480p|720p|1080p|1440p|2160p|4K|x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC|BluRay|WEB-DL|WEBRip|HDRip|HDTV|Dual[\s\-]?Audio|Multi[\s\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali|ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed|Audio|Dual)\b'
+    noise_pattern = r'(\b(?:S|Season)[.\-_\s]*\d{1,2}\b|\b(?:E|EP|Episode)[.\-_\s]*\d{1,4}\b|480p|720p|1080p|1440p|2160p|4K|x264|x265|HEVC|AV1|H264|H265|10bit|10Bit|AVC|BluRay|WEB-DL|WEBRip|HDRip|HDTV|Dual[\s\.\-]?Audio|Multi[\s\.\-]?Audio|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Bengali|ESub|HC-ENG|MSub|Multi[\s\-]?Sub|Subbed|Audio|Dual)'
     clean_title = re_sub(noise_pattern, '', clean_title, flags=re_IGNORECASE)
     clean_title = re_sub(r'\s+', ' ', clean_title).strip()
     return {
