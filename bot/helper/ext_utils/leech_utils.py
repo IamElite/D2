@@ -20,7 +20,7 @@ from ...modules.mediainfo import parseinfo
 from .bot_utils import cmd_exec, sync_to_async, get_readable_file_size, get_readable_time
 from .fs_utils import ARCH_EXT, get_mime_type
 from .telegraph_helper import telegraph
-from .ffmpeg import probe_tag_args, media_muxer
+from .ffmpeg import probe_tag_args, media_muxer, _ffmpeg_sem
 
 
 async def remux_container(inp_path, out_path):
@@ -62,8 +62,9 @@ async def remux_container(inp_path, out_path):
         cmd += ['-c:s', 'srt']
     cmd.append(out_path)
 
-    proc = await create_subprocess_exec(*cmd, stderr=PIPE)
-    code = await proc.wait()
+    async with _ffmpeg_sem:
+        proc = await create_subprocess_exec(*cmd, stderr=PIPE)
+        code = await proc.wait()
     if code == 0 and await aiopath.exists(out_path):
         return True
 
@@ -78,8 +79,9 @@ async def remux_container(inp_path, out_path):
                 '-i', inp_path, '-map', '0:v', '-map', '0:a?', '-c', 'copy',
                 '-map_metadata', '0', '-movflags', 'use_metadata_tags']
         cmd2.append(out_path)
-        proc2 = await create_subprocess_exec(*cmd2, stderr=PIPE)
-        code2 = await proc2.wait()
+        async with _ffmpeg_sem:
+            proc2 = await create_subprocess_exec(*cmd2, stderr=PIPE)
+            code2 = await proc2.wait()
         if code2 == 0 and await aiopath.exists(out_path):
             return True
         err2 = (await proc2.stderr.read()).decode().strip()
@@ -236,7 +238,8 @@ async def repair_moov(path):
             cmd = ['ffmpeg', '-nostdin', '-threads', '1', '-y', '-v', 'error', '-i', path, '-map', '0', '-map_metadata', '0',
                    '-map_chapters', '0', '-c', 'copy']
         cmd.append(tmp)
-        _, err, rc = await cmd_exec(cmd)
+        async with _ffmpeg_sem:
+            _, err, rc = await cmd_exec(cmd)
         if rc != 0 or not await aiopath.exists(tmp):
             LOGGER.warning(f'Media heal failed (rc={rc}): {err[-150:]}')
             return None
@@ -348,8 +351,9 @@ async def split_file(path, size, file_, dirpath, split_size, listener, start_tim
             if listener.suproc == 'cancelled' or listener.suproc is not None and listener.suproc.returncode == -9:
                 listener.split_current_outpath = None
                 return False
-            listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
-            code = await listener.suproc.wait()
+            async with _ffmpeg_sem:
+                listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
+                code = await listener.suproc.wait()
             listener.split_current_outpath = None
             if code == -9:
                 return False

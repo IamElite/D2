@@ -3,7 +3,7 @@ from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, 
 from logging import getLogger
 from os import O_RDWR, O_CREAT, close as os_close, environ, makedirs, open as os_open, path as ospath, pwrite
 
-from pyrogram import StopTransmission, raw
+from pyrogram import StopTransmission, raw, enums
 from pyrogram.errors import FloodWait, FileMigrate
 from pyrogram.file_id import FileId
 
@@ -17,7 +17,7 @@ except ImportError:
     FloodPremiumWait = FloodWait
 
 from ... import bot, user
-from ..telegram_helper.tg_transfer import HypertgTransfer, media_of
+from ..telegram_helper.tg_transfer import HypertgTransfer, media_of, helper_bots
 
 LOGGER = getLogger(__name__)
 
@@ -33,9 +33,9 @@ PIPELINE_MIN_SIZE = 50 * 1024 * 1024
 # _HYPERDL_MAX_FAILS incomplete pipelines, go native for the rest of the boot.
 # Env HYPERDL=1 forces always-on (ignore breaker); HYPERDL=0 disables the pipeline.
 try:
-    _HYPERDL_MAX_FAILS = int(environ.get('HYPERDL_MAX_FAILS', '1'))
+    _HYPERDL_MAX_FAILS = int(environ.get('HYPERDL_MAX_FAILS', '5'))
 except Exception:
-    _HYPERDL_MAX_FAILS = 1
+    _HYPERDL_MAX_FAILS = 5
 _hyperdl_fails = 0
 
 try:
@@ -45,14 +45,19 @@ except ImportError:
     class RequestTokenInvalid(Exception): pass
 
 
-def pick_download_client(session="bot"):
+def pick_download_client(session="bot", message=None):
     try:
         if session == "user" and user:
-            return user
-        return bot
+            return user, None
+        if helper_bots and message and getattr(getattr(message, "chat", None), "type", None) != enums.ChatType.PRIVATE:
+            from ..telegram_helper.tg_transfer import pick_hyper_client
+            cl, idx = pick_hyper_client()
+            if cl:
+                return cl, idx
+        return bot, None
     except Exception as e:
         LOGGER.error("HyperDL pick fallback bot: %s", e)
-        return bot
+        return bot, None
 
 
 class HypertgDownload(HypertgTransfer):
@@ -65,33 +70,38 @@ class HypertgDownload(HypertgTransfer):
 
     async def download_media(self, client, message, path, progress=None, cancelled=None):
         try:
-            media = media_of(message)
-        except Exception:
-            media = getattr(message, getattr(message, "media", None) and message.media.value, None)
-        size = getattr(media, "file_size", 0) or 0
-        global _hyperdl_fails
-        _force_on = environ.get('HYPERDL', '').lower() == '1'
-        _force_off = environ.get('HYPERDL', '').lower() == '0'
-        use_pipeline = (size >= PIPELINE_MIN_SIZE and ctr256_decrypt is not None
-                        and not _force_off
-                        and (_force_on or _hyperdl_fails < _HYPERDL_MAX_FAILS))
-        if size >= PIPELINE_MIN_SIZE and not use_pipeline and not _force_off:
-            LOGGER.info("HyperDL breaker open (fails=%s) — native download_media for this file", _hyperdl_fails)
-        # Bade files pe CDN-pipeline pehle (wzv3-style redirect->GetCdnFile+ctr256);
-        # CDN engage nahi hua -> native download_media (~20MB/s @ ~15% CPU, light).
-        if use_pipeline:
             try:
-                out = await self._pipeline(client, media, path, size, progress, cancelled)
-                if out:
-                    return out
-                LOGGER.info("HyperDL pipeline fallback -> download_media size=%s", size)
-                _hyperdl_fails += 1
-            except StopTransmission:
-                raise
-            except Exception as e:
-                LOGGER.warning("HyperDL pipeline err %s -> native", e)
-                _hyperdl_fails += 1
-        return await client.download_media(message=message, file_name=path, progress=progress)
+                media = media_of(message)
+            except Exception:
+                media = getattr(message, getattr(message, "media", None) and message.media.value, None)
+            size = getattr(media, "file_size", 0) or 0
+            global _hyperdl_fails
+            _force_on = environ.get('HYPERDL', '').lower() == '1'
+            _force_off = environ.get('HYPERDL', '').lower() == '0'
+            use_pipeline = (size >= PIPELINE_MIN_SIZE and ctr256_decrypt is not None
+                            and not _force_off
+                            and (_force_on or _hyperdl_fails < _HYPERDL_MAX_FAILS))
+            if size >= PIPELINE_MIN_SIZE and not use_pipeline and not _force_off:
+                LOGGER.info("HyperDL breaker open (fails=%s) — native download_media for this file", _hyperdl_fails)
+            if use_pipeline:
+                try:
+                    out = await self._pipeline(client, media, path, size, progress, cancelled)
+                    if out:
+                        _hyperdl_fails = 0
+                        return out
+                    LOGGER.info("HyperDL pipeline fallback -> download_media size=%s", size)
+                    _hyperdl_fails += 1
+                except StopTransmission:
+                    raise
+                except Exception as e:
+                    LOGGER.warning("HyperDL pipeline err %s -> native", e)
+                    _hyperdl_fails += 1
+            return await client.download_media(message=message, file_name=path, progress=progress)
+        finally:
+            try:
+                await self._close_all()
+            except Exception:
+                pass
 
     async def _getfile(self, sess, loc, off, csz):
         kwargs = dict(location=loc, offset=off, limit=csz)
@@ -100,10 +110,10 @@ class HypertgDownload(HypertgTransfer):
         try:
             r = await wait_for(
                 sess.invoke(raw.functions.upload.GetFile(precise=True, **kwargs)),
-                12,
+                20,
             )
         except TypeError:
-            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 12)
+            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 20)
         except AsyncTimeout:
             raise RuntimeError("GetFile timeout")
         if isinstance(r, raw.types.upload.File):
@@ -262,6 +272,10 @@ class HypertgDownload(HypertgTransfer):
             for t in inflight:
                 t.cancel()
             os_close(fd)
+            try:
+                await self._close_all()
+            except Exception:
+                pass
         if done < size:
             # STRICT 100%: holes = corrupt media (moov/END chunks missing -> duration 00:00).
             # Purana 95% allow TG-file me holes chhod raha tha — ab native fallback self-heal karega.

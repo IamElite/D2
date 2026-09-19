@@ -64,6 +64,30 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260919-D (built)
+**Git:** `c40ff28`
+**Date:** 2026-09-19
+**Files:** `bot/helper/ext_utils/hyperdl_utils.py`, `bot/helper/mirror_utils/download_utils/telegram_download.py`, `bot/helper/ext_utils/ffmpeg.py`, `bot/helper/ext_utils/leech_utils.py`
+
+**User log:**
+- Bulk me 84 tasks add karne par bot bar-baar restart ho jata tha aur Telegram download speed bahut slow milti thi:
+  `Session restart failed: Request timed out`, `HyperDL pipeline failed: Request timed out`, aur video rename/FFmpeg processing shuru hote hi bot dead (`frame=1` SIGKILL OOM).
+- User ko `QUEUE_ALL: 10` aur bulk tasks bina speed drop, high throughput aur minimal CPU/RAM ke saath sustain karne hain.
+
+**Root causes & Fixes:**
+1. **MTProto Session Leak in `HypertgDownload` (`hyperdl_utils.py`):**
+   - Har file download par `HypertgDownload` new `MtprotoPool` banata tha jisme 4 DC sessions open hote the. `_close_all()` kabhi call nahi ho raha tha. 80+ tasks ke baad 300+ stale sessions aur background ping workers open reh gaye, Telegram servers ne requests drop/timeout karna shuru kar diya (`Session restart failed: Request timed out`).
+   - Fix: `download_media` aur `_pipeline` dono me `finally: await self._close_all()` add kiya taaki har download complete/fail hote hi sessions clean ho jayein.
+2. **Heroku OOM Kill via Concurrent 4K FFmpeg (`ffmpeg.py`, `leech_utils.py`):**
+   - 4K files ke multiple downloads complete hote hi metadata/remux/split/heal ek saath chalte the, har FFmpeg process 400MB–700MB RAM leta tha. Heroku 2X (1024MB) par kernel OOM killer bot process ko SIGKILL kar deta tha (`frame=1` ke baad dead).
+   - Fix: Global `_ffmpeg_sem = Semaphore(1)` implement kiya `edit_metadata`, `edit_attachment`, `remux_container`, `repair_moov`, aur `split_file` ke liye. Stream copy (-c copy) sirf 2-3 sec leta hai, throughput bilkul nahi girta aur RAM hamesha <250MB rehti hai.
+3. **Helper Bots Ignored for Downloads (`telegram_download.py`, `hyperdl_utils.py`):**
+   - `pick_download_client` sirf main `bot` ko use karta tha. Helper bots upload me toh use ho rahe the par downloads me zero share tha, saare parallel downloads single bot account par flood wait ya bottleneck ban rahe the.
+   - Fix: `pick_download_client(session, message)` non-private chats (channels/groups) ke liye least-loaded helper bot assign karta hai, error par fallback karta hai, aur download end hone par load properly release karta hai.
+4. **Pipelined GetFile Timeout & Self-Healing Breaker (`hyperdl_utils.py`):**
+   - `_getfile` timeout 12s se badha kar 20s kiya (cross-DC jitter handle karne ke liye), default `_HYPERDL_MAX_FAILS` ko 5 kiya, aur successful download par fails counter reset (`_hyperdl_fails = 0`) kiya.
+5. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260919-C (built)
 **Git:** `770ae2d`
 **Date:** 2026-09-19

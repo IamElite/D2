@@ -24,6 +24,7 @@ class TelegramDownloadHelper:
         self.__start_time = time()
         self.__listener = listener
         self.__client = bot
+        self.__client_idx = None
         self.__decrypter = None
         self.__id = ""
         self.__is_cancelled = False
@@ -77,6 +78,10 @@ class TelegramDownloadHelper:
         self.__processed_bytes = current
 
     async def __onDownloadError(self, error):
+        if self.__client_idx is not None:
+            from ...telegram_helper.tg_transfer import release_hyper_client
+            release_hyper_client(self.__client_idx)
+            self.__client_idx = None
         async with global_lock:
             try:
                 GLOBAL_GID.remove(self.__id)
@@ -85,9 +90,16 @@ class TelegramDownloadHelper:
         await self.__listener.onDownloadError(error)
 
     async def __onDownloadComplete(self):
+        if self.__client_idx is not None:
+            from ...telegram_helper.tg_transfer import release_hyper_client
+            release_hyper_client(self.__client_idx)
+            self.__client_idx = None
         await self.__listener.onDownloadComplete()
         async with global_lock:
-            GLOBAL_GID.remove(self.__id)
+            try:
+                GLOBAL_GID.remove(self.__id)
+            except Exception:
+                pass
 
     async def __download(self, message, path):
         media = getattr(message, message.media.value) if message.media else None
@@ -129,6 +141,12 @@ class TelegramDownloadHelper:
                 break
             except Exception as e:
                 last_err = e
+                if self.__client is not bot:
+                    if self.__client_idx is not None:
+                        from ...telegram_helper.tg_transfer import release_hyper_client
+                        release_hyper_client(self.__client_idx)
+                        self.__client_idx = None
+                    self.__client = bot
                 emsg = str(e)
                 if 'FLOOD_WAIT' in emsg or 'flood' in emsg.lower():
                     import re as _re
@@ -153,15 +171,16 @@ class TelegramDownloadHelper:
 
     async def add_download(self, message, path, filename, session, decrypter):
         if session == 'user':
-            self.__client = pick_download_client('user')
+            self.__client, self.__client_idx = pick_download_client('user', message)
             if not self.__listener.isSuperGroup:
                 await sendMessage(message, 'Use SuperGroup to download this Link with User!')
                 return
         elif session == 'user_sess':
             self.__client = None
+            self.__client_idx = None
             self.__decrypter = decrypter
         else:
-            self.__client = pick_download_client('bot')
+            self.__client, self.__client_idx = pick_download_client('bot', message)
 
         media = getattr(message, message.media.value) if message.media else None
         

@@ -3,11 +3,13 @@ import json
 import logging
 from re import sub as re_sub, search as re_search, IGNORECASE as re_IGNORECASE
 from aioshutil import move
-from asyncio import create_subprocess_exec
+from asyncio import create_subprocess_exec, Semaphore
 from asyncio.subprocess import PIPE
 from ... import LOGGER, bot_cache
 from .fs_utils import clean_target
 from .bot_utils import cmd_exec
+
+_ffmpeg_sem = Semaphore(1)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -241,8 +243,9 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     cmd.extend(tag_args)
     cmd.append(outfile)
 
-    listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
-    code = await listener.suproc.wait()
+    async with _ffmpeg_sem:
+        listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
+        code = await listener.suproc.wait()
 
     if code == 0:
         if inplace:
@@ -298,8 +301,9 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
         ]
     else:
         return
-    listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
-    code = await listener.suproc.wait()
+    async with _ffmpeg_sem:
+        listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
+        code = await listener.suproc.wait()
     if code == 0:
         await clean_target(media_file)
         listener.seed = False
