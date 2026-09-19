@@ -73,20 +73,28 @@ async def _start_helper_bots_locked(tokens: str):
         ROOT.info("HyperUP: no HELPER_TOKENS — main bot (+ user if set) only")
         return
 
+    def _hbot_kwargs(no, token):
+        from inspect import signature as _sig
+        _base = dict(
+            api_id=TELEGRAM_API,
+            api_hash=TELEGRAM_HASH,
+            bot_token=token.strip(),
+            parse_mode=enums.ParseMode.HTML,
+            no_updates=True,
+            in_memory=True,
+            sleep_threshold=60,
+            max_concurrent_transmissions=100,
+            workers=10,
+        )
+        try:
+            sig = _sig(Client.__init__).parameters
+            return {k: v for k, v in _base.items() if k in sig}
+        except Exception:
+            return {k: v for k, v in _base.items() if k not in ("in_memory", "max_concurrent_transmissions")}
     async def _retry_one(no, token, delay):
         await sleep(delay)
         try:
-            h = Client(
-                f"hyper-hbot{no}",
-                api_id=TELEGRAM_API,
-                api_hash=TELEGRAM_HASH,
-                bot_token=token.strip(),
-                parse_mode=enums.ParseMode.HTML,
-                no_updates=True,
-                in_memory=True,
-                sleep_threshold=60,
-                max_concurrent_transmissions=100,
-            )
+            h = Client(f"hyper-hbot{no}", **_hbot_kwargs(no, token))
             st = h.start()
             if hasattr(st, "__await__"):
                 await st
@@ -107,17 +115,7 @@ async def _start_helper_bots_locked(tokens: str):
             ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
     async def _one(no, token):
         try:
-            h = Client(
-                f"hyper-hbot{no}",
-                api_id=TELEGRAM_API,
-                api_hash=TELEGRAM_HASH,
-                bot_token=token.strip(),
-                parse_mode=enums.ParseMode.HTML,
-                no_updates=True,
-                in_memory=True,
-                sleep_threshold=60,
-                max_concurrent_transmissions=100,
-            )
+            h = Client(f"hyper-hbot{no}", **_hbot_kwargs(no, token))
             st = h.start()
             if hasattr(st, "__await__"):
                 await st
