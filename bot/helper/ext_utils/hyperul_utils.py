@@ -73,6 +73,38 @@ async def _start_helper_bots_locked(tokens: str):
         ROOT.info("HyperUP: no HELPER_TOKENS — main bot (+ user if set) only")
         return
 
+    async def _retry_one(no, token, delay):
+        await sleep(delay)
+        try:
+            h = Client(
+                f"hyper-hbot{no}",
+                api_id=TELEGRAM_API,
+                api_hash=TELEGRAM_HASH,
+                bot_token=token.strip(),
+                parse_mode=enums.ParseMode.HTML,
+                no_updates=True,
+                in_memory=True,
+                sleep_threshold=60,
+                max_concurrent_transmissions=100,
+            )
+            st = h.start()
+            if hasattr(st, "__await__"):
+                await st
+            helper_bots[no] = h
+            helper_loads[no] = 0
+            _started_tokens.add(token.strip())
+            uname = getattr(h.me, "username", None) or h.me.first_name
+            ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
+        except FloodWait as e:
+            ROOT.warning(f"Helper Bot{no} FloodWait {e.value}s — retry non-blocking")
+            from asyncio import create_task as _ct
+            _ct(_retry_one(no, token, e.value))
+        except FloodPremiumWait as e:
+            ROOT.warning(f"Helper Bot{no} FloodPremiumWait {e.value}s — retry")
+            from asyncio import create_task as _ct2
+            _ct2(_retry_one(no, token, e.value))
+        except Exception as e:
+            ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
     async def _one(no, token):
         try:
             h = Client(
@@ -84,6 +116,7 @@ async def _start_helper_bots_locked(tokens: str):
                 no_updates=True,
                 in_memory=True,
                 sleep_threshold=60,
+                max_concurrent_transmissions=100,
             )
             st = h.start()
             if hasattr(st, "__await__"):
@@ -93,6 +126,14 @@ async def _start_helper_bots_locked(tokens: str):
             _started_tokens.add(token.strip())
             uname = getattr(h.me, "username", None) or h.me.first_name
             ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
+        except FloodWait as e:
+            ROOT.warning(f"Helper Bot{no} FloodWait {e.value}s — retry non-blocking")
+            from asyncio import create_task as _ct3
+            _ct3(_retry_one(no, token, e.value))
+        except FloodPremiumWait as e:
+            ROOT.warning(f"Helper Bot{no} FloodPremiumWait {e.value}s — retry")
+            from asyncio import create_task as _ct4
+            _ct4(_retry_one(no, token, e.value))
         except Exception as e:
             ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
 

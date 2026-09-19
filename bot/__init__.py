@@ -318,8 +318,14 @@ if len(EXCEP_CHATS) == 0:
 
 def wztgClient(*args, **kwargs):
     kwargs.setdefault('sleep_threshold', 60)
-    if 'max_concurrent_transmissions' in signature(tgClient.__init__).parameters:
-        kwargs['max_concurrent_transmissions'] = 30
+    kwargs.setdefault('in_memory', True)
+    kwargs.setdefault('parse_mode', enums.ParseMode.HTML)
+    kwargs.setdefault('no_updates', True)
+    for param, value in {"max_concurrent_transmissions": 100, "skip_updates": False}.items():
+        if param in signature(tgClient.__init__).parameters:
+            kwargs[param] = value
+    if 'workers' not in kwargs:
+        kwargs['workers'] = 10
     return tgClient(*args, **kwargs)
 
 
