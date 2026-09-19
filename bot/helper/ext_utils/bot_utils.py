@@ -841,6 +841,7 @@ async def get_stats(event, key="home"):
         btns.ibutton('OS Stats', f'kpsmlx {user_id} stats stsys')
         if owner:
             btns.ibutton('Repo Stats', f'kpsmlx {user_id} stats strepo')
+        btns.ibutton('Pkgs Stats', f'kpsmlx {user_id} stats stpkgs')
         btns.ibutton('Bot Limits', f'kpsmlx {user_id} stats botlimits')
         msg = "⌬ <b><i>Bot & OS Statistics!</i></b>"
     elif key == "stbot":
@@ -912,6 +913,28 @@ async def get_stats(event, key="home"):
             commit_details=changelog,
             remarks=await compare_versions(get_version(), official_v),
         )
+    elif key == "stpkgs":
+        ver = bot_cache.get('eng_versions') or {}
+        if not ver:
+            try:
+                get_all_versions()
+                ver = bot_cache.get('eng_versions', {})
+            except Exception:
+                ver = {}
+        msg = f"""⌬ <b><i>Packages Statistics :</i></b>
+│
+┟ <b>Python:</b> v{platform.python_version()}
+┠ <b>Aria2:</b> v{ver.get('aria', 'N/A')}
+┠ <b>qBittorrent:</b> v{ver.get('qbit', 'N/A')}
+┠ <b>Rclone:</b> v{ver.get('rclone', 'N/A')}
+┠ <b>yt-dlp:</b> v{ver.get('ytdlp', 'N/A')}
+┠ <b>FFmpeg:</b> v{ver.get('ffmpeg', 'N/A')}
+┠ <b>7z:</b> v{ver.get('p7zip', 'N/A')}
+┠ <b>Aiohttp:</b> v{ver.get('aiohttp', 'N/A')}
+┠ <b>WzGram:</b> v{ver.get('pyro', 'N/A')}
+┠ <b>Google API:</b> v{ver.get('gapi', 'N/A')}
+┖ <b>MegaSDK:</b> v{ver.get('mega', 'N/A')}
+"""
     elif key == "botlimits":
         msg = BotTheme('BOT_LIMITS',
                 DL = ('∞' if (val := config_dict['DIRECT_LIMIT']) == '' else val),
