@@ -202,48 +202,85 @@ def get_progress_bar_string(pct):
     return f"[{p_str}]"
 
 
+def _clean_ver(v):
+    try:
+        s = str(v).strip()
+        if s and s[0] in 'vV':
+            s = s[1:].strip()
+        return s
+    except Exception:
+        return str(v).strip()
 def get_all_versions():
     try:
         result = srun(['7z', '-version'], capture_output=True, text=True)
-        vp = result.stdout.split('\n')[2].split(' ')[2]
-    except FileNotFoundError:
+        vp = _clean_ver(result.stdout.split('\n')[2].split(' ')[2])
+    except Exception:
         vp = ''
     try:
-        result = srun([bot_cache['pkgs'][2], '-version'], capture_output=True, text=True)
-        vf = result.stdout.split('\n')[0].split(' ')[2].split('ubuntu')[0]
-    except FileNotFoundError:
-        vf = ''
+        _ff = bot_cache.get('pkgs', [None, None, 'ffmpeg'])[2] or 'ffmpeg'
+        result = srun([_ff, '-version'], capture_output=True, text=True)
+        vf = _clean_ver(result.stdout.split('\n')[0].split(' ')[2].split('ubuntu')[0])
+    except Exception:
+        try:
+            result = srun(['ffmpeg', '-version'], capture_output=True, text=True)
+            vf = _clean_ver(result.stdout.split('\n')[0].split(' ')[2].split('ubuntu')[0])
+        except Exception:
+            vf = ''
     try:
-        result = srun([bot_cache['pkgs'][3], 'version'], capture_output=True, text=True)
-        vr = result.stdout.split('\n')[0].split(' ')[1]
-    except FileNotFoundError:
-        vr = ''
+        _rc = bot_cache.get('pkgs', [None, None, None, 'rclone'])[3] or 'rclone'
+        result = srun([_rc, 'version'], capture_output=True, text=True)
+        vr = _clean_ver(result.stdout.split('\n')[0].split(' ')[1])
+    except Exception:
+        try:
+            result = srun(['rclone', 'version'], capture_output=True, text=True)
+            vr = _clean_ver(result.stdout.split('\n')[0].split(' ')[1])
+        except Exception:
+            vr = ''
     try:
-        aria_v = aria2.client.get_version()['version']
+        aria_v = _clean_ver(aria2.client.get_version()['version'])
     except Exception:
         aria_v = 'off'
     try:
-        qbit_v = get_client().app.version
+        qbit_v = _clean_ver(get_client().app.version)
     except Exception:
         qbit_v = 'off'
     try:
-        vpy = get_distribution('pyrogram').version
+        vpy = _clean_ver(get_distribution('wzgram').version)
     except DistributionNotFound:
         try:
-            vpy = get_distribution('kurigram').version
+            vpy = _clean_ver(get_distribution('pyrogram').version)
         except DistributionNotFound:
             try:
-                vpy = get_distribution('pyrofork').version
+                vpy = _clean_ver(get_distribution('kurigram').version)
             except DistributionNotFound:
-                vpy = "2.xx.xx"
-    bot_cache['eng_versions'] = {'p7zip':vp, 'ffmpeg': vf, 'rclone': vr,
-                                    'aria': aria_v,
-                                    'aiohttp': get_distribution('aiohttp').version,
-                                    'gapi': get_distribution('google-api-python-client').version,
-                                    'mega': MegaApi('test').getVersion(),
-                                    'qbit': qbit_v,
-                                    'pyro': vpy,
-                                    'ytdlp': get_distribution('yt-dlp').version}
+                try:
+                    vpy = _clean_ver(get_distribution('pyrofork').version)
+                except DistributionNotFound:
+                    vpy = "2.xx.xx"
+    try:
+        _ahttp = _clean_ver(get_distribution('aiohttp').version)
+    except Exception:
+        _ahttp = 'N/A'
+    try:
+        _gapi = _clean_ver(get_distribution('google-api-python-client').version)
+    except Exception:
+        _gapi = 'N/A'
+    try:
+        _mega = _clean_ver(MegaApi('test').getVersion() if MegaApi else 'N/A')
+    except Exception:
+        _mega = 'N/A'
+    try:
+        _ytdlp = _clean_ver(get_distribution('yt-dlp').version)
+    except Exception:
+        _ytdlp = 'N/A'
+    bot_cache['eng_versions'] = {'p7zip': _clean_ver(vp), 'ffmpeg': _clean_ver(vf), 'rclone': _clean_ver(vr),
+                                    'aria': _clean_ver(aria_v),
+                                    'aiohttp': _ahttp,
+                                    'gapi': _gapi,
+                                    'mega': _mega,
+                                    'qbit': _clean_ver(qbit_v),
+                                    'pyro': _clean_ver(vpy),
+                                    'ytdlp': _ytdlp}
 
 
 class EngineStatus:
@@ -921,19 +958,27 @@ async def get_stats(event, key="home"):
                 ver = bot_cache.get('eng_versions', {})
             except Exception:
                 ver = {}
+        def _pv(k):
+            v = ver.get(k, 'N/A')
+            if not v or str(v).strip().lower() in ('off', 'n/a', ''):
+                return str(v).strip() if v else 'N/A'
+            s = str(v).strip()
+            if s and s[0] in 'vV':
+                s = s[1:].strip()
+            return f"v{s}"
         msg = f"""⌬ <b><i>Packages Statistics :</i></b>
 │
 ┟ <b>Python:</b> v{platform.python_version()}
-┠ <b>Aria2:</b> v{ver.get('aria', 'N/A')}
-┠ <b>qBittorrent:</b> v{ver.get('qbit', 'N/A')}
-┠ <b>Rclone:</b> v{ver.get('rclone', 'N/A')}
-┠ <b>yt-dlp:</b> v{ver.get('ytdlp', 'N/A')}
-┠ <b>FFmpeg:</b> v{ver.get('ffmpeg', 'N/A')}
-┠ <b>7z:</b> v{ver.get('p7zip', 'N/A')}
-┠ <b>Aiohttp:</b> v{ver.get('aiohttp', 'N/A')}
-┠ <b>WzGram:</b> v{ver.get('pyro', 'N/A')}
-┠ <b>Google API:</b> v{ver.get('gapi', 'N/A')}
-┖ <b>MegaSDK:</b> v{ver.get('mega', 'N/A')}
+┠ <b>Aria2:</b> {_pv('aria')}
+┠ <b>qBittorrent:</b> {_pv('qbit')}
+┠ <b>Rclone:</b> {_pv('rclone')}
+┠ <b>yt-dlp:</b> {_pv('ytdlp')}
+┠ <b>FFmpeg:</b> {_pv('ffmpeg')}
+┠ <b>7z:</b> {_pv('p7zip')}
+┠ <b>Aiohttp:</b> {_pv('aiohttp')}
+┠ <b>WzGram:</b> {_pv('pyro')}
+┠ <b>Google API:</b> {_pv('gapi')}
+┖ <b>MegaSDK:</b> {_pv('mega')}
 """
     elif key == "botlimits":
         msg = BotTheme('BOT_LIMITS',
