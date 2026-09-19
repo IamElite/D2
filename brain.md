@@ -64,6 +64,25 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260919-C (built)
+**Git:** `pending`
+**Date:** 2026-09-19
+**Files:** `bot/modules/autorename.py`, `bot/helper/ext_utils/ffmpeg.py`
+
+**User log:**
+- Season, episode, quality regex extraction ko bina multiple `if not` blocks ke clean, concise 2-line format me upgrade kiya jaise `sub_match` aur `codec_match` me hai.
+- Multi-series `EPS`, parenthesized episode notation `EP (1085)`, aur extended quality patterns (`4kx265`, `4kX264`, `WEB-DL`, `HDRip`) support kiye.
+
+**Root causes & Fixes:**
+1. **Clean 2-Line Extraction Pattern (`autorename.py`, `ffmpeg.py`):**
+   - Removed clumsy multi-line `if not` checks.
+   - Standardized on `xxx_match = re.search(...)` aur `xxx = xxx_match.group(1)... if xxx_match else ""` structure across all variables.
+2. **Extended Season / Episode / Quality Patterns:**
+   - Season: `(?:S|Season|EPS)[.\-_\s]*(\d{1,2})`
+   - Episode: `(?:\b|(?<=\d))(?:E|EP|Episode)[.\-_\s]*\(?(\d{1,4})\)?` (safely handles `S01E05`, `Ep-14`, `EP (1085)`, `EPS01 EP14`).
+   - Quality: `(4k[.\- ]*x26[45]|4K|2K|480p|720p|1080p|1440p|2160p|WEB[.\- ]*DL|WEBRip|HDRip|HDTV)`
+3. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260919-B (built)
 **Git:** `6e159b2`
 **Date:** 2026-09-19
