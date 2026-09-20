@@ -17,6 +17,96 @@ MEDIA_TYPES = (
     ('video_note', 'ᴠɪᴅᴇᴏ ɴᴏᴛᴇ'),
 )
 
+# ── Premium/Custom Emoji helpers (existing logic preserved, only extension) ──
+def _get_fallback(text, offset, length):
+    """Extract UTF-16 slice for custom emoji placeholder. Fallback to 😀."""
+    try:
+        raw = str(text) if text is not None else ""
+        if not raw:
+            return "😀"
+        b = raw.encode('utf-16-le')
+        # offset/length are in UTF-16 code units
+        start = int(offset) * 2
+        end = start + int(length) * 2
+        if start < 0 or end > len(b) or start >= end:
+            return "😀"
+        fb = b[start:end].decode('utf-16-le')
+        if fb and fb.strip():
+            return fb
+    except Exception:
+        pass
+    return "😀"
+
+def _collect_premium_emojis(reply):
+    """
+    Scan reply message for Premium/Custom Emojis.
+    Returns dict {custom_emoji_id: fallback_char} unique by ID.
+    Covers:
+    - text + entities
+    - caption + caption_entities
+    - inline/reply buttons icon_custom_emoji_id
+    """
+    out = {}
+    if not reply or getattr(reply, "empty", True):
+        return out
+
+    # --- 1) text / caption entities ---
+    def process(text, entities):
+        if not text or not entities:
+            return
+        for ent in entities:
+            try:
+                # robust type check across pyrogram/wzgram versions
+                is_custom = False
+                try:
+                    from pyrogram.enums import MessageEntityType
+                    is_custom = ent.type == MessageEntityType.CUSTOM_EMOJI
+                except Exception:
+                    # fallback string compare
+                    tname = getattr(getattr(ent, "type", None), "name", str(getattr(ent, "type", "")))
+                    is_custom = str(tname).upper() == "CUSTOM_EMOJI"
+                if not is_custom:
+                    continue
+                cid = getattr(ent, "custom_emoji_id", None)
+                if not cid:
+                    continue
+                cid = str(cid)
+                if cid in out:
+                    continue
+                fb = _get_fallback(text, getattr(ent, "offset", 0), getattr(ent, "length", 2))
+                out[cid] = fb
+            except Exception:
+                continue
+
+    try:
+        process(getattr(reply, "text", None), getattr(reply, "entities", None))
+        process(getattr(reply, "caption", None), getattr(reply, "caption_entities", None))
+    except Exception:
+        pass
+
+    # --- 2) buttons (inline + reply) ---
+    try:
+        markup = getattr(reply, "reply_markup", None)
+        if markup:
+            kb = None
+            if hasattr(markup, "inline_keyboard") and getattr(markup, "inline_keyboard"):
+                kb = markup.inline_keyboard
+            elif hasattr(markup, "keyboard") and getattr(markup, "keyboard"):
+                kb = markup.keyboard
+            if kb:
+                for row in kb:
+                    for btn in row or []:
+                        try:
+                            cid = getattr(btn, "icon_custom_emoji_id", None)
+                            if cid and str(cid) not in out:
+                                out[str(cid)] = "😀"
+                        except Exception:
+                            continue
+    except Exception:
+        pass
+
+    return out
+
 async def universal_id(client, message):
     chat = message.chat
     your_id = message.from_user.id if message.from_user else chat.id
@@ -78,10 +168,35 @@ async def universal_id(client, message):
         if reply.dice:
             text += f"**ᴅɪᴄᴇ:** `{reply.dice.emoji} -> {reply.dice.value}`\n\n"
 
+    # --- send existing ID info exactly as before (preserve output & forwarding) ---
     await message.reply_text(
         text,
         disable_web_page_preview=True,
         parse_mode=ParseMode.DEFAULT,
     )
+
+    # --- Premium/Custom Emoji extraction (new, non-breaking) ---
+    # Only if reply exists; uses same reply object so forwarding logic is reused
+    try:
+        premium = _collect_premium_emojis(reply) if (reply and not getattr(reply, "empty", True)) else {}
+        if premium:
+            # Build HTML with tg-emoji so actual premium emoji renders (not fallback)
+            # Format: "<actual premium emoji> - <code>ID</code>" per requirement, copy-friendly
+            lines = []
+            for cid, fallback in premium.items():
+                # html-escape fallback? It is emoji, safe. If fallback contains <>&, escape minimal
+                fb = fallback.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                lines.append(f'<tg-emoji emoji-id="{cid}">{fb}</tg-emoji> - <code>{cid}</code>')
+            premium_text = "\n".join(lines)
+            # Optional header for clarity, but keeps format as specified
+            # Not adding extra markdown to avoid breaking copy-friendly
+            await message.reply_text(
+                premium_text,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+    except Exception:
+        # Never break main flow
+        pass
 
 bot.add_handler(MessageHandler(universal_id, filters=command(BotCommands.IdCommand) & (CustomFilters.authorized | CustomFilters.sudo)))
