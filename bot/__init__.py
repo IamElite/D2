@@ -13,9 +13,10 @@ def _early_patch_wzgram():
     import sys as _sys
 
     def _find_save_file():
-        # locate pyrogram/methods/advanced/save_file.py without importing pyrogram
+        # locate save_file.py anywhere under pyrogram (wzgram 3.1.1 moved it from advanced/ )
         try:
             import importlib.util as _iu
+            import pathlib as _pl
             spec = _iu.find_spec('pyrogram')
             roots = []
             if spec and spec.submodule_search_locations:
@@ -23,10 +24,28 @@ def _early_patch_wzgram():
             for sp in list(_sys.path):
                 if sp and ('site-packages' in sp or 'dist-packages' in sp):
                     roots.append(sp)
+            # also check common heroku paths
+            roots.extend(['/app/.heroku/python/lib/python3.10/site-packages', '/app/.heroku/python/lib/python3.11/site-packages', '/usr/src/app/.heroku/python/lib/python3.10/site-packages'])
+            seen = set()
             for r in roots:
-                cand = _os.path.join(r, 'pyrogram', 'methods', 'advanced', 'save_file.py')
-                if _os.path.isfile(cand):
-                    return cand
+                if not r or r in seen:
+                    continue
+                seen.add(r)
+                base = _pl.Path(r)
+                # try known candidates first
+                for cand in [base / 'pyrogram' / 'methods' / 'advanced' / 'save_file.py', base / 'pyrogram' / 'methods' / 'utilities' / 'save_file.py', base / 'pyrogram' / 'methods' / 'save_file.py']:
+                    if cand.is_file():
+                        return str(cand)
+                # fallback: recursive search for any save_file.py containing rate_limit
+                try:
+                    for cand in base.rglob('save_file.py'):
+                        try:
+                            if 'rate_limit' in cand.read_text(errors='ignore'):
+                                return str(cand)
+                        except Exception:
+                            continue
+                except Exception:
+                    continue
         except Exception:
             pass
         return None

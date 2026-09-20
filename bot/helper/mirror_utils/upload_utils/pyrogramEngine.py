@@ -425,7 +425,7 @@ class TgUploader:
                     if not self.__is_corrupted and (self.__listener.isSuperGroup or config_dict['LEECH_LOG_ID']):
                         self.__msgs_dict[self.__sent_msg.link] = file_
                     self.__listener.file_count.advance(file_)
-                    await sleep(0.5)
+                    await sleep(0.05)
                 except Exception:
                     LOGGER.error(f"{format_exc()}. Path: {self.__up_path}")
                     self.__listener.file_count.advance(file_, failed=True)
