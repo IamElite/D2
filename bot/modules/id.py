@@ -173,20 +173,20 @@ async def universal_id(client, message):
             dice_e = _html.escape(getattr(reply.dice, 'emoji', '') or '')
             text += f'<b>ᴅɪᴄᴇ:</b> <code>{dice_e} -&gt; {reply.dice.value}</code>\n\n'
 
-    # --- Premium/Custom Emoji: append numbered list to SAME message with actual CUSTOM_EMOJI entity ---
+    # --- Premium/Custom Emoji: append numbered list to SAME message with actual CUSTOM_EMOJI entity (WZGram <emoji id="">) ---
     try:
         premium = _collect_premium_emojis(reply) if (reply and not getattr(reply, "empty", True)) else {}
         if premium:
             # Ensure separator: existing text already ends with \n\n if reply block, else \n\n
             if not text.endswith("\n"):
                 text += "\n"
-            # Add blank line before list if not already double newline
             if not text.endswith("\n\n"):
                 text += "\n"
+            text += "<b>Premium Emojis:</b>\n"
             for idx, (cid, fallback) in enumerate(premium.items(), start=1):
                 fb_raw = fallback.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                # tg-emoji with actual custom_emoji_id => Telegram renders proper Premium emoji (not fallback Unicode)
-                text += f'{idx}. <tg-emoji emoji-id="{cid}">{fb_raw}</tg-emoji> - <code>{cid}</code>\n'
+                # WZGram existing syntax: <emoji id="...">fallback</emoji> => renders actual Premium emoji (id mandatory)
+                text += f'{idx}. <emoji id="{cid}">{fb_raw}</emoji> - <code>{cid}</code>\n'
     except Exception:
         pass
 
