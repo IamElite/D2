@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260920-C (built)
-**Git:** `e034fc2`
+**Git:** `d1c0b72`
 **Date:** 2026-09-20
 **Files:** `bot/helper/ext_utils/ffmpeg.py`
 
