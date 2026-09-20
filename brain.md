@@ -64,6 +64,32 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260920-D (built)
+**Git:** `a64a5c9`
+**Date:** 2026-09-20
+**Files:** `bot/__init__.py`, `bot/helper/ext_utils/hyperdl_utils.py`, `bot/helper/ext_utils/task_manager.py`, `bot/helper/listeners/tasks_listener.py`, `bot/helper/mirror_utils/download_utils/telegram_download.py`
+
+**User log:**
+- `QUEUE_ALL: 10`, `QUEUE_DOWNLOAD: 0`, `QUEUE_UPLOAD: 0`
+- 10 active tasks bulk me chalane par (9 DL @ 72 MB/s + 1 UL @ 9 MB/s + 11 helper bots), bot severe hang hokar off (crash) ho gaya.
+- `[400 FILE_REFERENCE_EXPIRED]` se queued files download fail ho gayi.
+
+**Root causes & Fixes:**
+1. **`[400 FILE_REFERENCE_EXPIRED]` Auto-Refresh (`telegram_download.py`):**
+   - Bulk queue me wait karne se Telegram file reference token expire ho jata hai. Pehle 3 retries me same stale message pass ho raha tha jo har baar fail ho jata tha.
+   - Added `__refresh_message()` using `client.get_messages(chat_id, msg_id)` to re-fetch a fresh valid token before starting queued download and inside the retry loop on `FILE_REFERENCE_EXPIRED`.
+2. **Non-Blocking Disk I/O & Event Loop Protection (`hyperdl_utils.py`):**
+   - 72 MB/s DL par synchronous `pwrite` main asyncio event loop ko freeze kar raha tha, jisse Heroku web server pings miss hue aur dyno crash hua.
+   - Wrapped `pwrite` in `await to_thread(pwrite, fd, data, off)` taaki event loop aur web server 100% responsive rahein.
+   - Dynamic slots: Jab `len(active_tasks) > 3` ho, 2 slots per task allocate hote hain instead of 4, keeping total MTProto sessions low and avoiding socket exhaustion.
+   - Circuit breaker does not trip on `FILE_REFERENCE` or `TOKEN` expiration.
+3. **Helper Bot Upload Session Scaling (`bot/__init__.py`):**
+   - Default `TG_UP_POOL` set to 6 (down from 14). 11 bots par 154 connections banne se Telegram 3507s FloodWait de raha tha; 6 per bot se connections safe zone me rehte hain aur high speed maintain hoti hai.
+4. **Memory Cleanup & Queue Slot Release (`task_manager.py`, `tasks_listener.py`):**
+   - `finish_task_slot()` me `gc.collect()` add kiya taaki 1.4GB ke bulk tasks ke buffers turant release hon.
+   - Download complete hone par `non_queued_dl.discard(self.uid)` call karke download slot turant free kiya taaki queued downloads upload finish hone ka wait na karein.
+5. **Pure Code Rule:** Zero comments strictly followed in all code edits.
+
 ### 260920-C (built)
 **Git:** `d1c0b72`
 **Date:** 2026-09-20
