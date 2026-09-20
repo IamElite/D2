@@ -113,6 +113,11 @@ async def finish_task_slot(uid):
         non_queued_up.discard(uid)
         active_tasks.discard(uid)
     await start_from_queued()
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
 
 
 async def limit_checker(size, listener, isTorrent=False, isMega=False, isDriveLink=False, isYtdlp=False, isPlayList=None):

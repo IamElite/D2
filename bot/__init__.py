@@ -52,7 +52,7 @@ def _early_patch_wzgram():
 
     try:
         bot_rate = _os.environ.get('TG_UP_RATE_LIMIT', '300')
-        bot_pool = _os.environ.get('TG_UP_POOL', '14')
+        bot_pool = _os.environ.get('TG_UP_POOL', '6')
         path = _find_save_file()
         if not path:
             print('[TG patch] pyrogram save_file.py not found (wzgram missing?) — skipped')

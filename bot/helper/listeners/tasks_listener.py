@@ -474,6 +474,10 @@ class MirrorLeechListener:
                         m_size.append(f_size)
                         o_files.append(file_)
 
+        async with queue_dict_lock:
+            non_queued_dl.discard(self.uid)
+        await start_from_queued()
+
         up_limit = config_dict['QUEUE_UPLOAD']
         added_to_queue = False
         async with queue_dict_lock:

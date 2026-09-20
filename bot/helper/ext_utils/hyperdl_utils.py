@@ -1,5 +1,5 @@
 """HyperDL: pipelined GetFile. Never pin FileId.dc_id — start on bot DC, FileMigrate follows."""
-from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, sleep, wait, wait_for
+from asyncio import FIRST_COMPLETED, TimeoutError as AsyncTimeout, create_task, sleep, wait, wait_for, to_thread
 from logging import getLogger
 from os import O_RDWR, O_CREAT, close as os_close, environ, makedirs, open as os_open, path as ospath, pwrite
 
@@ -95,7 +95,8 @@ class HypertgDownload(HypertgTransfer):
                     raise
                 except Exception as e:
                     LOGGER.warning("HyperDL pipeline err %s -> native", e)
-                    _hyperdl_fails += 1
+                    if "FILE_REFERENCE" not in str(e).upper() and "TOKEN" not in str(e).upper():
+                        _hyperdl_fails += 1
             return await client.download_media(message=message, file_name=path, progress=progress)
         finally:
             try:
@@ -181,7 +182,12 @@ class HypertgDownload(HypertgTransfer):
         bot_dc = await client.storage.dc_id()
         # Do not lock FileId.dc_id (often stale vs bot DC). Start on bot DC; Telegram FileMigrate.
         self._dc = bot_dc
-        slots = NSLOT if self._dc == bot_dc else 2
+        try:
+            from ... import active_tasks
+            act_count = len(active_tasks)
+        except Exception:
+            act_count = 1
+        slots = 2 if act_count > 3 else (NSLOT if self._dc == bot_dc else 2)
         sesses = []
         for slot in range(slots):
             sesses.append(await wait_for(self._pool.get_session(idx, self._dc, is_media=True, slot=slot), 20))
@@ -236,7 +242,7 @@ class HypertgDownload(HypertgTransfer):
             nonlocal done
             if not data:
                 raise RuntimeError(f'HyperDL empty chunk @ {off} — hole-proof fallback')
-            pwrite(fd, data, off)
+            await to_thread(pwrite, fd, data, off)
             done += len(data)
             if progress:
                 await progress(done, size)

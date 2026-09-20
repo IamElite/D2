@@ -102,6 +102,20 @@ class TelegramDownloadHelper:
             except Exception:
                 pass
 
+    async def __refresh_message(self, message):
+        try:
+            chat = getattr(message, 'chat', None)
+            chat_id = getattr(chat, 'id', None)
+            msg_id = getattr(message, 'id', None)
+            target_client = self.__client or bot
+            if chat_id and msg_id and target_client:
+                ref = await target_client.get_messages(chat_id, msg_id)
+                if ref and getattr(ref, 'media', None):
+                    return ref
+        except Exception as e:
+            LOGGER.warning(f'Refresh message error: {e}')
+        return message
+
     async def __download(self, message, path):
         media = getattr(message, message.media.value) if message.media else None
         size = getattr(media, 'file_size', 0) or 0
@@ -121,7 +135,10 @@ class TelegramDownloadHelper:
                 if self.__is_cancelled:
                     await self.__onDownloadError('Cancelled by user!')
                     return
-                LOGGER.warning("HyperDL pipeline failed: %s - native", str(e)[:120])
+                emsg = str(e)
+                if 'FILE_REFERENCE' in emsg.upper() or 'TOKEN' in emsg.upper() or 'file reference' in emsg.lower():
+                    message = await self.__refresh_message(message)
+                LOGGER.warning("HyperDL pipeline failed: %s - native", emsg[:120])
         download = None
         last_err = None
         for attempt in range(1, 4):
@@ -149,6 +166,11 @@ class TelegramDownloadHelper:
                         self.__client_idx = None
                     self.__client = bot
                 emsg = str(e)
+                if 'FILE_REFERENCE' in emsg.upper() or 'TOKEN' in emsg.upper() or 'file reference' in emsg.lower():
+                    LOGGER.info(f'Refreshing expired file reference on attempt {attempt}')
+                    message = await self.__refresh_message(message)
+                    await sleep(1)
+                    continue
                 if 'FLOOD_WAIT' in emsg or 'flood' in emsg.lower():
                     import re as _re
                     m = _re.search(r'(\d+)\s*seconds?', emsg)
@@ -223,8 +245,8 @@ class TelegramDownloadHelper:
                         if self.__listener.uid not in download_dict:
                             return
                     from_queue = True
-                else:
-                    from_queue = False
+                if from_queue:
+                    message = await self.__refresh_message(message)
                 await self.__onDownloadStart(name, size, gid, from_queue)
                 await self.__download(message, path)
             else:
