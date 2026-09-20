@@ -173,7 +173,7 @@ async def universal_id(client, message):
             dice_e = _html.escape(getattr(reply.dice, 'emoji', '') or '')
             text += f'<b>ᴅɪᴄᴇ:</b> <code>{dice_e} -&gt; {reply.dice.value}</code>\n\n'
 
-    # --- Premium/Custom Emoji: append numbered list to SAME message with actual CUSTOM_EMOJI entity (WZGram <emoji id="">) ---
+    # --- Premium/Custom Emoji: append numbered list to SAME message with actual CUSTOM_EMOJI entity (WZGram <tg-emoji emoji-id="">) ---
     try:
         premium = _collect_premium_emojis(reply) if (reply and not getattr(reply, "empty", True)) else {}
         if premium:
@@ -185,8 +185,8 @@ async def universal_id(client, message):
             text += "<b>Premium Emojis:</b>\n"
             for idx, (cid, fallback) in enumerate(premium.items(), start=1):
                 fb_raw = fallback.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                # WZGram existing syntax: <emoji id="...">fallback</emoji> => renders actual Premium emoji (id mandatory)
-                text += f'{idx}. <emoji id="{cid}">{fb_raw}</emoji> - <code>{cid}</code>\n'
+                # WZGram correct syntax: <tg-emoji emoji-id="...">fallback</tg-emoji> => renders actual Premium emoji (id mandatory)
+                text += f'{idx}. <tg-emoji emoji-id="{cid}">{fb_raw}</tg-emoji> - <code>{cid}</code>\n'
     except Exception:
         pass
 
