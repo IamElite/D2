@@ -64,6 +64,22 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260920-C (built)
+**Git:** `e034fc2`
+**Date:** 2026-09-20
+**Files:** `bot/helper/ext_utils/ffmpeg.py`
+
+**User log:**
+- Heroku logs me FFmpeg continuous key-value progress spam dump kar raha tha:
+  `frame=1 ... fps=0.00 ... bitrate=N/A ... progress=continue ... frame=34046 ... progress=end`
+- User ne is verbose logging ko disable/off karne ko kaha.
+
+**Root causes & Fixes:**
+1. **Removed `-progress pipe:1` in `edit_attachment` (`ffmpeg.py`):**
+   - MKV aur MP4 attachment (thumbnail/cover embedding) commands me `-progress pipe:1` argument laga hua tha jo machine-readable progress updates ko direct stdout par write kar raha tha.
+   - Removed `'-progress', 'pipe:1'` completely and added `stdout=DEVNULL` to `create_subprocess_exec` in both `edit_metadata` and `edit_attachment` so FFmpeg execution stays completely silent in logs.
+2. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260920-B (built)
 **Git:** `d2df8b7`
 **Date:** 2026-09-20

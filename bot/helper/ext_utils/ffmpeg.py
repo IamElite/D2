@@ -4,7 +4,7 @@ import logging
 from re import sub as re_sub, search as re_search, IGNORECASE as re_IGNORECASE
 from aioshutil import move
 from asyncio import create_subprocess_exec, Semaphore
-from asyncio.subprocess import PIPE
+from asyncio.subprocess import PIPE, DEVNULL
 from ... import LOGGER, bot_cache
 from .fs_utils import clean_target
 from .bot_utils import cmd_exec
@@ -244,7 +244,7 @@ async def edit_metadata(listener, base_dir: str, media_file: str, outfile: str, 
     cmd.append(outfile)
 
     async with _ffmpeg_sem:
-        listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
+        listener.suproc = await create_subprocess_exec(*cmd, stdout=DEVNULL, stderr=PIPE)
         code = await listener.suproc.wait()
 
     if code == 0:
@@ -277,7 +277,7 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
         elif attachment_ext == "png":
             mime_type = "image/png"
         cmd = [
-            bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1',
+            bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
             '-i', media_file,
             '-attach', attachment,
             '-metadata:s:t', f'mimetype={mime_type}',
@@ -290,7 +290,7 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
         ]
     elif file_ext == '.mp4':
         cmd = [
-            bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1',
+            bot_cache['pkgs'][2], '-hide_banner', '-loglevel', 'error',
             '-i', media_file,
             '-i', attachment,
             '-map', '0',
@@ -302,7 +302,7 @@ async def edit_attachment(listener, base_dir: str, media_file: str, outfile: str
     else:
         return
     async with _ffmpeg_sem:
-        listener.suproc = await create_subprocess_exec(*cmd, stderr=PIPE)
+        listener.suproc = await create_subprocess_exec(*cmd, stdout=DEVNULL, stderr=PIPE)
         code = await listener.suproc.wait()
     if code == 0:
         await clean_target(media_file)
