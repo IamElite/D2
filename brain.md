@@ -64,6 +64,26 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260920-B (built)
+**Git:** `ff93785`
+**Date:** 2026-09-20
+**Files:** `bot/__main__.py`, `bot/helper/ext_utils/hyperul_utils.py`
+
+**User log:**
+- Helper bots startup par Telegram IP/Account-level FloodWait de raha tha:
+  `Helper BotX FloodWait 3507s — retry non-blocking` (ALL bots simultaneous 3507s ~1 hour flood wait).
+
+**Root causes & Fixes:**
+1. **Fatal 30s Loop in `_helper_watcher` (`__main__.py`):**
+   - `_helper_watcher` har 30 second me check kar raha tha: `want != get_active_helper_tokens()`. Jab koi bot FloodWait ya error me tha, `_started_tokens` me nahi hota tha, isliye watcher har 30s par pure ke pure 10 helper bots ko tear-down karke dubara `start_helper_bots` call kar raha tha!
+   - 30 second me 10 bots lagatar Telegram server par login hit kar rahe the, jisse Telegram ne poori bot pool ko 3507s (1 hour) ka massive FloodWait laga diya.
+   - Fix: `_helper_watcher` ko actual config change (`curr_tokens != last_tokens`) par trigger karne ke liye fix kiya, na ki missing active tokens par.
+2. **Sequential Helper Bot Startup (`hyperul_utils.py`):**
+   - Pehle `gather(*(_one(...) ...))` se saare 10 bots ek hi millisecond me parallel login request bhej rahe the. Ab 1.5 second ke safe delay se sequentially start hote hain.
+3. **Active FloodWait Tracking (`hyperul_utils.py`):**
+   - `_flood_wait_until` mapping add ki taaki jab tak Telegram ka cooldown timer khatam na ho, bot Telegram API par redundant failed login requests na bheje aur cooldown timer baar-baar reset na ho.
+4. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260920-A (built)
 **Git:** `f3b1696`
 **Date:** 2026-09-20

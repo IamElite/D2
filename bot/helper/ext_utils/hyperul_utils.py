@@ -6,6 +6,7 @@ HELPER_TOKENS extra bots must be admin in LEECH_LOG. Failures never abort boot.
 from asyncio import gather, sleep
 from logging import getLogger
 from os import path as ospath
+from time import time
 
 from pyrogram import Client, StopTransmission, enums
 from pyrogram.errors import FloodWait, PhotoInvalidDimensions
@@ -28,6 +29,7 @@ from ..telegram_helper.tg_transfer import (
 LOGGER = getLogger(__name__)
 
 _started_tokens = set()
+_flood_wait_until = {}
 _helper_lock = None  # lazy asyncio.Lock (loop-bound safe)
 
 
@@ -93,6 +95,7 @@ async def _start_helper_bots_locked(tokens: str):
             return {k: v for k, v in _base.items() if k not in ("in_memory", "max_concurrent_transmissions")}
     async def _retry_one(no, token, delay):
         await sleep(delay)
+        _flood_wait_until.pop(token.strip(), None)
         try:
             h = Client(f"hyper-hbot{no}", **_hbot_kwargs(no, token))
             st = h.start()
@@ -104,16 +107,25 @@ async def _start_helper_bots_locked(tokens: str):
             uname = getattr(h.me, "username", None) or h.me.first_name
             ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
         except FloodWait as e:
+            _flood_wait_until[token.strip()] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodWait {e.value}s — retry non-blocking")
             from asyncio import create_task as _ct
             _ct(_retry_one(no, token, e.value))
         except FloodPremiumWait as e:
+            _flood_wait_until[token.strip()] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodPremiumWait {e.value}s — retry")
             from asyncio import create_task as _ct2
             _ct2(_retry_one(no, token, e.value))
         except Exception as e:
             ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
+
     async def _one(no, token):
+        tk = token.strip()
+        now_t = time()
+        if tk in _flood_wait_until and now_t < _flood_wait_until[tk]:
+            rem = int(_flood_wait_until[tk] - now_t)
+            ROOT.warning(f"Helper Bot{no} currently on FloodWait ({rem}s left) — skipping immediate start")
+            return
         try:
             h = Client(f"hyper-hbot{no}", **_hbot_kwargs(no, token))
             st = h.start()
@@ -121,14 +133,16 @@ async def _start_helper_bots_locked(tokens: str):
                 await st
             helper_bots[no] = h
             helper_loads[no] = 0
-            _started_tokens.add(token.strip())
+            _started_tokens.add(tk)
             uname = getattr(h.me, "username", None) or h.me.first_name
             ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
         except FloodWait as e:
+            _flood_wait_until[tk] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodWait {e.value}s — retry non-blocking")
             from asyncio import create_task as _ct3
             _ct3(_retry_one(no, token, e.value))
         except FloodPremiumWait as e:
+            _flood_wait_until[tk] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodPremiumWait {e.value}s — retry")
             from asyncio import create_task as _ct4
             _ct4(_retry_one(no, token, e.value))
@@ -137,7 +151,9 @@ async def _start_helper_bots_locked(tokens: str):
 
     toks = [t for t in str(tokens).split() if t.strip()]
     ROOT.info(f"HyperUP: starting {len(toks)} helper bot(s) from HELPER_TOKENS")
-    await gather(*(_one(i, t) for i, t in enumerate(toks, start=1)))
+    for i, t in enumerate(toks, start=1):
+        await _one(i, t)
+        await sleep(1.5)
     reset_work_loads()
     if len(helper_bots) > 1:
         names = ", ".join(

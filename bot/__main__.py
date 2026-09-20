@@ -250,15 +250,16 @@ async def log_check():
     
 
 async def _helper_watcher():
-    # 30s safety: DB-direct/env edits bhi pick — drift ho to bina-restart resync
-    from .helper.ext_utils.hyperul_utils import start_helper_bots, get_active_helper_tokens
+    from .helper.ext_utils.hyperul_utils import start_helper_bots
+    last_tokens = config_dict.get('HELPER_TOKENS', '')
     while True:
-        await asleep(30)
+        await asleep(60)
         try:
-            want = {t for t in str(config_dict.get('HELPER_TOKENS', '') or '').split() if t.strip()}
-            if want != get_active_helper_tokens():
-                LOGGER.info('HyperUP watcher: HELPER_TOKENS drift — resyncing helpers (no restart)')
-                await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
+            curr_tokens = config_dict.get('HELPER_TOKENS', '')
+            if curr_tokens != last_tokens:
+                LOGGER.info('HyperUP watcher: HELPER_TOKENS config changed — resyncing helpers')
+                last_tokens = curr_tokens
+                await start_helper_bots(curr_tokens)
         except Exception as e:
             LOGGER.error(f'HyperUP watcher: {e}')
 
