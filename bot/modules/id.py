@@ -161,7 +161,7 @@ async def universal_id(client, message):
             dice_e = _html.escape(getattr(reply.dice, 'emoji', '') or '')
             text += f'<b>ᴅɪᴄᴇ:</b> <code>{dice_e} -&gt; {reply.dice.value}</code>\n\n'
 
-    # Premium/Custom Emoji — single message, WZGram <tg-emoji emoji-id="">, alt verified
+    # Premium/Custom Emoji — single message, WZGram <emoji id=""> (existing project syntax), alt verified
     try:
         premium = _collect_premium_emojis(reply) if (reply and not getattr(reply, "empty", True)) else {}
         if premium:
@@ -178,7 +178,7 @@ async def universal_id(client, message):
                 resolved[cid] = alt
             for idx, (cid, fb) in enumerate(resolved.items(), start=1):
                 fb_esc = fb.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                text += f'{idx}. <tg-emoji emoji-id="{cid}">{fb_esc}</tg-emoji> - <code>{cid}</code>\n'
+                text += f'{idx}. <emoji id="{cid}">{fb_esc}</emoji> - <code>{cid}</code>\n'
     except Exception:
         pass
 
