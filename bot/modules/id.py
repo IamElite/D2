@@ -1,3 +1,4 @@
+import html as _html
 from pyrogram.handlers import MessageHandler
 from pyrogram.filters import command
 from pyrogram.enums import ParseMode
@@ -40,7 +41,7 @@ def _get_fallback(text, offset, length):
 def _collect_premium_emojis(reply):
     """
     Scan reply message for Premium/Custom Emojis.
-    Returns dict {custom_emoji_id: fallback_char} unique by ID.
+    Returns dict {custom_emoji_id: fallback_char} unique by ID, order = detection order.
     Covers:
     - text + entities
     - caption + caption_entities
@@ -112,91 +113,88 @@ async def universal_id(client, message):
     your_id = message.from_user.id if message.from_user else chat.id
     reply = message.reply_to_message
 
-    text = f"**[ᴍᴇssᴀɢᴇ ɪᴅ:]({message.link})** `{message.id}`\n"
-    text += f"**[ʏᴏᴜʀ ɪᴅ:](tg://user?id={your_id})** `{your_id}`\n"
+    # Build main ID text as HTML (so we can send single message with tg-emoji)
+    # HTML keeps same visual: <b> for bold, <code> for code, <a> for links
+    text = f'<b><a href="{message.link}">ᴍᴇssᴀɢᴇ ɪᴅ:</a></b> <code>{message.id}</code>\n'
+    text += f'<b><a href="tg://user?id={your_id}">ʏᴏᴜʀ ɪᴅ:</a></b> <code>{your_id}</code>\n'
 
     if len(message.command) > 1:
         try:
             target = message.text.split(None, 1)[1].strip()
             user_obj = await client.get_users(target)
-            text += f"**[ᴜsᴇʀ ɪᴅ:](tg://user?id={user_obj.id})** `{user_obj.id}`\n"
+            text += f'<b><a href="tg://user?id={user_obj.id}">ᴜsᴇʀ ɪᴅ:</a></b> <code>{user_obj.id}</code>\n'
         except Exception:
             return await message.reply_text("ᴛʜɪs ᴜsᴇʀ ᴅᴏᴇsɴ'ᴛ ᴇxɪsᴛ.", quote=True)
 
-    text += (
-        f"**[ᴄʜᴀᴛ ɪᴅ:](https://t.me/{chat.username})** `{chat.id}`\n\n"
-        if chat.username
-        else f"**[ᴄʜᴀᴛ ɪᴅ:]** `{chat.id}`\n\n"
-    )
+    if chat.username:
+        text += f'<b><a href="https://t.me/{chat.username}">ᴄʜᴀᴛ ɪᴅ:</a></b> <code>{chat.id}</code>\n\n'
+    else:
+        text += f'<b>ᴄʜᴀᴛ ɪᴅ:</b> <code>{chat.id}</code>\n\n'
 
     if reply and not getattr(reply, "empty", True):
-        text += f"**[ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:]({reply.link})** `{reply.id}`\n"
+        text += f'<b><a href="{reply.link}">ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:</a></b> <code>{reply.id}</code>\n'
         if reply.from_user:
-            text += f"**[ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:](tg://user?id={reply.from_user.id})** `{reply.from_user.id}`\n\n"
+            text += f'<b><a href="tg://user?id={reply.from_user.id}">ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:</a></b> <code>{reply.from_user.id}</code>\n\n'
 
         fwd_chat = getattr(getattr(reply, "forward_origin", None), "chat", None) or getattr(reply, "forward_from_chat", None)
         if fwd_chat:
-            text += f"ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴄʜᴀᴛ, **{getattr(fwd_chat, 'title', '')}**, ʜᴀs ᴀɴ ɪᴅ ᴏғ `{fwd_chat.id}`\n\n"
+            title = _html.escape(getattr(fwd_chat, 'title', '') or '')
+            text += f'ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴄʜᴀᴛ, <b>{title}</b>, ʜᴀs ᴀɴ ɪᴅ ᴏғ <code>{fwd_chat.id}</code>\n\n'
 
         fwd_user = getattr(getattr(reply, "forward_origin", None), "sender_user", None) or getattr(reply, "forward_from", None)
         if fwd_user:
-            text += f"ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴜsᴇʀ, **{getattr(fwd_user, 'first_name', '')}**, ʜᴀs ᴀɴ ɪᴅ ᴏғ `{fwd_user.id}`\n\n"
+            fname = _html.escape(getattr(fwd_user, 'first_name', '') or '')
+            text += f'ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴜsᴇʀ, <b>{fname}</b>, ʜᴀs ᴀɴ ɪᴅ ᴏғ <code>{fwd_user.id}</code>\n\n'
 
         if reply.sender_chat:
-            text += f"ɪᴅ ᴏғ ᴛʜᴇ ʀᴇᴘʟɪᴇᴅ ᴄʜᴀᴛ/ᴄʜᴀɴɴᴇʟ ɪs `{reply.sender_chat.id}`\n\n"
+            text += f'ɪᴅ ᴏғ ᴛʜᴇ ʀᴇᴘʟɪᴇᴅ ᴄʜᴀᴛ/ᴄʜᴀɴɴᴇʟ ɪs <code>{reply.sender_chat.id}</code>\n\n'
 
         if getattr(reply, "message_thread_id", None):
-            text += f"**ᴛᴏᴘɪᴄ / ᴛʜʀᴇᴀᴅ ɪᴅ:** `{reply.message_thread_id}`\n\n"
+            text += f'<b>ᴛᴏᴘɪᴄ / ᴛʜʀᴇᴀᴅ ɪᴅ:</b> <code>{reply.message_thread_id}</code>\n\n'
 
         for attr, label in MEDIA_TYPES:
             media = getattr(reply, attr, None)
             if media:
                 f_id = getattr(media, 'file_id', None)
                 if f_id:
-                    text += f"**{label} ғɪʟᴇ ɪᴅ:** `{f_id}`\n"
+                    text += f'<b>{label} ғɪʟᴇ ɪᴅ:</b> <code>{f_id}</code>\n'
                     if getattr(media, "file_unique_id", None):
-                        text += f"**{label} ᴜɴɪǫᴜᴇ ɪᴅ:** `{media.file_unique_id}`\n\n"
+                        text += f'<b>{label} ᴜɴɪǫᴜᴇ ɪᴅ:</b> <code>{media.file_unique_id}</code>\n\n'
                     break
 
         if reply.poll:
-            text += f"**ᴘᴏʟʟ ɪᴅ:** `{reply.poll.id}`\n\n"
+            text += f'<b>ᴘᴏʟʟ ɪᴅ:</b> <code>{reply.poll.id}</code>\n\n'
         if reply.contact:
             c_id = reply.contact.user_id or reply.contact.phone_number
-            text += f"**ᴄᴏɴᴛᴀᴄᴛ ɪᴅ:** `{c_id}`\n\n"
+            text += f'<b>ᴄᴏɴᴛᴀᴄᴛ ɪᴅ:</b> <code>{c_id}</code>\n\n'
         if reply.location:
-            text += f"**ʟᴏᴄᴀᴛɪᴏɴ:** `{reply.location.latitude}, {reply.location.longitude}`\n\n"
+            text += f'<b>ʟᴏᴄᴀᴛɪᴏɴ:</b> <code>{reply.location.latitude}, {reply.location.longitude}</code>\n\n'
         if reply.dice:
-            text += f"**ᴅɪᴄᴇ:** `{reply.dice.emoji} -> {reply.dice.value}`\n\n"
+            dice_e = _html.escape(getattr(reply.dice, 'emoji', '') or '')
+            text += f'<b>ᴅɪᴄᴇ:</b> <code>{dice_e} -&gt; {reply.dice.value}</code>\n\n'
 
-    # --- send existing ID info exactly as before (preserve output & forwarding) ---
-    await message.reply_text(
-        text,
-        disable_web_page_preview=True,
-        parse_mode=ParseMode.DEFAULT,
-    )
-
-    # --- Premium/Custom Emoji extraction (new, non-breaking) ---
-    # Only if reply exists; uses same reply object so forwarding logic is reused
+    # --- Premium/Custom Emoji: append numbered list to SAME message with actual CUSTOM_EMOJI entity ---
     try:
         premium = _collect_premium_emojis(reply) if (reply and not getattr(reply, "empty", True)) else {}
         if premium:
-            # Build HTML with tg-emoji so actual premium emoji renders (not fallback)
-            # Format: "<actual premium emoji> - <code>ID</code>" per requirement, copy-friendly
-            lines = []
-            for cid, fallback in premium.items():
-                # html-escape fallback? It is emoji, safe. If fallback contains <>&, escape minimal
-                fb = fallback.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                lines.append(f'<tg-emoji emoji-id="{cid}">{fb}</tg-emoji> - <code>{cid}</code>')
-            premium_text = "\n".join(lines)
-            # Optional header for clarity, but keeps format as specified
-            # Not adding extra markdown to avoid breaking copy-friendly
-            await message.reply_text(
-                premium_text,
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=True,
-            )
+            # Ensure separator: existing text already ends with \n\n if reply block, else \n\n
+            if not text.endswith("\n"):
+                text += "\n"
+            # Add blank line before list if not already double newline
+            if not text.endswith("\n\n"):
+                text += "\n"
+            for idx, (cid, fallback) in enumerate(premium.items(), start=1):
+                fb_raw = fallback.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                # tg-emoji with actual custom_emoji_id => Telegram renders proper Premium emoji (not fallback Unicode)
+                text += f'{idx}. <tg-emoji emoji-id="{cid}">{fb_raw}</tg-emoji> - <code>{cid}</code>\n'
     except Exception:
-        # Never break main flow
         pass
+
+    # Single output message (existing + premium appended)
+    await message.reply_text(
+        text,
+        disable_web_page_preview=True,
+        parse_mode=ParseMode.HTML,
+    )
 
 bot.add_handler(MessageHandler(universal_id, filters=command(BotCommands.IdCommand) & (CustomFilters.authorized | CustomFilters.sudo)))
