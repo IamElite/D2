@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260920-B (built)
-**Git:** `ff93785`
+**Git:** `d2df8b7`
 **Date:** 2026-09-20
 **Files:** `bot/__main__.py`, `bot/helper/ext_utils/hyperul_utils.py`
 
