@@ -52,7 +52,7 @@ class MirrorLeechListener:
         self.message = message
 
         self.newname = newname
-
+        self.name = newname or ""
         self.orig_caption = ""
         self.uid = message.id
         self.excep_chat = bool(str(message.chat.id) in config_dict['EXCEP_CHATS'].split())
@@ -752,6 +752,8 @@ class MirrorLeechListener:
 
     async def onDownloadError(self, error, button=None):
         async with download_dict_lock:
+            download = download_dict.get(self.uid)
+            filename = (download.name() if download and hasattr(download, 'name') else '') or getattr(self, 'name', '') or getattr(self, 'newname', '') or 'File'
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
             self.file_count.clear()
@@ -760,6 +762,8 @@ class MirrorLeechListener:
                 self.sameDir['tasks'].remove(self.uid)
                 self.sameDir['total'] -= 1
         msg = f'''<i><b>Download Stopped!</b></i>
+
+<i><b>{escape(filename)}</b></i>
 ┠ <b>Task for:</b> {self.tag}
 ┃
 ┠ <b>Due To:</b> {escape(error)}
@@ -783,11 +787,15 @@ class MirrorLeechListener:
 
     async def onUploadError(self, error):
         async with download_dict_lock:
+            download = download_dict.get(self.uid)
+            filename = (download.name() if download and hasattr(download, 'name') else '') or getattr(self, 'name', '') or getattr(self, 'newname', '') or 'File'
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
             self.file_count.clear()
             count = len(download_dict)
         msg = f'''<i><b>Upload Stopped!</b></i>
+
+<i><b>{escape(filename)}</b></i>
 ┠ <b>Task for:</b> {self.tag}
 ┃
 ┠ <b>Due To:</b> {escape(error)}

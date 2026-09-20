@@ -64,6 +64,23 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260920-A (built)
+**Git:** `54ff6e0`
+**Date:** 2026-09-20
+**Files:** `bot/helper/listeners/tasks_listener.py`, `bot/helper/mirror_utils/download_utils/telegram_download.py`
+
+**User log:**
+- Bulk me 84 tasks chalne par jab tasks stop/fail hote hain ("Download Stopped! Due To: Request timed out"), error message me file ka naam display nahi ho raha tha jisse pata nahi chalta tha kaunsi file fail hui hai.
+- Template update requested:
+  Download/Upload Stopped! ke theek neeche file ka naam `<i><b>{filename}</b></i>` me aana chahiye.
+
+**Root causes & Fixes:**
+1. **Filename Display in Error Templates (`tasks_listener.py`):**
+   - `onDownloadError` aur `onUploadError` dono me `filename` ko dynamically `download_dict.get(self.uid).name()`, `self.name`, `self.newname` fallback chain se safely resolve kiya aur HTML escape ke sath `<i><b>{escape(filename)}</b></i>` template me add kiya.
+2. **Listener Name Tracking (`tasks_listener.py`, `telegram_download.py`):**
+   - `TaskListener` me `self.name` initialize kiya aur `telegram_download.py` me download start aur queue hone par `self.__listener.name = name` propagate kiya taaki task fail hone par bhi filename hamesha available rahe.
+3. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260919-D (built)
 **Git:** `d8b20ff`
 **Date:** 2026-09-19
