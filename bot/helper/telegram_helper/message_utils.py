@@ -234,9 +234,10 @@ async def sendMultiMessage(chat_ids, text, buttons=None, photo=None):
 async def editMessage(message, text, buttons=None, photo=None, link_preview_options=None):
     try:
         if (message.photo or message.video or message.document or message.animation) and not getattr(message, "text", None):
-            if photo:
-                photo = rchoice(config_dict['IMAGES']) if photo == 'IMAGES' else photo
+            if photo and photo == 'IMAGES':
+                photo = rchoice(config_dict['IMAGES'])
                 return await message.edit_media(InputMediaPhoto(photo, text), reply_markup=buttons)
+            return await message.edit_caption(caption=text, reply_markup=buttons)
         if link_preview_options is not None and getattr(link_preview_options, "url", None):
             try:
                 chat_id = message.chat.id if getattr(message, "chat", None) else _chat_id_of(message)

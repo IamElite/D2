@@ -434,11 +434,13 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     text, button = await get_user_settings(from_user, key, edit_type, edit_mode)
     lpo = None
     target_msg = query if sdirect else query.message
-    thumb_exists = await aiopath.exists(f"Thumbnails/{from_user.id}.jpg")
+    thumb_path = f"Thumbnails/{from_user.id}.jpg"
+    thumb_exists = await aiopath.exists(thumb_path)
+    photo = thumb_path if thumb_exists else None
     if thumb_exists and (base_url := config_dict.get('BASE_URL')):
         thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
         lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-    await editMessage(target_msg, text, button, link_preview_options=lpo)
+    await editMessage(target_msg, text, button, photo=photo, link_preview_options=lpo)
 
 
 async def user_settings(client, message):
@@ -551,10 +553,13 @@ async def user_settings(client, message):
         handler_dict[from_user.id] = False
         msg, button = await get_user_settings(from_user)
         lpo = None
-        if await aiopath.exists(f"Thumbnails/{from_user.id}.jpg") and (base_url := config_dict.get('BASE_URL')):
+        thumb_path = f"Thumbnails/{from_user.id}.jpg"
+        thumb_exists = await aiopath.exists(thumb_path)
+        photo = thumb_path if thumb_exists else None
+        if thumb_exists and (base_url := config_dict.get('BASE_URL')):
             thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
             lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-        await sendMessage(message, msg, button, link_preview_options=lpo)
+        await sendMessage(message, msg, button, photo=photo, link_preview_options=lpo)
 
 
 async def set_custom(client, message, pre_event, key, direct=False):
@@ -719,8 +724,13 @@ async def set_thumb(client, message, pre_event, key, direct=False):
     await sync_to_async(Image.open(photo_dir).convert("RGB").save, des_dir, "JPEG")
     await aioremove(photo_dir)
     update_user_ldata(user_id, 'thumb', des_dir)
-    await deleteMessage(message)
-    await update_user_settings(pre_event, key, 'leech', msg=message, sdirect=direct)
+    if direct:
+        await deleteMessage(pre_event)
+        text, button = await get_user_settings(message.from_user, key, 'leech')
+        await sendMessage(message, text, button, photo=des_dir)
+    else:
+        await deleteMessage(message)
+        await update_user_settings(pre_event, key, 'leech', msg=message, sdirect=direct)
     if DATABASE_URL:
         await DbManger().update_user_doc(user_id, 'thumb', des_dir)
 
