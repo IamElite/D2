@@ -132,7 +132,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             mediainfo = "Force Enabled"
         save_mode = "Save As Dump" if user_dict.get('save_mode') else "Save As BotPM"
         buttons.ibutton('Save As BotPM' if save_mode == 'Save As Dump' else 'Save As Dump', f"userset {user_id} save_mode")
-        failed_report = "Enabled" if user_dict.get('failed_report') else "Disabled"
+        failed_report = "Enabled" if user_dict.get('failed_report', True) else "Disabled"
         buttons.ibutton('Disable Failed Report' if failed_report == 'Enabled' else 'Enable Failed Report', f"userset {user_id} failed_report")
         dailytl = config_dict['DAILY_TASK_LIMIT'] or "∞"
         dailytas = user_dict.get('dly_tasks')[1] if user_dict and user_dict.get('dly_tasks') and user_id != OWNER_ID and config_dict['DAILY_TASK_LIMIT'] else config_dict['DAILY_TASK_LIMIT'] or "️∞" if user_id != OWNER_ID else "∞"
@@ -846,7 +846,14 @@ async def edit_user_settings(client, query):
         await update_user_settings(query, 'autorename')
         if DATABASE_URL:
             await DbManger().update_user_data(user_id)
-    elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'failed_report', 'td_mode', 'hd_thumb']:
+    elif data[2] == 'failed_report':
+        cur = user_dict.get('failed_report', True)
+        update_user_ldata(user_id, 'failed_report', not cur)
+        await query.answer()
+        await update_user_settings(query, 'universal')
+        if DATABASE_URL:
+            await DbManger().update_user_data(user_id)
+    elif data[2] in ['bot_pm', 'mediainfo', 'save_mode', 'td_mode', 'hd_thumb']:
         handler_dict[user_id] = False
         if data[2] == 'save_mode' and not user_dict.get(data[2], False) and not user_dict.get('ldump'):
             return await query.answer("Set User Dump first to Change Save Msg Mode !", show_alert=True)

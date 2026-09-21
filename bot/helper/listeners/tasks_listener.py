@@ -644,7 +644,6 @@ class MirrorLeechListener:
             if self.seed:
                 if self.newDir:
                     await clean_target(self.newDir)
-                # Failed report: seed tasks also count as success
                 try:
                     if getattr(self, 'multi_tag', None):
                         await record_success(self.user_id, self.multi_tag)
@@ -742,7 +741,6 @@ class MirrorLeechListener:
                     await clean_target(self.newDir)
                 elif self.compress:
                     await clean_target(f"{self.dir}/{name}")
-                # Failed report: seed tasks also count as success
                 try:
                     if getattr(self, 'multi_tag', None):
                         await record_success(self.user_id, self.multi_tag)
@@ -764,7 +762,6 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
-        # Failed report: bulk success tracking
         try:
             if getattr(self, 'multi_tag', None):
                 await record_success(self.user_id, self.multi_tag)
@@ -800,7 +797,6 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
-        # Failed report: record failure (DM if enabled)
         try:
             _disp = await get_display_name(self, filename)
         except Exception:
@@ -842,7 +838,6 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
-        # Failed report: record failure (DM if enabled)
         try:
             _disp2 = await get_display_name(self, filename)
         except Exception:

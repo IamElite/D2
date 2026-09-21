@@ -178,7 +178,6 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         del bulk[0]
 
     multi_tag = ensure_multi_tag(multi_tag, multi)
-    # Register bulk for failed-report (only when multi>1)
     if multi > 1 and multi_tag:
         try:
             _uid2 = message.from_user.id if getattr(message, "from_user", None) else 0
