@@ -197,7 +197,7 @@ async def serve_thumbnail(request):
         current_url = f"{proto}://{host}"
         img_url = f"{current_url}/thumbnail/{uid}.jpg"
         page_url = f"{current_url}/thumbnail/{uid}"
-        html = f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>&#8203;</title><meta property="og:type" content="website"><meta property="og:title" content="&#8203;"><meta property="og:image" content="{img_url}"><meta property="og:image:type" content="image/jpeg"><meta property="og:url" content="{page_url}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img_url}"></head><body></body></html>'
+        html = f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Thumbnail</title><meta property="og:site_name" content="Thumbnail"><meta property="og:type" content="website"><meta property="og:title" content="Thumbnail"><meta property="og:description" content="Custom Leech Thumbnail"><meta property="og:image" content="{img_url}"><meta property="og:image:type" content="image/jpeg"><meta property="og:url" content="{page_url}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img_url}"></head><body><h3>Thumbnail</h3><img src="{img_url}" alt="Thumbnail"/></body></html>'
         return web.Response(text=html, content_type='text/html', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
     raise web.HTTPNotFound
 

@@ -421,6 +421,11 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             buttons.ibutton("Back", f"userset {user_id} back {edit_type}", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
+    thumb_exists = await aiopath.exists(thumbpath)
+    if thumb_exists and (base_url := config_dict.get('BASE_URL')):
+        thumb_url = f"{base_url.rstrip('/')}/thumbnail/{user_id}"
+        if not text.startswith(f'<a href="{thumb_url}">'):
+            text = f'<a href="{thumb_url}">\u200b</a>' + text
     return text, button
 
 
@@ -430,7 +435,7 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     lpo = None
     target_msg = query if sdirect else query.message
     thumb_exists = await aiopath.exists(f"Thumbnails/{from_user.id}.jpg")
-    if (key is None or key in ['leech', 'thumb']) and thumb_exists and (base_url := config_dict.get('BASE_URL')):
+    if thumb_exists and (base_url := config_dict.get('BASE_URL')):
         thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
         lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
     await editMessage(target_msg, text, button, link_preview_options=lpo)
