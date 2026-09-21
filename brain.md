@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260921-E (built)
-**Git:** `PENDING`
+**Git:** `27a47b0`
 **Date:** 2026-09-21
 **Files:** `bot/helper/telegram_helper/message_utils.py`, `bot/modules/users_settings.py`
 
