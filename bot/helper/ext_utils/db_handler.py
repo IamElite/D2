@@ -113,21 +113,12 @@ class DbManger:
         if self.__err:
             return
         data = user_data[user_id].copy()
-        if data.get('thumb'):
-            thumb_path = data['thumb']
-            if await aiopath.exists(thumb_path):
-                async with aiopen(thumb_path, 'rb+') as f:
-                    data['thumb'] = await f.read()
-            else:
-                del data['thumb']
-        if data.get('rclone'):
-            rclone_path = data['rclone']
-            if await aiopath.exists(rclone_path):
-                async with aiopen(rclone_path, 'rb+') as f:
-                    data['rclone'] = await f.read()
-            else:
-                del data['rclone']
-        await self.__db.users[bot_id].replace_one({'_id': user_id}, data, upsert=True)
+        data.pop('thumb', None)
+        data.pop('rclone', None)
+        if data:
+            await self.__db.users[bot_id].update_one({'_id': user_id}, {'$set': data}, upsert=True)
+        else:
+            await self.__db.users[bot_id].update_one({'_id': user_id}, {'$setOnInsert': {'_id': user_id}}, upsert=True)
         self.__conn.close
 
     async def update_user_doc(self, user_id, key, path=''):
@@ -136,9 +127,9 @@ class DbManger:
         if path:
             async with aiopen(path, 'rb+') as doc:
                 doc_bin = await doc.read()
+            await self.__db.users[bot_id].update_one({'_id': user_id}, {'$set': {key: doc_bin}}, upsert=True)
         else:
-            doc_bin = ''
-        await self.__db.users[bot_id].update_one({'_id': user_id}, {'$set': {key: doc_bin}}, upsert=True)
+            await self.__db.users[bot_id].update_one({'_id': user_id}, {'$unset': {key: ""}}, upsert=True)
         self.__conn.close
 
     async def get_pm_uids(self):
