@@ -186,7 +186,7 @@ async def serve_thumbnail(request):
     uid = request.match_info['uid']
     if uid.endswith('.jpg'):
         uid = uid[:-4]
-    for folder in ('Thumbnails', 'thumbnails'):
+    for folder in ('Thumbnails', 'thumbnails', 'Thumbnail', 'thumbnail'):
         thumb_path = ospath.join(folder, f"{uid}.jpg")
         if await aiopath.exists(thumb_path):
             return web.FileResponse(thumb_path)

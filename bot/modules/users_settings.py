@@ -434,15 +434,11 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
 async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, msg=None, sdirect=False):
     from_user = msg.from_user if sdirect else query.from_user
     text, button = await get_user_settings(from_user, key, edit_type, edit_mode)
-    lpo = None
     target_msg = query if sdirect else query.message
     thumb_path = f"Thumbnails/{from_user.id}.jpg"
     thumb_exists = await aiopath.exists(thumb_path)
-    if thumb_exists and (base_url := config_dict.get('BASE_URL')):
-        mtime = int(ospath.getmtime(thumb_path))
-        thumb_url = f"{base_url.rstrip('/')}/thumbnails/{from_user.id}.jpg?v={mtime}"
-        lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-    await editMessage(target_msg, text, button, link_preview_options=lpo)
+    disable_web_page_preview = not (thumb_exists and bool(config_dict.get('BASE_URL')))
+    await editMessage(target_msg, text, button, disable_web_page_preview=disable_web_page_preview)
 
 
 async def user_settings(client, message):
@@ -554,14 +550,10 @@ async def user_settings(client, message):
         from_user = message.from_user
         handler_dict[from_user.id] = False
         msg, button = await get_user_settings(from_user)
-        lpo = None
         thumb_path = f"Thumbnails/{from_user.id}.jpg"
         thumb_exists = await aiopath.exists(thumb_path)
-        if thumb_exists and (base_url := config_dict.get('BASE_URL')):
-            mtime = int(ospath.getmtime(thumb_path))
-            thumb_url = f"{base_url.rstrip('/')}/thumbnails/{from_user.id}.jpg?v={mtime}"
-            lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-        await sendMessage(message, msg, button, link_preview_options=lpo)
+        disable_web_page_preview = not (thumb_exists and bool(config_dict.get('BASE_URL')))
+        await sendMessage(message, msg, button, disable_web_page_preview=disable_web_page_preview)
 
 
 async def set_custom(client, message, pre_event, key, direct=False):
@@ -729,12 +721,8 @@ async def set_thumb(client, message, pre_event, key, direct=False):
     if direct:
         await deleteMessage(pre_event)
         text, button = await get_user_settings(message.from_user, key, 'leech')
-        lpo = None
-        if base_url := config_dict.get('BASE_URL'):
-            mtime = int(ospath.getmtime(des_dir))
-            thumb_url = f"{base_url.rstrip('/')}/thumbnails/{user_id}.jpg?v={mtime}"
-            lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-        await sendMessage(message, text, button, link_preview_options=lpo)
+        disable_web_page_preview = not bool(config_dict.get('BASE_URL'))
+        await sendMessage(message, text, button, disable_web_page_preview=disable_web_page_preview)
     else:
         await deleteMessage(message)
         await update_user_settings(pre_event, key, 'leech', msg=message, sdirect=direct)
@@ -1342,13 +1330,13 @@ async def set_thumb_cmd(client, message):
         LOGGER.error(f"Failed to delete thumbnail photo: {e}")
     
     reply_text = "✅ Custom Thumbnail saved successfully!"
-    lpo = None
+    disable_web_page_preview = True
     if (base_url := config_dict.get('BASE_URL')):
         mtime = int(ospath.getmtime(des_dir))
         thumb_url = f"{base_url.rstrip('/')}/thumbnails/{user_id}.jpg?v={mtime}"
         reply_text = f'<a href="{thumb_url}">\u200b</a>' + reply_text
-        lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-    await sendMessage(message, reply_text, link_preview_options=lpo)
+        disable_web_page_preview = False
+    await sendMessage(message, reply_text, disable_web_page_preview=disable_web_page_preview)
     
     if DATABASE_URL:
         await DbManger().update_user_doc(user_id, 'thumb', des_dir)
