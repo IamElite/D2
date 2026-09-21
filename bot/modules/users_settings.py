@@ -12,6 +12,7 @@ from re import sub as re_sub
 from html import escape
 from io import BytesIO
 from asyncio import sleep
+import aiohttp
 from cryptography.fernet import Fernet
 
 from .. import OWNER_ID, LOGGER, bot, user_data, config_dict, categories_dict, DATABASE_URL, IS_PREMIUM_USER, MAX_SPLIT_SIZE
@@ -97,6 +98,31 @@ fname_dict = {'rcc': 'RClone',
              'custom_title': 'Custom Title',
              }
 
+_THUMB_PH_CACHE: dict = {}
+
+async def _get_thumb_ph_url(thumbpath: str, user_id: int) -> str:
+    import os
+    mtime = int(os.path.getmtime(thumbpath))
+    cached = _THUMB_PH_CACHE.get(user_id)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        upload_url = "https://telegra.ph/upload"
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+            async with aiopen(thumbpath, 'rb') as f:
+                raw = await f.read()
+            data = aiohttp.FormData()
+            data.add_field('file', raw, filename='thumb.jpg', content_type='image/jpeg')
+            async with session.post(upload_url, data=data, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                result = await resp.json()
+        if isinstance(result, list) and result and 'src' in result[0]:
+            ph_url = 'https://telegra.ph' + result[0]['src']
+            _THUMB_PH_CACHE[user_id] = (mtime, ph_url)
+            return ph_url
+    except Exception as e:
+        LOGGER.warning(f"telegra.ph thumb upload failed for {user_id}: {e}")
+    return ''
+
 async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None):
     user_id = from_user.id
     name = from_user.mention(style="html")
@@ -112,9 +138,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Close", f"userset {user_id} close")
 
         text = BotTheme('USER_SETTING', NAME=name, ID=user_id, USERNAME=f'@{from_user.username}', LANG=Language.get(lc).display_name() if (lc := from_user.language_code) else "N/A", DC=from_user.dc_id)
-        if await aiopath.exists(thumbpath) and (base_url := config_dict.get('BASE_URL')):
-            mtime = int(ospath.getmtime(thumbpath))
-            text = f'<a href="{base_url.rstrip("/")}/thumbnails/{user_id}.jpg?v={mtime}">\u200b</a>' + text
+        if await aiopath.exists(thumbpath):
+            ph_url = await _get_thumb_ph_url(thumbpath, user_id)
+            if ph_url:
+                text = f'<a href="{ph_url}">\u200b</a>' + text
         
         button = buttons.build_menu(1)
     elif key == 'universal':
@@ -235,8 +262,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 LDUMP=ldump, METADATA=escape(trun(metadata)),
                 ATTACHMENT=escape(trun(lattachment)))
 
-        if await aiopath.exists(thumbpath) and (base_url := config_dict.get('BASE_URL')):
-            text = f'<a href="{base_url.rstrip("/")}/thumbnail/{user_id}">\u200b</a>' + text
+        if await aiopath.exists(thumbpath):
+            ph_url = await _get_thumb_ph_url(thumbpath, user_id)
+            if ph_url:
+                text = f'<a href="{ph_url}">\u200b</a>' + text
 
         buttons.ibutton("Back", f"userset {user_id} back", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
@@ -329,9 +358,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         elif key == 'thumb':
             set_exist = await aiopath.exists(thumbpath)
             text += f"➲ <b>Custom Thumbnail :</b> <i>{'' if set_exist else 'Not'} Exists</i>\n\n"
-            if set_exist and (base_url := config_dict.get('BASE_URL')):
-                mtime = int(ospath.getmtime(thumbpath))
-                text = f'<a href="{base_url.rstrip("/")}/thumbnails/{user_id}.jpg?v={mtime}">\u200b</a>' + text
+            if set_exist:
+                ph_url = await _get_thumb_ph_url(thumbpath, user_id)
+                if ph_url:
+                    text = f'<a href="{ph_url}">\u200b</a>' + text
         elif key == 'yt_opt':
             set_exist = 'Not Exists' if (val:=user_dict.get('yt_opt', config_dict.get('YT_DLP_OPTIONS', ''))) == '' else val
             text += f"➲ <b>YT-DLP Options :</b> <code>{escape(trun(set_exist, 600))}</code>\n\n"
@@ -424,10 +454,10 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
     thumb_exists = await aiopath.exists(thumbpath)
-    if thumb_exists and (base_url := config_dict.get('BASE_URL')):
-        thumb_url = f"{base_url.rstrip('/')}/thumbnail/{user_id}"
-        if not text.startswith(f'<a href="{thumb_url}">'):
-            text = f'<a href="{thumb_url}">\u200b</a>' + text
+    if thumb_exists:
+        ph_url = await _get_thumb_ph_url(thumbpath, user_id)
+        if ph_url and not text.startswith(f'<a href="{ph_url}">'):
+            text = f'<a href="{ph_url}">\u200b</a>' + text
     return text, button
 
 
@@ -437,7 +467,8 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     target_msg = query if sdirect else query.message
     thumb_path = f"Thumbnails/{from_user.id}.jpg"
     thumb_exists = await aiopath.exists(thumb_path)
-    disable_web_page_preview = not (thumb_exists and bool(config_dict.get('BASE_URL')))
+    ph_url = await _get_thumb_ph_url(thumb_path, from_user.id) if thumb_exists else ''
+    disable_web_page_preview = not bool(ph_url)
     await editMessage(target_msg, text, button, disable_web_page_preview=disable_web_page_preview)
 
 
@@ -552,8 +583,8 @@ async def user_settings(client, message):
         msg, button = await get_user_settings(from_user)
         thumb_path = f"Thumbnails/{from_user.id}.jpg"
         thumb_exists = await aiopath.exists(thumb_path)
-        disable_web_page_preview = not (thumb_exists and bool(config_dict.get('BASE_URL')))
-        await sendMessage(message, msg, button, disable_web_page_preview=disable_web_page_preview)
+        ph_url = await _get_thumb_ph_url(thumb_path, from_user.id) if thumb_exists else ''
+        await sendMessage(message, msg, button, disable_web_page_preview=not bool(ph_url))
 
 
 async def set_custom(client, message, pre_event, key, direct=False):
@@ -715,8 +746,8 @@ async def set_thumb(client, message, pre_event, key, direct=False):
     if direct:
         await deleteMessage(pre_event)
         text, button = await get_user_settings(message.from_user, key, 'leech')
-        disable_web_page_preview = not bool(config_dict.get('BASE_URL'))
-        await sendMessage(message, text, button, disable_web_page_preview=disable_web_page_preview)
+        ph_url = await _get_thumb_ph_url(des_dir, user_id)
+        await sendMessage(message, text, button, disable_web_page_preview=not bool(ph_url))
     else:
         await deleteMessage(message)
         await update_user_settings(pre_event, key, 'leech', msg=message, sdirect=direct)
@@ -1323,14 +1354,11 @@ async def set_thumb_cmd(client, message):
     except Exception as e:
         LOGGER.error(f"Failed to delete thumbnail photo: {e}")
     
-    reply_text = "✅ Custom Thumbnail saved successfully!"
-    disable_web_page_preview = True
-    if (base_url := config_dict.get('BASE_URL')):
-        mtime = int(ospath.getmtime(des_dir))
-        thumb_url = f"{base_url.rstrip('/')}/thumbnails/{user_id}.jpg?v={mtime}"
-        reply_text = f'<a href="{thumb_url}">\u200b</a>' + reply_text
-        disable_web_page_preview = False
-    await sendMessage(message, reply_text, disable_web_page_preview=disable_web_page_preview)
+    reply_text = "\u2705 Custom Thumbnail saved successfully!"
+    ph_url = await _get_thumb_ph_url(des_dir, user_id)
+    if ph_url:
+        reply_text = f'<a href="{ph_url}">\u200b</a>' + reply_text
+    await sendMessage(message, reply_text, disable_web_page_preview=not bool(ph_url))
     
     if DATABASE_URL:
         await DbManger().update_user_doc(user_id, 'thumb', des_dir)
