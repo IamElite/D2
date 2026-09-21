@@ -1,22 +1,6 @@
 from datetime import datetime
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex, create
-try:
-    from pyrogram.types import LinkPreviewOptions
-except ImportError:
-    try:
-        from pyrogram.types.messages_and_media.link_preview_options import LinkPreviewOptions
-    except ImportError:
-        class LinkPreviewOptions:
-            def __init__(self, *, is_disabled=None, url=None, prefer_small_media=None, prefer_large_media=None, show_above_text=None):
-                self.is_disabled = is_disabled
-                self.url = url
-                self.prefer_small_media = prefer_small_media
-                self.prefer_large_media = prefer_large_media
-                self.show_above_text = show_above_text
-import pyrogram.types
-if not hasattr(pyrogram.types, 'LinkPreviewOptions'):
-    pyrogram.types.LinkPreviewOptions = LinkPreviewOptions
 from aiofiles import open as aiopen
 from aiofiles.os import remove as aioremove, path as aiopath, mkdir
 from langcodes import Language
@@ -31,7 +15,7 @@ from asyncio import sleep
 from cryptography.fernet import Fernet
 
 from .. import OWNER_ID, LOGGER, bot, user_data, config_dict, categories_dict, DATABASE_URL, IS_PREMIUM_USER, MAX_SPLIT_SIZE
-from ..helper.telegram_helper.message_utils import sendMessage, sendCustomMsg, editMessage, deleteMessage, sendFile, chat_info, user_info
+from ..helper.telegram_helper.message_utils import sendMessage, sendCustomMsg, editMessage, deleteMessage, sendFile, chat_info, user_info, LinkPreviewOptions
 from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.button_build import ButtonMaker

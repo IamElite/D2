@@ -64,6 +64,24 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260921-D (built)
+**Git:** `PENDING`
+**Date:** 2026-09-21
+**Files:** `bot/helper/telegram_helper/message_utils.py`, `bot/modules/users_settings.py`
+
+**User log:**
+- `Message.edit_text() got an unexpected keyword argument 'link_preview_options'` error aaya.
+- `users_settings.py` se `LinkPreviewOptions` try/except block hata kar `message_utils.py` me cleanly encapsulate karne ko bola gaya.
+
+**Root causes & Fixes:**
+1. **Message.edit_text() unexpected keyword argument:**
+   - Heroku dyno par chal rahe WZGram/Pyrogram build me `Message.edit_text` and `bot.send_message` me `link_preview_options` argument absent tha.
+   - `message_utils.py` ke `sendMessage`, `sendCustomMsg`, aur `editMessage` me safe try/except fallback implement kiya: agar `link_preview_options` ya `show_caption_above_media` par `TypeError` aaye, to silently unhe pop karke standard `disable_web_page_preview=False` ke sath call complete hoti hai. Message text me invisible `<a>` link entity hone ke karan Telegram server automatically preview resolve karta hai.
+2. **Encapsulation in `message_utils.py`:**
+   - `LinkPreviewOptions` resolution block ko `users_settings.py` se shift karke `message_utils.py` me move kiya aur export kiya.
+   - `users_settings.py` ab single clean line se import karta hai.
+3. **Pure Code Rule:** Zero comments strictly followed across all modifications.
+
 ### 260921-B (built)
 **Git:** `161a72d`
 **Date:** 2026-09-21

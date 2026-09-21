@@ -12,6 +12,23 @@ from pyrogram.enums import ParseMode
 from pyrogram.types import InputMediaPhoto, Message
 from pyrogram.errors import ReplyMarkupInvalid, FloodWait, PeerIdInvalid, ChannelInvalid, RPCError, UserNotParticipant, MessageNotModified, MessageEmpty, PhotoInvalidDimensions, WebpageCurlFailed, MediaEmpty
 
+try:
+    from pyrogram.types import LinkPreviewOptions
+except ImportError:
+    try:
+        from pyrogram.types.messages_and_media.link_preview_options import LinkPreviewOptions
+    except ImportError:
+        class LinkPreviewOptions:
+            def __init__(self, *, is_disabled=None, url=None, prefer_small_media=None, prefer_large_media=None, show_above_text=None):
+                self.is_disabled = is_disabled
+                self.url = url
+                self.prefer_small_media = prefer_small_media
+                self.prefer_large_media = prefer_large_media
+                self.show_above_text = show_above_text
+import pyrogram.types
+if not hasattr(pyrogram.types, 'LinkPreviewOptions'):
+    pyrogram.types.LinkPreviewOptions = LinkPreviewOptions
+
 from ... import config_dict, user_data, categories_dict, bot_cache, LOGGER, bot_name, status_reply_dict, status_reply_dict_lock, Interval, bot, user, download_dict, download_dict_lock
 from ..ext_utils.bot_utils import get_readable_message, setInterval, sync_to_async, download_image_url, fetch_user_tds, fetch_user_dumps, new_thread
 from .button_build import ButtonMaker
@@ -64,11 +81,20 @@ async def sendMessage(message, text, buttons=None, photo=None, reply_to=None, **
         link_preview_options = kwargs.pop("link_preview_options", None)
         send_kwargs = {"chat_id": cid, "text": text, "disable_notification": True, "reply_markup": buttons, "reply_to_message_id": reply_id, **kwargs}
         if link_preview_options is not None:
-            send_kwargs["link_preview_options"] = link_preview_options
             send_kwargs["disable_web_page_preview"] = False
+            if hasattr(link_preview_options, "show_above_text") and link_preview_options.show_above_text:
+                send_kwargs["show_caption_above_media"] = True
+            send_kwargs["link_preview_options"] = link_preview_options
         else:
             send_kwargs["disable_web_page_preview"] = True
-        return await bot.send_message(**send_kwargs)
+        try:
+            return await bot.send_message(**send_kwargs)
+        except TypeError as te:
+            if "link_preview_options" in str(te) or "show_caption_above_media" in str(te):
+                send_kwargs.pop("link_preview_options", None)
+                send_kwargs.pop("show_caption_above_media", None)
+                return await bot.send_message(**send_kwargs)
+            raise
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
@@ -101,11 +127,20 @@ async def sendCustomMsg(chat_id, text, buttons=None, photo=None, debug=False, li
                 LOGGER.error(format_exc())
         send_kwargs = {"chat_id": chat_id, "text": text, "disable_notification": True, "reply_markup": buttons}
         if link_preview_options is not None:
-            send_kwargs["link_preview_options"] = link_preview_options
             send_kwargs["disable_web_page_preview"] = False
+            if hasattr(link_preview_options, "show_above_text") and link_preview_options.show_above_text:
+                send_kwargs["show_caption_above_media"] = True
+            send_kwargs["link_preview_options"] = link_preview_options
         else:
             send_kwargs["disable_web_page_preview"] = True
-        return await bot.send_message(**send_kwargs)
+        try:
+            return await bot.send_message(**send_kwargs)
+        except TypeError as te:
+            if "link_preview_options" in str(te) or "show_caption_above_media" in str(te):
+                send_kwargs.pop("link_preview_options", None)
+                send_kwargs.pop("show_caption_above_media", None)
+                return await bot.send_message(**send_kwargs)
+            raise
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
@@ -178,9 +213,22 @@ async def editMessage(message, text, buttons=None, photo=None, link_preview_opti
                 photo = rchoice(config_dict['IMAGES']) if photo == 'IMAGES' else photo
                 return await message.edit_media(InputMediaPhoto(photo, text), reply_markup=buttons)
             return await message.edit_caption(caption=text, reply_markup=buttons)
+        edit_kwargs = {"text": text, "reply_markup": buttons}
         if link_preview_options is not None:
-            return await message.edit(text=text, link_preview_options=link_preview_options, disable_web_page_preview=False, reply_markup=buttons)
-        return await message.edit(text=text, disable_web_page_preview=True, reply_markup=buttons)
+            edit_kwargs["disable_web_page_preview"] = False
+            if hasattr(link_preview_options, "show_above_text") and link_preview_options.show_above_text:
+                edit_kwargs["show_caption_above_media"] = True
+            edit_kwargs["link_preview_options"] = link_preview_options
+        else:
+            edit_kwargs["disable_web_page_preview"] = True
+        try:
+            return await message.edit(**edit_kwargs)
+        except TypeError as te:
+            if "link_preview_options" in str(te) or "show_caption_above_media" in str(te):
+                edit_kwargs.pop("link_preview_options", None)
+                edit_kwargs.pop("show_caption_above_media", None)
+                return await message.edit(**edit_kwargs)
+            raise
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
