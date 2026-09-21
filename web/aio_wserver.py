@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# In-bot web server (aiohttp) — gunicorn/flask/gevent process ka replacement (CI).
-# Bot process ke andar chalta hai: ~85MB RAM saving, aiohttp pehle se loaded (+0MB).
-# Blocking engine calls (aria2p/qbittorrent-api sync) to_thread me — event-loop kabhi block nahi.
-# Routes legacy web.wserver jaise hi: GET / , GET+POST /app/files/{id}
 
 from asyncio import to_thread, sleep as asyncio_sleep
 from logging import getLogger
@@ -23,8 +19,6 @@ aria2 = ariaAPI(ariaClient(host="http://localhost", port=6800, secret=""))
 
 runner = None
 
-
-# ---------- blocking helpers (to_thread targets, kabhi direct call na karein) ----------
 
 def _qbit_files(hash_):
     client = qbClient(host="localhost", port="8090")
@@ -125,7 +119,6 @@ def re_verify(paused, resumed, client, hash_id):
     return True
 
 
-# ---------- async handlers ----------
 
 async def homepage(request):
     return web.Response(text=home_page, content_type='text/html')
@@ -194,7 +187,6 @@ async def serve_thumbnail(request):
 
 
 
-# ---------- lifecycle ----------
 
 async def start_web_server(port):
     global runner
@@ -204,10 +196,10 @@ async def start_web_server(port):
     app.router.add_post('/app/files/{id_}', set_priority)
     app.router.add_get('/thumbnail/{uid}', serve_thumbnail)
     app.router.add_get('/thumbnails/{uid}', serve_thumbnail)
-    new_runner = web.AppRunner(app, access_log=None)   # access_log off = less CPU/IO
+    new_runner = web.AppRunner(app, access_log=None)
     await new_runner.setup()
     last_exc = None
-    for attempt in range(3):                           # cleanup→rebind race guard
+    for attempt in range(3):
         try:
             site = web.TCPSite(new_runner, '0.0.0.0', int(port), reuse_address=True)
             await site.start()
@@ -226,7 +218,7 @@ async def stop_web_server():
     if runner is not None:
         old_runner, runner = runner, None
         await old_runner.cleanup()
-        await asyncio_sleep(0.1)                       # OS socket-release settle
+        await asyncio_sleep(0.1)
         LOGGER.info("Web server (in-bot aiohttp) stopped")
 
 

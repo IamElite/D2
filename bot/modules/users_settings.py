@@ -569,9 +569,6 @@ async def set_custom(client, message, pre_event, key, direct=False):
         if key == "gofile" and not await Gofile.is_goapi(value):
             value = ""
         elif key == "streamtape":
-            # Gofile ki tarah save-time pe validate karo: streamtape ko "login:key"
-            # chahiye. Bina validation ke galat key save ho jaati thi aur upload
-            # pe ValueError crash hota tha.
             parts = value.split(':')
             if len(parts) != 2 or not parts[0] or not parts[1]:
                 value = ""
@@ -634,9 +631,6 @@ async def set_custom(client, message, pre_event, key, direct=False):
     elif key in ['autorename_format', 'custom_title']:
         return_key = 'autorename'
         if key == 'autorename_format' and (invalid_tags := validate_autorename_format(value)):
-            # ভুল/Typo করা Tag (যেমন {qualilty}) নিয়ে Format সেভ হতে দেওয়া হবে না,
-            # কারণ এটা পরে Auto Rename কে চুপচাপ ব্যর্থ করে দেয় এবং ইউজার বুঝতেই
-            # পারেন না কেন তার Auto Rename কাজ করছে না।
             bad = ", ".join(f"{{{t}}}" for t in sorted(invalid_tags))
             handler_dict[user_id] = False
             await deleteMessage(message)
