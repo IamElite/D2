@@ -1,8 +1,22 @@
-#!/usr/bin/env python3
 from datetime import datetime
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.filters import command, regex, create
-from pyrogram.types import LinkPreviewOptions
+try:
+    from pyrogram.types import LinkPreviewOptions
+except ImportError:
+    try:
+        from pyrogram.types.messages_and_media.link_preview_options import LinkPreviewOptions
+    except ImportError:
+        class LinkPreviewOptions:
+            def __init__(self, *, is_disabled=None, url=None, prefer_small_media=None, prefer_large_media=None, show_above_text=None):
+                self.is_disabled = is_disabled
+                self.url = url
+                self.prefer_small_media = prefer_small_media
+                self.prefer_large_media = prefer_large_media
+                self.show_above_text = show_above_text
+import pyrogram.types
+if not hasattr(pyrogram.types, 'LinkPreviewOptions'):
+    pyrogram.types.LinkPreviewOptions = LinkPreviewOptions
 from aiofiles import open as aiopen
 from aiofiles.os import remove as aioremove, path as aiopath, mkdir
 from langcodes import Language

@@ -86,6 +86,8 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 5. **MTProto `EditMessage` no_webpage Override (`message_utils.py`):**
    - WZGram `edit_message_text` me `disable_web_page_preview=False` explicitly pass kiya jab `link_preview_options` present ho taaki `no_webpage: true` flag MTProto me safely override ho sake.
 6. **Pure Code Rule:** Zero comments strictly followed across all python files.
+7. **WZGram `LinkPreviewOptions` Module Path Fix (`users_settings.py`):**
+   - WZGram package me `LinkPreviewOptions` file `pyrogram/types/messages_and_media/link_preview_options.py` me present hai lekin unke `pyrogram/types/__init__.py` me direct re-export missing tha, jisse `from pyrogram.types import LinkPreviewOptions` ImportError fekta tha. Fallback chain add kiya: `pyrogram.types` -> `pyrogram.types.messages_and_media.link_preview_options` -> custom fallback class + dynamically inject into `pyrogram.types`.
 
 ### 260921-A (built)
 **Git:** `1417ad5`
