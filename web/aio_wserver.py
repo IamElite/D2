@@ -193,7 +193,14 @@ async def serve_thumbnail(request):
     thumb_path = ospath.join('Thumbnails', f"{uid}.jpg")
     if await aiopath.exists(thumb_path):
         proto = request.headers.get('X-Forwarded-Proto', request.scheme)
-        base_url = (config_dict.get('BASE_URL') or f"{proto}://{request.host}").rstrip('/')
+        host = request.headers.get('Host', request.host)
+        base_url = f"{proto}://{host}"
+        try:
+            from bot import config_dict
+            if config_dict.get('BASE_URL'):
+                base_url = config_dict['BASE_URL'].rstrip('/')
+        except Exception:
+            pass
         img_url = f"{base_url}/thumbnail/{uid}.jpg"
         html = f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>&#8203;</title><meta property="og:type" content="website"><meta property="og:title" content="&#8203;"><meta property="og:image" content="{img_url}"><meta property="og:image:type" content="image/jpeg"><meta property="og:url" content="{base_url}/thumbnail/{uid}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img_url}"></head><body></body></html>'
         return web.Response(text=html, content_type='text/html', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})

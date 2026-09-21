@@ -64,6 +64,25 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260921-F (built)
+**Git:** `9d346b8`
+**Date:** 2026-09-21
+**Files:** `web/aio_wserver.py`, `bot/helper/telegram_helper/message_utils.py`
+
+**User log:**
+- `us ke koi bi button ka calback new msg send kar raha h`: Callback click par har baar naya message bhej raha tha.
+- Image 2 jaisa link preview nahi dikh raha tha.
+
+**Root causes & Fixes:**
+1. **HTTP 500 in `aio_wserver.py` (preventing link preview crawling):**
+   - `serve_thumbnail` me `config_dict` directly use ho raha tha bina import ke, jisse `NameError: name 'config_dict' is not defined` aa raha tha aur Heroku par endpoint 500 error de raha tha. Is wajah se Telegram crawler webpage unfurl nahi kar pa raha tha.
+   - Fixed with safe import + request headers fallback (`Host` + `X-Forwarded-Proto`).
+2. **Callback Multiple New Messages (`message_utils.py`):**
+   - Pyrogram me jab message par webpage link preview hota hai to `message.media` ka type `MessageMediaType.WEB_PAGE` hota hai (`bool(message.media) == True`).
+   - `editMessage` me `if message.media:` check WEB_PAGE ko bhi media mankar message delete karke naya `sendMessage` kar raha tha har callback par!
+   - Fixed: `editMessage` ab check karta hai `(message.photo or message.video or message.document or message.animation) and not getattr(message, "text", None)`. Link preview wale text messages strictly in-place edit honge, koi naya message nahi banega.
+3. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260921-E (built)
 **Git:** `27a47b0`
 **Date:** 2026-09-21
