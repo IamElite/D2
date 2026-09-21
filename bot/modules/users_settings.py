@@ -428,15 +428,23 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     from_user = msg.from_user if sdirect else query.from_user
     text, button = await get_user_settings(from_user, key, edit_type, edit_mode)
     lpo = None
-    if key in ['leech', 'thumb'] and await aiopath.exists(f"Thumbnails/{from_user.id}.jpg") and config_dict.get('BASE_URL'):
-        lpo = LinkPreviewOptions(show_above_text=True, prefer_large_media=True)
-    await editMessage(query if sdirect else query.message, text, button, link_preview_options=lpo)
+    photo = None
+    target_msg = query if sdirect else query.message
+    thumb_exists = await aiopath.exists(f"Thumbnails/{from_user.id}.jpg")
+    if key in ['leech', 'thumb'] and thumb_exists:
+        photo = f"Thumbnails/{from_user.id}.jpg"
+        if (base_url := config_dict.get('BASE_URL')):
+            thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
+            lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
+    elif key is None or key in ['universal', 'mirror']:
+        photo = 'IMAGES'
+    await editMessage(target_msg, text, button, photo=photo, link_preview_options=lpo)
 
 
 async def user_settings(client, message):
     if len(message.command) > 1 and (message.command[1] == '-s' or message.command[1] == '-set'):
         set_arg = message.command[2].strip().lower() if len(message.command) > 2 else None
-        msg = await sendMessage(message, '<i>Fetching Settings...</i>', photo='IMAGES')
+        msg = await sendMessage(message, '<i>Fetching Settings...</i>')
         if set_arg in ['metadata', 'mt']:
             user_id = message.from_user.id
             tag = message.command[3].strip() if len(message.command) > 3 else None
@@ -1290,8 +1298,10 @@ async def set_thumb_cmd(client, message):
     user_id = message.from_user.id
     reply = message.reply_to_message
     
-    if not reply or not reply.photo:
-        return await sendMessage(message, "Reply to a photo with /t to set it as your custom thumbnail.")
+    is_photo = bool(reply and reply.photo)
+    is_image_doc = bool(reply and reply.document and reply.document.mime_type and reply.document.mime_type.startswith('image/'))
+    if not reply or (not is_photo and not is_image_doc):
+        return await sendMessage(message, "Reply to a photo or image file with /t to set it as your custom thumbnail.")
     
     path = "Thumbnails/"
     if not await aiopath.isdir(path):
@@ -1313,8 +1323,9 @@ async def set_thumb_cmd(client, message):
     reply_text = "✅ Custom Thumbnail saved successfully!"
     lpo = None
     if (base_url := config_dict.get('BASE_URL')):
-        reply_text = f'<a href="{base_url.rstrip("/")}/thumbnail/{user_id}">\u200b</a>' + reply_text
-        lpo = LinkPreviewOptions(show_above_text=True, prefer_large_media=True)
+        thumb_url = f"{base_url.rstrip('/')}/thumbnail/{user_id}"
+        reply_text = f'<a href="{thumb_url}">\u200b</a>' + reply_text
+        lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
     await sendMessage(message, reply_text, link_preview_options=lpo)
     
     if DATABASE_URL:

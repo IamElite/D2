@@ -65,6 +65,7 @@ async def sendMessage(message, text, buttons=None, photo=None, reply_to=None, **
         send_kwargs = {"chat_id": cid, "text": text, "disable_notification": True, "reply_markup": buttons, "reply_to_message_id": reply_id, **kwargs}
         if link_preview_options is not None:
             send_kwargs["link_preview_options"] = link_preview_options
+            send_kwargs["disable_web_page_preview"] = False
         else:
             send_kwargs["disable_web_page_preview"] = True
         return await bot.send_message(**send_kwargs)
@@ -101,6 +102,7 @@ async def sendCustomMsg(chat_id, text, buttons=None, photo=None, debug=False, li
         send_kwargs = {"chat_id": chat_id, "text": text, "disable_notification": True, "reply_markup": buttons}
         if link_preview_options is not None:
             send_kwargs["link_preview_options"] = link_preview_options
+            send_kwargs["disable_web_page_preview"] = False
         else:
             send_kwargs["disable_web_page_preview"] = True
         return await bot.send_message(**send_kwargs)
@@ -177,7 +179,7 @@ async def editMessage(message, text, buttons=None, photo=None, link_preview_opti
                 return await message.edit_media(InputMediaPhoto(photo, text), reply_markup=buttons)
             return await message.edit_caption(caption=text, reply_markup=buttons)
         if link_preview_options is not None:
-            return await message.edit(text=text, link_preview_options=link_preview_options, reply_markup=buttons)
+            return await message.edit(text=text, link_preview_options=link_preview_options, disable_web_page_preview=False, reply_markup=buttons)
         return await message.edit(text=text, disable_web_page_preview=True, reply_markup=buttons)
     except FloodWait as f:
         LOGGER.warning(str(f))

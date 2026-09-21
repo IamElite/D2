@@ -185,10 +185,18 @@ async def set_priority(request):
 async def serve_thumbnail(request):
     uid = request.match_info['uid']
     if uid.endswith('.jpg'):
-        uid = uid[:-4]
+        raw_uid = uid[:-4]
+        thumb_path = ospath.join('Thumbnails', f"{raw_uid}.jpg")
+        if await aiopath.exists(thumb_path):
+            return web.FileResponse(thumb_path)
+        raise web.HTTPNotFound
     thumb_path = ospath.join('Thumbnails', f"{uid}.jpg")
     if await aiopath.exists(thumb_path):
-        return web.FileResponse(thumb_path)
+        proto = request.headers.get('X-Forwarded-Proto', request.scheme)
+        base_url = (config_dict.get('BASE_URL') or f"{proto}://{request.host}").rstrip('/')
+        img_url = f"{base_url}/thumbnail/{uid}.jpg"
+        html = f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>&#8203;</title><meta property="og:type" content="website"><meta property="og:title" content="&#8203;"><meta property="og:image" content="{img_url}"><meta property="og:image:type" content="image/jpeg"><meta property="og:url" content="{base_url}/thumbnail/{uid}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img_url}"></head><body></body></html>'
+        return web.Response(text=html, content_type='text/html', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
     raise web.HTTPNotFound
 
 

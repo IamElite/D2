@@ -64,6 +64,29 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260921-B (built)
+**Git:** `74cec71`
+**Date:** 2026-09-21
+**Files:** `web/aio_wserver.py`, `bot/helper/telegram_helper/message_utils.py`, `bot/modules/users_settings.py`
+
+**User log:**
+- Live Heroku app `https://zyl08sept07-7474de1ce462.herokuapp.com/` par user `7074383232` ke liye preview show nahi ho raha tha, logger me koi error nahi tha.
+- WZGram MTProto rules, Telegram crawler requirements, aur media vs text message types ko handle karke pro fix implement kiya.
+
+**Root causes & Fixes:**
+1. **Telegram Crawler OpenGraph HTML (`aio_wserver.py`):**
+   - Telegram crawler binary `image/jpeg` stream ko webpage preview nahi manta aur drop kar deta hai.
+   - Updated `/thumbnail/{uid}` endpoint to return valid OpenGraph HTML (`og:type="website"`, `og:image`, `og:title="&#8203;"`, `twitter:card="summary_large_image"`, `Cache-Control: no-cache`) using `BASE_URL` and `X-Forwarded-Proto` proxy header. Raw binary JPEG is served on `/thumbnail/{uid}.jpg`.
+2. **Settings Fetching Message (`users_settings.py`):**
+   - Line 440 me `Fetching Settings...` loading message `photo='IMAGES'` ke sath ja raha tha, jisse message permanent photo message ban jata tha. Photo messages par Telegram API link preview render nahi karta. Isse pure text message me convert kiya.
+3. **Dual Media & Text Support (`users_settings.py`):**
+   - `update_user_settings` me agar message text mode me ho to `LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)` use hota hai. Agar message media mode (photo) me ho to `photo=Thumbnails/{uid}.jpg` pass karke `InputMediaPhoto` se direct photo edit hota hai, aur back jaane par wapis `IMAGES` banner par switch hota hai.
+4. **Shortcut & Document Image Support (`users_settings.py`):**
+   - `/t` shortcut me photo ke sath-sath uncompressed document images (`image/*` mime type) bhi support kiya.
+5. **MTProto `EditMessage` no_webpage Override (`message_utils.py`):**
+   - WZGram `edit_message_text` me `disable_web_page_preview=False` explicitly pass kiya jab `link_preview_options` present ho taaki `no_webpage: true` flag MTProto me safely override ho sake.
+6. **Pure Code Rule:** Zero comments strictly followed across all python files.
+
 ### 260921-A (built)
 **Git:** `1417ad5`
 **Date:** 2026-09-21
