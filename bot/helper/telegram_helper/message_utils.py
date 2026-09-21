@@ -7,7 +7,7 @@ from time import time
 from re import match as re_match
 from cryptography.fernet import InvalidToken
 
-from pyrogram import Client, raw, utils
+from pyrogram import Client
 from pyrogram.enums import ParseMode
 from pyrogram.types import InputMediaPhoto, Message
 from pyrogram.errors import ReplyMarkupInvalid, FloodWait, PeerIdInvalid, ChannelInvalid, RPCError, UserNotParticipant, MessageNotModified, MessageEmpty, PhotoInvalidDimensions, WebpageCurlFailed, MediaEmpty
@@ -78,38 +78,16 @@ async def sendMessage(message, text, buttons=None, photo=None, reply_to=None, **
             reply_id = reply_to
         elif rply and not rply.text and not rply.caption:
             reply_id = rply.id
+        disable_web_page_preview = kwargs.pop("disable_web_page_preview", None)
         link_preview_options = kwargs.pop("link_preview_options", None)
-        if link_preview_options is not None and getattr(link_preview_options, "url", None):
-            try:
-                peer = await bot.resolve_peer(cid)
-                plain_text, entities = (await utils.parse_text_entities(bot, text, ParseMode.HTML, None)).values()
-                prefer_large = getattr(link_preview_options, "prefer_large_media", True)
-                show_above = getattr(link_preview_options, "show_above_text", True)
-                media = raw.types.InputMediaWebPage(url=link_preview_options.url, force_large_media=prefer_large)
-                reply_to_param = raw.types.InputReplyToMessage(reply_to_msg_id=reply_id) if reply_id else None
-                r = await bot.invoke(
-                    raw.functions.messages.SendMedia(
-                        peer=peer,
-                        media=media,
-                        message=plain_text,
-                        entities=entities,
-                        random_id=bot.rnd_id(),
-                        invert_media=show_above,
-                        reply_to=reply_to_param,
-                        reply_markup=await buttons.write(bot) if buttons else None
-                    )
-                )
-                for i in getattr(r, "updates", []):
-                    if isinstance(i, (raw.types.UpdateNewMessage, raw.types.UpdateNewChannelMessage)):
-                        return await Message._parse(bot, i.message, {u.id: u for u in getattr(r, "users", [])}, {c.id: c for c in getattr(r, "chats", [])})
-            except Exception:
-                pass
         send_kwargs = {"chat_id": cid, "text": text, "disable_notification": True, "reply_markup": buttons, "reply_to_message_id": reply_id, **kwargs}
         if link_preview_options is not None:
             send_kwargs["disable_web_page_preview"] = False
             if hasattr(link_preview_options, "show_above_text") and link_preview_options.show_above_text:
                 send_kwargs["show_caption_above_media"] = True
             send_kwargs["link_preview_options"] = link_preview_options
+        elif disable_web_page_preview is not None:
+            send_kwargs["disable_web_page_preview"] = disable_web_page_preview
         else:
             send_kwargs["disable_web_page_preview"] = True
         try:
@@ -231,44 +209,22 @@ async def sendMultiMessage(chat_ids, text, buttons=None, photo=None):
     return msg_dict
 
 
-async def editMessage(message, text, buttons=None, photo=None, link_preview_options=None):
+async def editMessage(message, text, buttons=None, photo=None, link_preview_options=None, **kwargs):
     try:
         if (message.photo or message.video or message.document or message.animation) and not getattr(message, "text", None):
             if photo and photo == 'IMAGES':
                 photo = rchoice(config_dict['IMAGES'])
                 return await message.edit_media(InputMediaPhoto(photo, text), reply_markup=buttons)
             return await message.edit_caption(caption=text, reply_markup=buttons)
-        if link_preview_options is not None and getattr(link_preview_options, "url", None):
-            try:
-                chat_id = message.chat.id if getattr(message, "chat", None) else _chat_id_of(message)
-                peer = await bot.resolve_peer(chat_id)
-                plain_text, entities = (await utils.parse_text_entities(bot, text, ParseMode.HTML, None)).values()
-                prefer_large = getattr(link_preview_options, "prefer_large_media", True)
-                show_above = getattr(link_preview_options, "show_above_text", True)
-                media = raw.types.InputMediaWebPage(url=link_preview_options.url, force_large_media=prefer_large)
-                r = await bot.invoke(
-                    raw.functions.messages.EditMessage(
-                        peer=peer,
-                        id=message.id,
-                        media=media,
-                        message=plain_text,
-                        entities=entities,
-                        invert_media=show_above,
-                        reply_markup=await buttons.write(bot) if buttons else None
-                    )
-                )
-                for i in getattr(r, "updates", []):
-                    if isinstance(i, (raw.types.UpdateEditMessage, raw.types.UpdateEditChannelMessage)):
-                        return await Message._parse(bot, i.message, {u.id: u for u in getattr(r, "users", [])}, {c.id: c for c in getattr(r, "chats", [])})
-                return message
-            except Exception:
-                pass
-        edit_kwargs = {"text": text, "reply_markup": buttons}
+        disable_web_page_preview = kwargs.pop("disable_web_page_preview", None)
+        edit_kwargs = {"text": text, "reply_markup": buttons, **kwargs}
         if link_preview_options is not None:
             edit_kwargs["disable_web_page_preview"] = False
             if hasattr(link_preview_options, "show_above_text") and link_preview_options.show_above_text:
                 edit_kwargs["show_caption_above_media"] = True
             edit_kwargs["link_preview_options"] = link_preview_options
+        elif disable_web_page_preview is not None:
+            edit_kwargs["disable_web_page_preview"] = disable_web_page_preview
         else:
             edit_kwargs["disable_web_page_preview"] = True
         try:

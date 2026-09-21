@@ -185,21 +185,13 @@ async def set_priority(request):
 async def serve_thumbnail(request):
     uid = request.match_info['uid']
     if uid.endswith('.jpg'):
-        raw_uid = uid[:-4]
-        thumb_path = ospath.join('Thumbnails', f"{raw_uid}.jpg")
+        uid = uid[:-4]
+    for folder in ('Thumbnails', 'thumbnails'):
+        thumb_path = ospath.join(folder, f"{uid}.jpg")
         if await aiopath.exists(thumb_path):
             return web.FileResponse(thumb_path)
-        raise web.HTTPNotFound
-    thumb_path = ospath.join('Thumbnails', f"{uid}.jpg")
-    if await aiopath.exists(thumb_path):
-        proto = request.headers.get('X-Forwarded-Proto', request.scheme)
-        host = request.headers.get('Host', request.host)
-        current_url = f"{proto}://{host}"
-        img_url = f"{current_url}/thumbnail/{uid}.jpg"
-        page_url = f"{current_url}/thumbnail/{uid}"
-        html = f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Thumbnail</title><meta property="og:site_name" content="Thumbnail"><meta property="og:type" content="website"><meta property="og:title" content="Thumbnail"><meta property="og:description" content="Custom Leech Thumbnail"><meta property="og:image" content="{img_url}"><meta property="og:image:type" content="image/jpeg"><meta property="og:url" content="{page_url}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img_url}"></head><body><h3>Thumbnail</h3><img src="{img_url}" alt="Thumbnail"/></body></html>'
-        return web.Response(text=html, content_type='text/html', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
     raise web.HTTPNotFound
+
 
 
 # ---------- lifecycle ----------
