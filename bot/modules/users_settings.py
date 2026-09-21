@@ -112,6 +112,8 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Close", f"userset {user_id} close")
 
         text = BotTheme('USER_SETTING', NAME=name, ID=user_id, USERNAME=f'@{from_user.username}', LANG=Language.get(lc).display_name() if (lc := from_user.language_code) else "N/A", DC=from_user.dc_id)
+        if await aiopath.exists(thumbpath) and (base_url := config_dict.get('BASE_URL')):
+            text = f'<a href="{base_url.rstrip("/")}/thumbnail/{user_id}">\u200b</a>' + text
         
         button = buttons.build_menu(1)
     elif key == 'universal':
@@ -428,7 +430,7 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     lpo = None
     target_msg = query if sdirect else query.message
     thumb_exists = await aiopath.exists(f"Thumbnails/{from_user.id}.jpg")
-    if key in ['leech', 'thumb'] and thumb_exists and (base_url := config_dict.get('BASE_URL')):
+    if (key is None or key in ['leech', 'thumb']) and thumb_exists and (base_url := config_dict.get('BASE_URL')):
         thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
         lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
     await editMessage(target_msg, text, button, link_preview_options=lpo)
