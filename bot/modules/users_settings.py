@@ -426,17 +426,12 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     from_user = msg.from_user if sdirect else query.from_user
     text, button = await get_user_settings(from_user, key, edit_type, edit_mode)
     lpo = None
-    photo = None
     target_msg = query if sdirect else query.message
     thumb_exists = await aiopath.exists(f"Thumbnails/{from_user.id}.jpg")
-    if key in ['leech', 'thumb'] and thumb_exists:
-        photo = f"Thumbnails/{from_user.id}.jpg"
-        if (base_url := config_dict.get('BASE_URL')):
-            thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
-            lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
-    elif key is None or key in ['universal', 'mirror']:
-        photo = 'IMAGES'
-    await editMessage(target_msg, text, button, photo=photo, link_preview_options=lpo)
+    if key in ['leech', 'thumb'] and thumb_exists and (base_url := config_dict.get('BASE_URL')):
+        thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
+        lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
+    await editMessage(target_msg, text, button, link_preview_options=lpo)
 
 
 async def user_settings(client, message):
@@ -548,7 +543,11 @@ async def user_settings(client, message):
         from_user = message.from_user
         handler_dict[from_user.id] = False
         msg, button = await get_user_settings(from_user)
-        await sendMessage(message, msg, button, 'IMAGES')
+        lpo = None
+        if await aiopath.exists(f"Thumbnails/{from_user.id}.jpg") and (base_url := config_dict.get('BASE_URL')):
+            thumb_url = f"{base_url.rstrip('/')}/thumbnail/{from_user.id}"
+            lpo = LinkPreviewOptions(url=thumb_url, show_above_text=True, prefer_large_media=True)
+        await sendMessage(message, msg, button, link_preview_options=lpo)
 
 
 async def set_custom(client, message, pre_event, key, direct=False):

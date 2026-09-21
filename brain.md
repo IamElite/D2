@@ -64,6 +64,23 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 
 ## FIX LOG
 
+### 260921-E (built)
+**Git:** `PENDING`
+**Date:** 2026-09-21
+**Files:** `bot/helper/telegram_helper/message_utils.py`, `bot/modules/users_settings.py`
+
+**User log:**
+- Image 1 (full native attached photo message) vs Image 2 (Telegram native webpage link preview card with vertical accent line).
+- User ne manga: "img2 jaisa chaiye img ke liye" (pure Telegram Link Preview card, not full photo attachment).
+
+**Root causes & Fixes:**
+1. **Photo Mode vs Link Preview Card (Image 1 vs Image 2):**
+   - Image 1 me `edit_media(InputMediaPhoto)` call ho raha tha kyunki `photo = f"Thumbnails/{from_user.id}.jpg"` pass kiya gaya tha, jo Telegram par full-width photo attachment render karta hai (bina link preview card frame ke).
+   - `users_settings.py` se `photo` argument completely remove kiya taaki thumbnail hamesha pure WebPage Link Preview card (Image 2 - rounded media box with left vertical accent bar) ke roop me appear ho.
+2. **Media Message Auto-Transition:**
+   - `editMessage` me agar previous message media/photo ho aur `link_preview_options` pass ho, to media message ko delete karke fresh text message send hota hai with `link_preview_options`.
+3. **Pure Code Rule:** Zero comments strictly followed.
+
 ### 260921-D (built)
 **Git:** `4d60150`
 **Date:** 2026-09-21
