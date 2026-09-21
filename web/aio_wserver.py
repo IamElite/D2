@@ -7,6 +7,8 @@
 from asyncio import to_thread, sleep as asyncio_sleep
 from logging import getLogger
 from time import sleep
+from os import path as ospath
+from aiofiles.os import path as aiopath
 
 from aiohttp import web
 from aria2p import API as ariaAPI, Client as ariaClient
@@ -180,6 +182,16 @@ async def set_priority(request):
     return await list_contents(request)
 
 
+async def serve_thumbnail(request):
+    uid = request.match_info['uid']
+    if uid.endswith('.jpg'):
+        uid = uid[:-4]
+    thumb_path = ospath.join('Thumbnails', f"{uid}.jpg")
+    if await aiopath.exists(thumb_path):
+        return web.FileResponse(thumb_path)
+    raise web.HTTPNotFound
+
+
 # ---------- lifecycle ----------
 
 async def start_web_server(port):
@@ -188,6 +200,8 @@ async def start_web_server(port):
     app.router.add_get('/', homepage)
     app.router.add_get('/app/files/{id_}', list_contents)
     app.router.add_post('/app/files/{id_}', set_priority)
+    app.router.add_get('/thumb/{uid}', serve_thumbnail)
+    app.router.add_get('/Thumbnails/{uid}', serve_thumbnail)
     new_runner = web.AppRunner(app, access_log=None)   # access_log off = less CPU/IO
     await new_runner.setup()
     last_exc = None

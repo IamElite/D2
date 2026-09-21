@@ -61,10 +61,13 @@ async def sendMessage(message, text, buttons=None, photo=None, reply_to=None, **
             reply_id = reply_to
         elif rply and not rply.text and not rply.caption:
             reply_id = rply.id
-        return await bot.send_message(
-            chat_id=cid, text=text, disable_web_page_preview=True,
-            disable_notification=True, reply_markup=buttons,
-            reply_to_message_id=reply_id, **kwargs)
+        link_preview_options = kwargs.pop("link_preview_options", None)
+        send_kwargs = {"chat_id": cid, "text": text, "disable_notification": True, "reply_markup": buttons, "reply_to_message_id": reply_id, **kwargs}
+        if link_preview_options is not None:
+            send_kwargs["link_preview_options"] = link_preview_options
+        else:
+            send_kwargs["disable_web_page_preview"] = True
+        return await bot.send_message(**send_kwargs)
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
@@ -78,7 +81,7 @@ async def sendMessage(message, text, buttons=None, photo=None, reply_to=None, **
         return None
 
 
-async def sendCustomMsg(chat_id, text, buttons=None, photo=None, debug=False):
+async def sendCustomMsg(chat_id, text, buttons=None, photo=None, debug=False, link_preview_options=None):
     try:
         if photo:
             try:
@@ -90,19 +93,23 @@ async def sendCustomMsg(chat_id, text, buttons=None, photo=None, debug=False):
                 pass
             except (PhotoInvalidDimensions, WebpageCurlFailed, MediaEmpty):
                 des_dir = await download_image_url(photo)
-                await sendCustomMsg(chat_id, text, buttons, des_dir)
+                await sendCustomMsg(chat_id, text, buttons, des_dir, link_preview_options=link_preview_options)
                 await aioremove(des_dir)
                 return
             except Exception as e:
                 LOGGER.error(format_exc())
-        return await bot.send_message(chat_id=chat_id, text=text, disable_web_page_preview=True,
-                                                  disable_notification=True, reply_markup=buttons)
+        send_kwargs = {"chat_id": chat_id, "text": text, "disable_notification": True, "reply_markup": buttons}
+        if link_preview_options is not None:
+            send_kwargs["link_preview_options"] = link_preview_options
+        else:
+            send_kwargs["disable_web_page_preview"] = True
+        return await bot.send_message(**send_kwargs)
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
-        return await sendCustomMsg(chat_id, text, buttons, photo)
+        return await sendCustomMsg(chat_id, text, buttons, photo, link_preview_options=link_preview_options)
     except ReplyMarkupInvalid:
-        return await sendCustomMsg(chat_id, text, None, photo)
+        return await sendCustomMsg(chat_id, text, None, photo, link_preview_options=link_preview_options)
     except Exception as e:
         if debug:
             raise e
@@ -162,22 +169,24 @@ async def sendMultiMessage(chat_ids, text, buttons=None, photo=None):
     return msg_dict
 
 
-async def editMessage(message, text, buttons=None, photo=None):
+async def editMessage(message, text, buttons=None, photo=None, link_preview_options=None):
     try:
         if message.media:
             if photo:
                 photo = rchoice(config_dict['IMAGES']) if photo == 'IMAGES' else photo
                 return await message.edit_media(InputMediaPhoto(photo, text), reply_markup=buttons)
             return await message.edit_caption(caption=text, reply_markup=buttons)
-        await message.edit(text=text, disable_web_page_preview=True, reply_markup=buttons)
+        if link_preview_options is not None:
+            return await message.edit(text=text, link_preview_options=link_preview_options, reply_markup=buttons)
+        return await message.edit(text=text, disable_web_page_preview=True, reply_markup=buttons)
     except FloodWait as f:
         LOGGER.warning(str(f))
         await sleep(f.value * 1.2)
-        return await editMessage(message, text, buttons, photo)
+        return await editMessage(message, text, buttons, photo, link_preview_options=link_preview_options)
     except (MessageNotModified, MessageEmpty):
         pass
     except ReplyMarkupInvalid:
-        return await editMessage(message, text, None, photo)
+        return await editMessage(message, text, None, photo, link_preview_options=link_preview_options)
     except Exception as e:
         LOGGER.error(str(e))
         return str(e)
