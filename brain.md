@@ -80,11 +80,11 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
    - Linux case-sensitive filesystem par `db_handler.py` binary fetch karke `thumbnails/{uid}.jpg` me save kar raha tha jabki bot `Thumbnails/{user_id}.jpg` check karta tha, jisse restart ke baad thumbnail gayab ho jata tha.
    - Fixed directory path to strictly `Thumbnails/{uid}.jpg`.
 2. **Web Server Direct Image Endpoint (`aio_wserver.py`):**
-   - Added `/thumb/{uid}` and `/Thumbnails/{uid}` GET endpoints returning pure `web.FileResponse(thumb_path)` (image/jpeg) without any HTML metadata text to allow Telegram crawler to generate clean link previews.
+   - Added `/thumbnail/{uid}` and `/thumbnails/{uid}` GET endpoints returning pure `web.FileResponse(thumb_path)` (image/jpeg) without any HTML metadata text to allow Telegram crawler to generate clean link previews.
 3. **Telegram Link Preview Integration (`message_utils.py`):**
    - Extended `sendMessage`, `sendCustomMsg`, and `editMessage` to accept `link_preview_options`. When provided, bypassed hardcoded `disable_web_page_preview=True`.
 4. **Zero-Width Space Hyperlink & Top Preview (`users_settings.py`):**
-   - In `get_user_settings` (leech & thumb sub-menus) and `set_thumb_cmd` (`/t` shortcut), prepended `<a href="{base_url}/thumb/{user_id}">\u200b</a>` to message text and passed `LinkPreviewOptions(show_above_text=True, prefer_large_media=True)` to render image preview natively above the caption without exposing raw URLs.
+   - In `get_user_settings` (leech & thumb sub-menus) and `set_thumb_cmd` (`/t` shortcut), prepended `<a href="{base_url}/thumbnail/{user_id}">\u200b</a>` to message text and passed `LinkPreviewOptions(show_above_text=True, prefer_large_media=True)` to render image preview natively above the caption without exposing raw URLs.
 5. **Pure Code Rule:** Zero comments strictly followed across all modifications.
 
 ### 260920-D (built)
@@ -2687,7 +2687,7 @@ User: alag plan.md = agent ko 2 file, context waste. Plan + built **isi** file.
 - Preview Locations: Leech setting aur Thumbnail setting ke menus me, aur command/shortcut (`/t`, `/cmd -s thumb`) se thumbnail set karne par (confirmation message me) thumbnail ka preview show hona chahiye.
 - Position (Above Caption): Thumbnail preview message text (caption) ke upar (above) display karo (`LinkPreviewOptions(show_above_text=True, prefer_large_media=True)`).
 - Invisible Hyperlink: Thumbnail URL ko zero-width space `\u200b` par hyperlink karo taaki raw URL expose na ho aur preview top par aaye.
-- Backend URL Fix: `web/aio_wserver.py` me direct `/thumb/{uid}` endpoint serve karo with `web.FileResponse(thumb_path)` taaki bina kisi extra title/text ke sirf pure image preview load ho sake.
+- Backend URL Fix: `web/aio_wserver.py` me direct `/thumbnail/{uid}` (aur `/thumbnails/{uid}`) endpoint serve karo with `web.FileResponse(thumb_path)` taaki bina kisi extra title/text ke sirf pure image preview load ho sake.
 - Strict Rules: Zero comments, clean code, original function names maintain.
 
 ### `P-260913-A` — HD Thumb (video cover embed) in leech settings

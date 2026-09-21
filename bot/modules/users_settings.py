@@ -235,7 +235,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 ATTACHMENT=escape(trun(lattachment)))
 
         if await aiopath.exists(thumbpath) and (base_url := config_dict.get('BASE_URL')):
-            text = f'<a href="{base_url.rstrip("/")}/thumb/{user_id}">\u200b</a>' + text
+            text = f'<a href="{base_url.rstrip("/")}/thumbnail/{user_id}">\u200b</a>' + text
 
         buttons.ibutton("Back", f"userset {user_id} back", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
@@ -329,7 +329,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             set_exist = await aiopath.exists(thumbpath)
             text += f"➲ <b>Custom Thumbnail :</b> <i>{'' if set_exist else 'Not'} Exists</i>\n\n"
             if set_exist and (base_url := config_dict.get('BASE_URL')):
-                text = f'<a href="{base_url.rstrip("/")}/thumb/{user_id}">\u200b</a>' + text
+                text = f'<a href="{base_url.rstrip("/")}/thumbnail/{user_id}">\u200b</a>' + text
         elif key == 'yt_opt':
             set_exist = 'Not Exists' if (val:=user_dict.get('yt_opt', config_dict.get('YT_DLP_OPTIONS', ''))) == '' else val
             text += f"➲ <b>YT-DLP Options :</b> <code>{escape(trun(set_exist, 600))}</code>\n\n"
@@ -1313,7 +1313,7 @@ async def set_thumb_cmd(client, message):
     reply_text = "✅ Custom Thumbnail saved successfully!"
     lpo = None
     if (base_url := config_dict.get('BASE_URL')):
-        reply_text = f'<a href="{base_url.rstrip("/")}/thumb/{user_id}">\u200b</a>' + reply_text
+        reply_text = f'<a href="{base_url.rstrip("/")}/thumbnail/{user_id}">\u200b</a>' + reply_text
         lpo = LinkPreviewOptions(show_above_text=True, prefer_large_media=True)
     await sendMessage(message, reply_text, link_preview_options=lpo)
     

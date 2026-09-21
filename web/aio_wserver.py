@@ -200,8 +200,8 @@ async def start_web_server(port):
     app.router.add_get('/', homepage)
     app.router.add_get('/app/files/{id_}', list_contents)
     app.router.add_post('/app/files/{id_}', set_priority)
-    app.router.add_get('/thumb/{uid}', serve_thumbnail)
-    app.router.add_get('/Thumbnails/{uid}', serve_thumbnail)
+    app.router.add_get('/thumbnail/{uid}', serve_thumbnail)
+    app.router.add_get('/thumbnails/{uid}', serve_thumbnail)
     new_runner = web.AppRunner(app, access_log=None)   # access_log off = less CPU/IO
     await new_runner.setup()
     last_exc = None
