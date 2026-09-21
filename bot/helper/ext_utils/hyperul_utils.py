@@ -21,6 +21,8 @@ from ..telegram_helper.tg_transfer import (
     HypertgTransfer,
     helper_bots,
     helper_loads,
+    helper_users,
+    helper_user_loads,
     pick_hyper_client,
     release_hyper_client,
     reset_work_loads,
@@ -54,26 +56,90 @@ async def _stop_client(c):
         ROOT.warning('HyperUP helper stop failed (ignored): %s', e)
 
 
+def _is_paused():
+    try:
+        return bool(config_dict.get('HELPER_PAUSE', False))
+    except Exception:
+        return False
+
+
+def _classify_tok(tok: str):
+    tok = (tok or "").strip()
+    if not tok:
+        return "unknown"
+    if ":" in tok and tok.split(":", 1)[0].isdigit():
+        return "bot"
+    if len(tok) > 30 and ":" not in tok and " " not in tok:
+        return "user"
+    if ":" in tok:
+        return "bot"
+    return "user"
+
+
+def _dedupe_toks(toks):
+    seen = set()
+    out = []
+    for t in toks:
+        tt = (t or "").strip()
+        if not tt:
+            continue
+        if tt in seen:
+            continue
+        seen.add(tt)
+        out.append(tt)
+    return out
+
+
 async def start_helper_bots(tokens: str):
+    # Pause gate — frozen batch edits should not trigger restarts from any caller
+    if _is_paused():
+        ROOT.info("HyperUP: HELPER_PAUSE active — start_helper_bots skipped (frozen)")
+        return
     async with _get_lock():
         await _start_helper_bots_locked(tokens)
 
 
 async def _start_helper_bots_locked(tokens: str):
-    # purane extra helpers clean stop (leak-free rebuild; main bot {0} bacha rehta)
+    # Pause double-check inside lock
+    if _is_paused():
+        ROOT.info("HyperUP: HELPER_PAUSE active inside lock — helpers not started")
+        return
+    # purane extra helpers clean stop (leak-free rebuild; main bot {0} bacha rehta) + helper users
     for no, c in list(helper_bots.items()):
         if no != 0 and c is not bot:
             await _stop_client(c)
+    # also stop previous helper_users
+    try:
+        for no, c in list(helper_users.items()):
+            await _stop_client(c)
+    except Exception:
+        pass
     _started_tokens.clear()
+    # reset_work_loads only handles helper_bots; we'll clear user loads manually
     reset_work_loads()
     helper_bots.clear()
     helper_loads.clear()
+    try:
+        helper_users.clear()
+        helper_user_loads.clear()
+    except Exception:
+        pass
     if bot:
         helper_bots[0] = bot
         helper_loads[0] = 0
     if not tokens or not str(tokens).strip():
         ROOT.info("HyperUP: no HELPER_TOKENS — main bot (+ user if set) only")
         return
+    # dedupe before start to avoid FloodWait from duplicate tokens
+    raw_toks = [t for t in str(tokens).split() if t.strip()]
+    toks = _dedupe_toks(raw_toks)
+    if len(toks) != len(raw_toks):
+        ROOT.info(f"HyperUP: deduplicated {len(raw_toks)} -> {len(toks)} tokens (silent skip duplicates)")
+    # split for logging
+    bot_toks = [t for t in toks if _classify_tok(t) == "bot"]
+    user_toks = [t for t in toks if _classify_tok(t) == "user"]
+    if bot_toks:
+        ROOT.info(f"HyperUP: {len(bot_toks)} bot token(s) + {len(user_toks)} user session(s) to start")
 
     def _hbot_kwargs(no, token):
         from inspect import signature as _sig
@@ -93,7 +159,27 @@ async def _start_helper_bots_locked(tokens: str):
             return {k: v for k, v in _base.items() if k in sig}
         except Exception:
             return {k: v for k, v in _base.items() if k not in ("in_memory", "max_concurrent_transmissions")}
-    async def _retry_one(no, token, delay):
+
+    def _huser_kwargs(token):
+        from inspect import signature as _sig2
+        _base = dict(
+            api_id=TELEGRAM_API,
+            api_hash=TELEGRAM_HASH,
+            session_string=token.strip(),
+            parse_mode=enums.ParseMode.HTML,
+            no_updates=True,
+            in_memory=True,
+            sleep_threshold=60,
+            max_concurrent_transmissions=100,
+            workers=10,
+        )
+        try:
+            sig = _sig2(Client.__init__).parameters
+            return {k: v for k, v in _base.items() if k in sig}
+        except Exception:
+            return {k: v for k, v in _base.items() if k not in ("in_memory", "max_concurrent_transmissions")}
+
+    async def _retry_one_bot(no, token, delay):
         await sleep(delay)
         _flood_wait_until.pop(token.strip(), None)
         try:
@@ -104,22 +190,48 @@ async def _start_helper_bots_locked(tokens: str):
             helper_bots[no] = h
             helper_loads[no] = 0
             _started_tokens.add(token.strip())
-            uname = getattr(h.me, "username", None) or h.me.first_name
+            uname = getattr(h.me, "username", None) or getattr(h.me, "first_name", "bot")
             ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
         except FloodWait as e:
             _flood_wait_until[token.strip()] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodWait {e.value}s — retry non-blocking")
             from asyncio import create_task as _ct
-            _ct(_retry_one(no, token, e.value))
+            _ct(_retry_one_bot(no, token, e.value))
         except FloodPremiumWait as e:
             _flood_wait_until[token.strip()] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodPremiumWait {e.value}s — retry")
             from asyncio import create_task as _ct2
-            _ct2(_retry_one(no, token, e.value))
+            _ct2(_retry_one_bot(no, token, e.value))
         except Exception as e:
             ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
 
-    async def _one(no, token):
+    async def _retry_one_user(no, token, delay):
+        await sleep(delay)
+        _flood_wait_until.pop(token.strip(), None)
+        try:
+            u = Client(f"hyper-huser{no}", **_huser_kwargs(token))
+            st = u.start()
+            if hasattr(st, "__await__"):
+                await st
+            helper_users[no] = u
+            helper_user_loads[no] = 0
+            _started_tokens.add(token.strip())
+            uname = getattr(u.me, "username", None) or getattr(u.me, "first_name", "user")
+            ROOT.info(f"HyperUP Helper User #{no} [@{uname}] ID={u.me.id} Started!")
+        except FloodWait as e:
+            _flood_wait_until[token.strip()] = time() + e.value
+            ROOT.warning(f"Helper User{no} FloodWait {e.value}s — retry")
+            from asyncio import create_task as _ctu
+            _ctu(_retry_one_user(no, token, e.value))
+        except FloodPremiumWait as e:
+            _flood_wait_until[token.strip()] = time() + e.value
+            ROOT.warning(f"Helper User{no} FloodPremiumWait {e.value}s — retry")
+            from asyncio import create_task as _ctu2
+            _ctu2(_retry_one_user(no, token, e.value))
+        except Exception as e:
+            ROOT.error(f"HyperUP Helper User #{no} failed (ignored): {e}")
+
+    async def _one_bot(no, token):
         tk = token.strip()
         now_t = time()
         if tk in _flood_wait_until and now_t < _flood_wait_until[tk]:
@@ -134,34 +246,84 @@ async def _start_helper_bots_locked(tokens: str):
             helper_bots[no] = h
             helper_loads[no] = 0
             _started_tokens.add(tk)
-            uname = getattr(h.me, "username", None) or h.me.first_name
+            uname = getattr(h.me, "username", None) or getattr(h.me, "first_name", "bot")
             ROOT.info(f"HyperUP Helper Bot #{no} [@{uname}] ID={h.me.id} Started!")
         except FloodWait as e:
             _flood_wait_until[tk] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodWait {e.value}s — retry non-blocking")
             from asyncio import create_task as _ct3
-            _ct3(_retry_one(no, token, e.value))
+            _ct3(_retry_one_bot(no, token, e.value))
         except FloodPremiumWait as e:
             _flood_wait_until[tk] = time() + e.value
             ROOT.warning(f"Helper Bot{no} FloodPremiumWait {e.value}s — retry")
             from asyncio import create_task as _ct4
-            _ct4(_retry_one(no, token, e.value))
+            _ct4(_retry_one_bot(no, token, e.value))
         except Exception as e:
             ROOT.error(f"HyperUP Helper Bot #{no} failed (ignored): {e}")
 
-    toks = [t for t in str(tokens).split() if t.strip()]
-    ROOT.info(f"HyperUP: starting {len(toks)} helper bot(s) from HELPER_TOKENS")
-    for i, t in enumerate(toks, start=1):
-        await _one(i, t)
+    async def _one_user(no, token):
+        tk = token.strip()
+        now_t = time()
+        if tk in _flood_wait_until and now_t < _flood_wait_until[tk]:
+            rem = int(_flood_wait_until[tk] - now_t)
+            ROOT.warning(f"Helper User{no} currently on FloodWait ({rem}s left) — skipping immediate start")
+            return
+        try:
+            u = Client(f"hyper-huser{no}", **_huser_kwargs(token))
+            st = u.start()
+            if hasattr(st, "__await__"):
+                await st
+            helper_users[no] = u
+            helper_user_loads[no] = 0
+            _started_tokens.add(tk)
+            uname = getattr(u.me, "username", None) or getattr(u.me, "first_name", "user")
+            ROOT.info(f"HyperUP Helper User #{no} [@{uname}] ID={u.me.id} Started!")
+        except FloodWait as e:
+            _flood_wait_until[tk] = time() + e.value
+            ROOT.warning(f"Helper User{no} FloodWait {e.value}s — retry")
+            from asyncio import create_task as _ctu3
+            _ctu3(_retry_one_user(no, token, e.value))
+        except FloodPremiumWait as e:
+            _flood_wait_until[tk] = time() + e.value
+            ROOT.warning(f"Helper User{no} FloodPremiumWait {e.value}s — retry")
+            from asyncio import create_task as _ctu4
+            _ctu4(_retry_one_user(no, token, e.value))
+        except Exception as e:
+            ROOT.error(f"HyperUP Helper User #{no} failed (ignored): {e}")
+
+    # Use already deduped toks; sequential 1.5s spacing to avoid FloodWait (remote fix) + dedupe + user split
+    ROOT.info(f"HyperUP: starting {len(toks)} helper(s) from HELPER_TOKENS — {len(bot_toks)} bots, {len(user_toks)} users (deduplicated)")
+    bot_idx = 1
+    user_idx = 1
+    for tok in toks:
+        if _classify_tok(tok) == "bot":
+            await _one_bot(bot_idx, tok)
+            bot_idx += 1
+        else:
+            await _one_user(user_idx, tok)
+            user_idx += 1
         await sleep(1.5)
     reset_work_loads()
-    if len(helper_bots) > 1:
-        names = ", ".join(
+    # reset_user loads already cleared via helper_user_loads handling in reset_work_loads? ensure manual
+    try:
+        # ensure global loads reflect both bots and users
+        from ..telegram_helper.tg_transfer import reset_work_loads as _rwl
+        # already called, but helper_users handled via get_global_work_loads
+        pass
+    except Exception:
+        pass
+    total_extra = (len(helper_bots) - (1 if 0 in helper_bots else 0)) + len(helper_users)
+    if total_extra > 0:
+        bot_names = ", ".join(
             f"#{n} @{getattr(b.me, 'username', None) or getattr(b.me, 'first_name', n)}"
-            for n, b in helper_bots.items()
-            if n != 0
-        )
-        ROOT.info(f"HyperUP ready: {len(helper_bots) - 1} extra helper(s) — {names}")
+            for n, b in helper_bots.items() if n != 0
+        ) if len(helper_bots) > 1 else ""
+        user_names = ", ".join(
+            f"U#{n} @{getattr(b.me, 'username', None) or getattr(b.me, 'first_name', n)}"
+            for n, b in helper_users.items()
+        ) if helper_users else ""
+        combined = "; ".join(x for x in [bot_names, user_names] if x)
+        ROOT.info(f"HyperUP ready: {total_extra} extra helper(s) — {combined}")
     else:
         ROOT.warning("HyperUP: extra helpers failed — upload uses main bot/user")
 

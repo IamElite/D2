@@ -253,6 +253,32 @@ async def load_config():
 
     USER_SESSION_STRING = environ.get('USER_SESSION_STRING', '')
 
+    # Helper Config — dedupe + pause
+    HELPER_TOKENS = environ.get('HELPER_TOKENS', '')
+    if HELPER_TOKENS is None:
+        HELPER_TOKENS = ''
+    else:
+        HELPER_TOKENS = str(HELPER_TOKENS).strip()
+    # silent dedupe preserve order
+    if HELPER_TOKENS:
+        _seen = set()
+        _deduped = []
+        for _t in str(HELPER_TOKENS).split():
+            _t = _t.strip()
+            if _t and _t not in _seen:
+                _seen.add(_t)
+                _deduped.append(_t)
+        HELPER_TOKENS = " ".join(_deduped)
+        environ['HELPER_TOKENS'] = HELPER_TOKENS
+        config_dict['HELPER_TOKENS'] = HELPER_TOKENS
+    HELPER_PAUSE_RAW = environ.get('HELPER_PAUSE', '')
+    if isinstance(HELPER_PAUSE_RAW, str):
+        HELPER_PAUSE = HELPER_PAUSE_RAW.strip().lower() in ('1', 'true', 'yes', 'on', 'pause', 'paused')
+        if not HELPER_PAUSE_RAW.strip():
+            HELPER_PAUSE = bool(config_dict.get('HELPER_PAUSE', False))
+    else:
+        HELPER_PAUSE = bool(HELPER_PAUSE_RAW) if HELPER_PAUSE_RAW != '' else bool(config_dict.get('HELPER_PAUSE', False))
+
     TORRENT_TIMEOUT = environ.get('TORRENT_TIMEOUT', '')
     downloads = aria2.get_downloads()
     if len(TORRENT_TIMEOUT) == 0:
@@ -707,6 +733,7 @@ async def load_config():
                         'UPGRADE_PACKAGES': UPGRADE_PACKAGES,
                         'USER_SESSION_STRING': USER_SESSION_STRING,
                         'HELPER_TOKENS': HELPER_TOKENS,
+                        'HELPER_PAUSE': HELPER_PAUSE,
                         'USER_TD_MODE':USER_TD_MODE,
                         'USER_TD_SA': USER_TD_SA,
                         'USE_SERVICE_ACCOUNTS': USE_SERVICE_ACCOUNTS,
@@ -722,64 +749,208 @@ def _mask_token(tok):
     tok = (tok or "").strip()
     if not tok:
         return "—"
-    return f"{tok.split(':', 1)[0][:5]}…"
+    # bot token: 123456:AAH... -> mask as 12345…
+    # user session string: long base64 -> mask first 6 + last 4
+    if ":" in tok:
+        return f"{tok.split(':', 1)[0][:5]}…"
+    # user string session
+    t = tok.strip()
+    if len(t) <= 12:
+        return f"{t[:5]}…"
+    return f"{t[:6]}…{t[-4:]}"
+
+
+def _is_helper_paused():
+    return bool(config_dict.get("HELPER_PAUSE", False))
+
+
+def _dedupe_tokens(tokens):
+    # preserve order, silently drop duplicates (exact string match)
+    seen = set()
+    out = []
+    for t in tokens:
+        tt = t.strip()
+        if not tt:
+            continue
+        if tt in seen:
+            continue
+        seen.add(tt)
+        out.append(tt)
+    return out
 
 
 def _helper_list():
     raw = config_dict.get("HELPER_TOKENS") or ""
-    return [t.strip() for t in str(raw).split() if t.strip()]
+    # raw is space-separated, but also handle newlines (bulk paste stored as spaces)
+    toks = [t.strip() for t in str(raw).split() if t.strip()]
+    # dedupe silently for display (storage is deduped on persist)
+    return _dedupe_tokens(toks)
+
+
+def _classify_token(tok):
+    tok = (tok or "").strip()
+    if not tok:
+        return "unknown"
+    if ":" in tok and tok.split(":", 1)[0].isdigit():
+        # basic bot token shape: numeric_id:token
+        return "bot"
+    # heuristic: user string session is long, no colon, often starts with BQ... or contains alphanumeric + -_
+    if len(tok) > 30 and ":" not in tok and " " not in tok:
+        return "user"
+    if ":" in tok:
+        return "bot"
+    return "user"
+
+
+def _split_helpers():
+    toks = _helper_list()
+    bots = []  # list of (orig_idx, token)
+    users = []
+    for idx, tok in enumerate(toks, 1):
+        if _classify_token(tok) == "bot":
+            bots.append((idx, tok))
+        else:
+            users.append((idx, tok))
+    return bots, users, toks
+
+
+async def _set_helper_pause(paused: bool):
+    paused = bool(paused)
+    config_dict['HELPER_PAUSE'] = paused
+    environ['HELPER_PAUSE'] = str(paused)
+    if DATABASE_URL:
+        try:
+            await DbManger().update_config({'HELPER_PAUSE': paused})
+        except Exception as e:
+            LOGGER.error("DbManger HELPER_PAUSE: %s", e)
 
 
 async def _hyper_menu_text_buttons():
+    # Direct Hyper Tokens dashboard — no extra Helper Bot button, top Active/Pause toggle
     buttons = ButtonMaker()
-    bots = _helper_list()
-    msg = (
-        "<b>Hyper Tokens</b> — helper bots only\n\n"
-        "<i>USER_SESSION_STRING is a separate Config Variable "
-        "(premium 4GB upload). Not edited here.</i>\n\n"
-        f"Helper bots: <code>{len(bots)}</code>\n"
-        "Full token is never shown."
-    )
-    buttons.ibutton("Helper Bots", "botset hyper bots")
-    buttons.ibutton("Back", "botset back")
-    buttons.ibutton("Close", "botset close")
-    return msg, buttons.build_menu(2)
+    bots, users, toks = _split_helpers()
+    paused = _is_helper_paused()
+    # try get live usernames for bots/users
+    try:
+        from ..helper.ext_utils.hyperul_utils import helper_bots
+    except Exception:
+        helper_bots = {}
+    try:
+        from ..helper.telegram_helper.tg_transfer import helper_users
+    except Exception:
+        helper_users = {}
 
+    status_emoji = "⏸️ Pause" if not paused else "▶️ Active"
+    status_text = "▶️ Active" if not paused else "⏸️ Paused"
+    status_hint = "live — add/remove will restart helpers" if not paused else "frozen — batch edits calm, no restart until Active"
 
-async def _hyper_bots_menu():
-    buttons = ButtonMaker()
-    toks = _helper_list()
-    lines = ["<b>Helper Bots</b>\n", "Add BotFather token. Shows #, username, id, prefix.\n"]
-    if not toks:
-        lines.append("\n<i>No helper bots yet.</i>")
+    lines = []
+    lines.append("<b>Hyper Tokens</b>\n")
+    # compute active vs added for dashboard (how many added/active vs inactive)
+    try:
+        active_bots = len([c for n, c in helper_bots.items() if n != 0 and c and getattr(c, 'me', None)])
+    except Exception:
+        active_bots = max(0, len(helper_bots) - (1 if 0 in helper_bots else 0))
+    try:
+        active_users = len([c for n, c in helper_users.items() if c and getattr(c, 'me', None)])
+    except Exception:
+        active_users = len(helper_users)
+    total_added = len(toks)
+    total_active = active_bots + active_users
+    lines.append(f"Status: <b>{status_text}</b> — <i>{status_hint}</i>\n")
+    lines.append(f"Added: <code>{total_added}</code> | Active: <code>{total_active}</code> | Inactive: <code>{max(0, total_added - total_active)}</code>\n")
+    if paused:
+        lines.append("<i>Tip: Keep <b>Paused</b> while batch adding/removing, then tap <b>Active</b> once — final list starts deduplicated.</i>\n")
+    lines.append(f"\n<b>Helper Bots</b>  <code>{len(bots)}</code> added / <code>{active_bots}</code> active\n")
+    if not bots:
+        lines.append("<i>No helper bots yet. Use Add Helper below.</i>\n")
     else:
-        try:
-            from ..helper.ext_utils.hyperul_utils import helper_bots
-        except Exception:
-            helper_bots = {}
-        for i, tok in enumerate(toks, 1):
+        for orig_idx, tok in bots:
             hid = tok.split(":", 1)[0]
             uname, uid = "?", hid
             try:
-                cl = helper_bots.get(i)
+                # helper_bots indexing is 1-based in hyperul (enumerate start=1)
+                cl = helper_bots.get(orig_idx) or helper_bots.get(bots.index((orig_idx, tok)) + 1)
                 if cl and getattr(cl, "me", None):
-                    uname = cl.me.username or cl.me.first_name
+                    uname = cl.me.username or cl.me.first_name or "?"
+                    uid = cl.me.id
+                else:
+                    # fallback try any helper_bots with matching id prefix
+                    for c in helper_bots.values():
+                        if c and getattr(c, "me", None) and str(getattr(c.me, "id", "")) == hid:
+                            uname = c.me.username or c.me.first_name or "?"
+                            uid = c.me.id
+                            break
+            except Exception:
+                pass
+            lines.append(f"#{orig_idx} @{uname} | <code>{uid}</code> | <code>{_mask_token(tok)}</code>\n")
+
+    lines.append(f"\n<b>Helper Users</b>  <code>{len(users)}</code> added / <code>{active_users}</code> active\n")
+    lines.append("<i>User string sessions for premium 4GB uploads.</i>\n")
+    if not users:
+        lines.append("<i>No helper users yet.</i>\n")
+    else:
+        for orig_idx, tok in users:
+            uname, uid = "?", "user"
+            try:
+                # helper_users dict is keyed by 1..n
+                cl = None
+                # try mapping: user tokens order -> helper_users order
+                # helper_users is populated by hyperul if any
+                if helper_users:
+                    # find by position in users list
+                    pos = [u for _, u in users].index(tok) + 1
+                    cl = helper_users.get(pos)
+                if cl and getattr(cl, "me", None):
+                    uname = cl.me.username or cl.me.first_name or "?"
                     uid = cl.me.id
             except Exception:
                 pass
-            lines.append(f"\n#{i} @{uname} | <code>{uid}</code> | <code>{_mask_token(tok)}</code>")
-            buttons.ibutton(f"Remove #{i}", f"botset hyper rmbot {i}")
-    buttons.ibutton("Add Helper Bot", "botset hyper addbot")
-    buttons.ibutton("Back", "botset hyper")
+            lines.append(f"U#{orig_idx} @{uname} | <code>{uid}</code> | <code>{_mask_token(tok)}</code>\n")
+
+    lines.append("\n<i> Add accepts BotFather <code>BOT_TOKEN</code> or user string session — paste one or many (space/newline separated). Duplicates are silently ignored.</i>")
+
+    # Buttons: Toggle, Add, per-item remove
+    toggle_label = "⏸️ Pause" if not paused else "▶️ Activate"
+    buttons.ibutton(toggle_label, "botset hyper toggle")
+    buttons.ibutton("Add Helper", "botset hyper add")
+
+    # Remove buttons — two per row, using original indices
+    for orig_idx, _ in bots:
+        buttons.ibutton(f"Remove Bot #{orig_idx}", f"botset hyper rmbot {orig_idx}")
+    for orig_idx, _ in users:
+        buttons.ibutton(f"Remove User #{orig_idx}", f"botset hyper rmbot {orig_idx}")
+
+    buttons.ibutton("Back", "botset back")
     buttons.ibutton("Close", "botset close")
     return "".join(lines), buttons.build_menu(2)
 
 
-async def _persist_helpers(joined):
+async def _hyper_bots_menu():
+    # Backward compat: previously \"Helper Bots\" sub-menu — now same unified clean view
+    # Keep separate function but delegate to unified menu so old callbacks still work
+    return await _hyper_menu_text_buttons()
+
+
+async def _persist_helpers(joined, *, allow_restart=True):
+    # dedupe silently before persist
+    toks = [t.strip() for t in str(joined or "").split() if t.strip()]
+    toks = _dedupe_tokens(toks)
+    joined = " ".join(toks)
     config_dict['HELPER_TOKENS'] = joined
     environ['HELPER_TOKENS'] = joined
     if DATABASE_URL:
-        await DbManger().update_config({'HELPER_TOKENS': joined})
+        try:
+            await DbManger().update_config({'HELPER_TOKENS': joined})
+        except Exception as e:
+            LOGGER.error("DbManger HELPER_TOKENS: %s", e)
+    # frozen Pause -> no background restart (calm batch edits)
+    if _is_helper_paused() and allow_restart:
+        LOGGER.info("Helper Pause active — _persist_helpers skipped start_helper_bots (frozen)")
+        return
+    if not allow_restart:
+        # called from toggle-to-Pause path where we don't want restart
+        return
     try:
         from ..helper.ext_utils.hyperul_utils import start_helper_bots
         await start_helper_bots(joined)
@@ -789,16 +960,52 @@ async def _persist_helpers(joined):
 
 async def _save_helper_token(_, message, pre_message):
     handler_dict[message.chat.id] = False
-    tok = (message.text or "").strip()
+    raw = (message.text or "").strip()
     await deleteMessage(message)
-    if ":" not in tok:
-        await update_buttons(pre_message, 'hyperbots')
+    if not raw:
+        await update_buttons(pre_message, 'hyper')
         return
-    toks = _helper_list()
-    if tok not in toks:
-        toks.append(tok)
-    await _persist_helpers(" ".join(toks))
-    await update_buttons(pre_message, 'hyperbots')
+    # bulk paste: split by any whitespace (space, newline, tab) — handles 10 tokens pasted together
+    pasted = [t.strip() for t in str(raw).split() if t.strip()]
+    if not pasted:
+        await update_buttons(pre_message, 'hyper')
+        return
+    existing = _helper_list()
+    existing_set = set(existing)
+    added = []
+    skipped_dup = 0
+    for tok in pasted:
+        # normalize: strip surrounding quotes if any
+        tok = tok.strip().strip('"').strip("'").strip()
+        if not tok:
+            continue
+        # silently skip duplicates already in list (no error)
+        if tok in existing_set:
+            skipped_dup += 1
+            continue
+        # also skip duplicate within this paste itself
+        if tok in added:
+            skipped_dup += 1
+            continue
+        # accept both bot token (contains :) and user string session (long no-colon)
+        # we don't reject any long token; only reject obviously invalid very short garbage
+        if len(tok) < 10:
+            # too short to be token or session — ignore silently
+            continue
+        added.append(tok)
+        existing_set.add(tok)
+    if added:
+        new_list = existing + added
+        # dedupe final
+        new_list = _dedupe_tokens(new_list)
+        await _persist_helpers(" ".join(new_list))
+        if skipped_dup:
+            LOGGER.info(f"_save_helper_token: added {len(added)}, skipped duplicate {skipped_dup}")
+    else:
+        if skipped_dup:
+            LOGGER.info(f"_save_helper_token: all {skipped_dup} token(s) were duplicates — silently ignored")
+        # no new tokens, but still refresh UI (no restart happened)
+    await update_buttons(pre_message, 'hyper')
 
 
 async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
@@ -816,11 +1023,14 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
     elif key == 'hyperbots':
         return await _hyper_bots_menu()
     elif key == 'var':
-        for k in list(OrderedDict(sorted(config_dict.items())).keys())[START:10+START]:
+        # Helper Token is dedicated dashboard — hide from Config Variables (as requested)
+        _hidden_vars = {'HELPER_TOKENS', 'HELPER_PAUSE'}
+        _all_keys = [k for k in OrderedDict(sorted(config_dict.items())).keys() if k not in _hidden_vars]
+        for k in _all_keys[START:10+START]:
             buttons.ibutton(k, f"botset editvar {k}")
         buttons.ibutton('Back', "botset back")
         buttons.ibutton('Close', "botset close")
-        for x in range(0, len(config_dict)-1, 10):
+        for x in range(0, len(_all_keys)-1, 10):
             buttons.ibutton(f'{int(x/10)+1}', f"botset start var {x}", position='footer')
         msg = f'<b>Config Variables</b> | <b>Page: {int(START/10)+1}</b>'
     elif key == 'private':
@@ -982,8 +1192,24 @@ async def edit_variable(_, message, pre_message, key):
     elif key in ['QUEUE_ALL', 'QUEUE_DOWNLOAD', 'QUEUE_UPLOAD']:
         await start_from_queued()
     elif key == 'HELPER_TOKENS':
-        from ..helper.ext_utils.hyperul_utils import start_helper_bots
-        await start_helper_bots(str(value))
+        # dedupe silently, respect Pause
+        v = str(value or "")
+        toks = [t.strip() for t in v.split() if t.strip()]
+        seen = set()
+        deduped = []
+        for t in toks:
+            if t not in seen:
+                seen.add(t)
+                deduped.append(t)
+        v = " ".join(deduped)
+        # ensure config_dict/environ reflect deduped
+        config_dict['HELPER_TOKENS'] = v
+        environ['HELPER_TOKENS'] = v
+        if _is_helper_paused():
+            LOGGER.info("HELPER_TOKENS edit while Paused — skip start_helper_bots")
+        else:
+            from ..helper.ext_utils.hyperul_utils import start_helper_bots
+            await start_helper_bots(v)
     elif key in ['RCLONE_SERVE_URL', 'RCLONE_SERVE_PORT', 'RCLONE_SERVE_USER', 'RCLONE_SERVE_PASS']:
         await rclone_serve_booter()
 
@@ -1193,12 +1419,45 @@ async def edit_bot_settings(client, query):
         if sub is None:
             await update_buttons(message, 'hyper')
         elif sub == 'bots':
-            await update_buttons(message, 'hyperbots')
-        elif sub == 'addbot':
-            await editMessage(message, "<i>Send helper <b>BOT_TOKEN</b> from @BotFather.\nTimeout: 60s</i>")
+            # backward compat — old \"Helper Bots\" button now same as unified Helper Config
+            await update_buttons(message, 'hyper')
+        elif sub in ('addbot', 'add'):
+            # Unified Add — accepts both BOT_TOKEN and user string session, bulk paste supported
+            await editMessage(message, "<i>Send <b>BOT_TOKEN</b> (@BotFather) or <b>user string session</b>.\nYou can paste multiple (space/newline separated). Duplicates are silently ignored.\nTimeout: 60s</i>")
             pfunc = partial(_save_helper_token, pre_message=message)
-            rfunc = partial(update_buttons, message, 'hyperbots')
+            rfunc = partial(update_buttons, message, 'hyper')
             await event_handler(client, query, pfunc, rfunc)
+        elif sub == 'toggle':
+            # Active <-> Pause toggle (frozen batch edits)
+            currently_paused = _is_helper_paused()
+            new_paused = not currently_paused
+            await _set_helper_pause(new_paused)
+            if new_paused:
+                # going to Paused — freeze, no restart
+                LOGGER.info("Helper toggle: Paused (frozen)")
+                await query.answer("⏸️ Paused — batch edits frozen", show_alert=False)
+                await update_buttons(message, 'hyper')
+            else:
+                # going to Active — start final deduplicated list once
+                toks = _helper_list()
+                joined = " ".join(_dedupe_tokens(toks))
+                # persist already deduped (update DB) but ensure start
+                config_dict['HELPER_TOKENS'] = joined
+                environ['HELPER_TOKENS'] = joined
+                if DATABASE_URL:
+                    try:
+                        await DbManger().update_config({'HELPER_TOKENS': joined, 'HELPER_PAUSE': False})
+                    except Exception as e:
+                        LOGGER.error("toggle active db: %s", e)
+                try:
+                    from ..helper.ext_utils.hyperul_utils import start_helper_bots
+                    await start_helper_bots(joined)
+                    LOGGER.info(f"Helper toggle: Active — started {len(_helper_list())} helper(s) deduplicated")
+                    await query.answer("▶️ Active — helpers started (deduplicated)", show_alert=False)
+                except Exception as e:
+                    LOGGER.error("toggle active start: %s", e)
+                    await query.answer(f"Active but start failed: {e}", show_alert=True)
+                await update_buttons(message, 'hyper')
         elif sub == 'rmbot' and len(data) > 3:
             try:
                 idx = int(data[3])
@@ -1206,9 +1465,15 @@ async def edit_bot_settings(client, query):
                 idx = 0
             toks = _helper_list()
             if 1 <= idx <= len(toks):
+                removed = toks[idx-1]
                 toks.pop(idx - 1)
+                # _persist_helpers respects Pause (no restart when frozen)
                 await _persist_helpers(" ".join(toks))
-            await update_buttons(message, 'hyperbots')
+                LOGGER.info(f"Helper remove #{idx} ({_mask_token(removed)}) — paused={_is_helper_paused()}")
+                await query.answer(f"Removed #{idx}", show_alert=False)
+            else:
+                await query.answer("Invalid index", show_alert=True)
+            await update_buttons(message, 'hyper')
     elif data[1] == 'resetvar':
         if data[2] == 'USER_SESSION_STRING':
             await query.answer('USER_SESSION_STRING is not reset from here.', show_alert=True)
@@ -1267,8 +1532,23 @@ async def edit_bot_settings(client, query):
         elif data[2] in ['QUEUE_ALL', 'QUEUE_DOWNLOAD', 'QUEUE_UPLOAD']:
             await start_from_queued()
         elif data[2] == 'HELPER_TOKENS':
-            from ..helper.ext_utils.hyperul_utils import start_helper_bots
-            await start_helper_bots(str(value))
+            # reset — respect Pause, dedupe
+            v = str(value or "")
+            toks = [t.strip() for t in v.split() if t.strip()]
+            seen = set()
+            deduped = []
+            for t in toks:
+                if t not in seen:
+                    seen.add(t)
+                    deduped.append(t)
+            v = " ".join(deduped)
+            config_dict['HELPER_TOKENS'] = v
+            environ['HELPER_TOKENS'] = v
+            if _is_helper_paused():
+                LOGGER.info("HELPER_TOKENS reset while Paused — skip start")
+            else:
+                from ..helper.ext_utils.hyperul_utils import start_helper_bots
+                await start_helper_bots(v)
         elif data[2] in ['RCLONE_SERVE_URL', 'RCLONE_SERVE_PORT', 'RCLONE_SERVE_USER', 'RCLONE_SERVE_PASS']:
             await rclone_serve_booter()
     elif data[1] == 'resetaria':

@@ -250,16 +250,18 @@ async def log_check():
     
 
 async def _helper_watcher():
-    from .helper.ext_utils.hyperul_utils import start_helper_bots
-    last_tokens = config_dict.get('HELPER_TOKENS', '')
+    # Respects HELPER_PAUSE (frozen) and dedupes silently
+    from .helper.ext_utils.hyperul_utils import start_helper_bots, get_active_helper_tokens
     while True:
         await asleep(60)
         try:
-            curr_tokens = config_dict.get('HELPER_TOKENS', '')
-            if curr_tokens != last_tokens:
-                LOGGER.info('HyperUP watcher: HELPER_TOKENS config changed — resyncing helpers')
-                last_tokens = curr_tokens
-                await start_helper_bots(curr_tokens)
+            if config_dict.get('HELPER_PAUSE'):
+                continue
+            raw = str(config_dict.get('HELPER_TOKENS', '') or '')
+            want = {t.strip() for t in raw.split() if t.strip()}
+            if want != get_active_helper_tokens():
+                LOGGER.info('HyperUP watcher: HELPER_TOKENS drift — resyncing helpers (no restart)')
+                await start_helper_bots(raw)
         except Exception as e:
             LOGGER.error(f'HyperUP watcher: {e}')
 
@@ -267,7 +269,10 @@ async def _helper_watcher():
 async def main():
     await gather(start_cleanup(), torrent_search.initiate_search_tools(), restart_notification(), search_images(), set_commands(bot), log_check())
     try:
-        await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
+        if config_dict.get('HELPER_PAUSE'):
+            LOGGER.info("HyperUP: HELPER_PAUSE active at boot — helpers frozen, not started")
+        else:
+            await start_helper_bots(config_dict.get('HELPER_TOKENS', ''))
     except Exception as e:
         LOGGER.error(f"HyperUP helpers skipped: {e}")
     await sync_to_async(start_aria2_listener, wait=False)

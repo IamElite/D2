@@ -52,7 +52,7 @@ def _early_patch_wzgram():
 
     try:
         bot_rate = _os.environ.get('TG_UP_RATE_LIMIT', '300')
-        bot_pool = _os.environ.get('TG_UP_POOL', '6')
+        bot_pool = _os.environ.get('TG_UP_POOL', '14')
         path = _find_save_file()
         if not path:
             print('[TG patch] pyrogram save_file.py not found (wzgram missing?) — skipped')
@@ -725,6 +725,13 @@ HELPER_TOKENS = environ.get('HELPER_TOKENS', '')
 if len(HELPER_TOKENS) == 0:
     HELPER_TOKENS = ''
 
+# Helper Config Active/Pause: when Pause frozen, batch add/remove do not restart helpers (anti-FloodWait)
+HELPER_PAUSE = environ.get('HELPER_PAUSE', '')
+if isinstance(HELPER_PAUSE, str):
+    HELPER_PAUSE = HELPER_PAUSE.strip().lower() in ('1', 'true', 'yes', 'on', 'pause', 'paused')
+else:
+    HELPER_PAUSE = bool(HELPER_PAUSE)
+
 LOGIN_PASS = environ.get('LOGIN_PASS', '')
 if len(LOGIN_PASS) == 0:
     LOGIN_PASS = None
@@ -853,6 +860,7 @@ config_dict = {'ANIME_TEMPLATE': ANIME_TEMPLATE,
                'LOGIN_PASS': LOGIN_PASS,
                'TOKEN_TIMEOUT': TOKEN_TIMEOUT,
                'HELPER_TOKENS': HELPER_TOKENS,
+               'HELPER_PAUSE': HELPER_PAUSE,
                'MDL_TEMPLATE': MDL_TEMPLATE,
                'MEDIA_GROUP': MEDIA_GROUP,
                'MEGA_EMAIL': MEGA_EMAIL,
