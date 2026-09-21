@@ -65,7 +65,7 @@ Dost ka 30% = kam hashing / slow DL ho sakta hai, magic config nahi.
 ## FIX LOG
 
 ### 260921-A (built)
-**Git:** `1f87775`
+**Git:** `1417ad5`
 **Date:** 2026-09-21
 **Files:** `bot/helper/ext_utils/db_handler.py`, `web/aio_wserver.py`, `bot/helper/telegram_helper/message_utils.py`, `bot/modules/users_settings.py`
 
@@ -2679,7 +2679,7 @@ User: alag plan.md = agent ko 2 file, context waste. Plan + built **isi** file.
 
 ### `P-260921-A` — Thumbnail DB Persistence & Top Native Link Preview
 **mode:** `built`  
-**Git:** `1f87775`
+**Git:** `1417ad5`
 **Date:** 2026-09-21  
 
 **User instruction:**
