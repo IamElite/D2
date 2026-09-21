@@ -274,7 +274,8 @@ Type {help_command} to get a list of available commands</b>'''
 ┠<b> Include Ext :</b> <code>{INC_EXT}</code>
 ┠<b> Exclude Ext :</b> <code>{EXC_EXT}</code>
 ┠<b> MediaInfo Mode :</b> <code>{MEDIAINFO}</code>
-┖<b> Save Mode :</b> <code>{SAVE_MODE}</code>'''
+┠<b> Save Mode :</b> <code>{SAVE_MODE}</code>
+┖<b> Failed Report :</b> <code>{FAILED_REPORT}</code>'''
 
     MIRROR = '''㊂ <b><u>Mirror/Clone Settings : {NAME}</u></b>
 

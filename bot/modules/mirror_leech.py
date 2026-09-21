@@ -39,6 +39,7 @@ from ..helper.telegram_helper.message_utils import sendMessage, editMessage, edi
 from ..helper.listeners.tasks_listener import MirrorLeechListener
 from ..helper.ext_utils.help_messages import MIRROR_HELP_MESSAGE, CLONE_HELP_MESSAGE, YT_HELP_MESSAGE, help_string
 from ..helper.ext_utils.bulk_links import extract_bulk_links
+from ..helper.ext_utils.failed_report import register_bulk
 from ..helper.ext_utils.multi_tools import (
     collect_i_items, delete_own, drop_multi_tag, ensure_multi_tag, multi_still_on,
     next_cmd_text, next_origin, remember_cmd, send_multi_cmd)
@@ -150,6 +151,12 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
             return
         n = len(bulk)
         multi_tag = ensure_multi_tag(None, n)
+        try:
+            _uid = message.from_user.id if getattr(message, "from_user", None) else 0
+            if _uid and multi_tag:
+                await register_bulk(_uid, multi_tag, n)
+        except Exception:
+            pass
         b_txt = f"{input_list[0]} {bulk[0]} -i {n}"
         origin = message.reply_to_message or message
         nextmsg = await send_multi_cmd(origin, b_txt, multi_tag, n)
@@ -171,6 +178,14 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
         del bulk[0]
 
     multi_tag = ensure_multi_tag(multi_tag, multi)
+    # Register bulk for failed-report (only when multi>1)
+    if multi > 1 and multi_tag:
+        try:
+            _uid2 = message.from_user.id if getattr(message, "from_user", None) else 0
+            if _uid2:
+                await register_bulk(_uid2, multi_tag, multi)
+        except Exception:
+            pass
 
     @new_task
     async def __run_multi():
@@ -421,7 +436,7 @@ async def _mirror_leech(client, message, isQbit=False, isLeech=False, sameDir=No
 
     listener = MirrorLeechListener(message, compress, extract, isQbit, isLeech, tag, select, seed,
                                     sameDir, rcf, up, join, drive_id=drive_id, index_link=index_link, 
-                                    source_url=org_link or link, leech_utils={'screenshots': sshots, 'thumb': thumb}, newname=name)
+                                    source_url=org_link or link, leech_utils={'screenshots': sshots, 'thumb': thumb}, newname=name, multi_tag=multi_tag)
 
     if file_ is not None:
         listener.orig_caption = reply_to.caption or ""

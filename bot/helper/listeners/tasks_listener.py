@@ -42,11 +42,12 @@ from ..telegram_helper.message_utils import sendCustomMsg, sendMessage, editMess
 from ..telegram_helper.button_build import ButtonMaker
 from ..ext_utils.db_handler import DbManger
 from ..themes import BotTheme
+from ..ext_utils.failed_report import record_success, record_failure, get_display_name
 
 
 class MirrorLeechListener:
     def __init__(self, message, compress=False, extract=False, isQbit=False, isLeech=False, tag=None, select=False, seed=False, sameDir=None, rcFlags=None, upPath=None, isClone=False, 
-                join=False, drive_id=None, index_link=None, isYtdlp=False, source_url=None, logMessage=None, leech_utils={}, newname=''):
+                join=False, drive_id=None, index_link=None, isYtdlp=False, source_url=None, logMessage=None, leech_utils={}, newname='', multi_tag=None):
         if sameDir is None:
             sameDir = {}
         self.message = message
@@ -76,6 +77,7 @@ class MirrorLeechListener:
         self.isPM = True if 'bot_pm' not in self.user_dict else bool(self.user_dict.get('bot_pm'))
         self.suproc = None
         self.sameDir = sameDir
+        self.multi_tag = multi_tag
         self.rcFlags = rcFlags
         self.upPath = upPath
         self.random_pic = 'IMAGES' if config_dict['IMAGES'] else None
@@ -642,6 +644,12 @@ class MirrorLeechListener:
             if self.seed:
                 if self.newDir:
                     await clean_target(self.newDir)
+                # Failed report: seed tasks also count as success
+                try:
+                    if getattr(self, 'multi_tag', None):
+                        await record_success(self.user_id, self.multi_tag)
+                except Exception:
+                    pass
                 await finish_task_slot(self.uid)
                 return
         else:
@@ -734,6 +742,12 @@ class MirrorLeechListener:
                     await clean_target(self.newDir)
                 elif self.compress:
                     await clean_target(f"{self.dir}/{name}")
+                # Failed report: seed tasks also count as success
+                try:
+                    if getattr(self, 'multi_tag', None):
+                        await record_success(self.user_id, self.multi_tag)
+                except Exception:
+                    pass
                 await finish_task_slot(self.uid)
                 return
         
@@ -750,6 +764,12 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
+        # Failed report: bulk success tracking
+        try:
+            if getattr(self, 'multi_tag', None):
+                await record_success(self.user_id, self.multi_tag)
+        except Exception:
+            pass
         await finish_task_slot(self.uid)
         await delete_links(self.message)
 
@@ -780,6 +800,16 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
+        # Failed report: record failure (DM if enabled)
+        try:
+            _disp = await get_display_name(self, filename)
+        except Exception:
+            _disp = filename
+        try:
+            if getattr(self, 'multi_tag', None) and 'Starting other part' not in str(error):
+                await record_failure(self.user_id, self.multi_tag, _disp, str(error))
+        except Exception:
+            pass
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:
             await DbManger().rm_complete_task(self.message.link)
 
@@ -812,6 +842,16 @@ class MirrorLeechListener:
         else:
             await update_all_messages()
 
+        # Failed report: record failure (DM if enabled)
+        try:
+            _disp2 = await get_display_name(self, filename)
+        except Exception:
+            _disp2 = filename
+        try:
+            if getattr(self, 'multi_tag', None) and 'Starting other part' not in str(error):
+                await record_failure(self.user_id, self.multi_tag, _disp2, str(error))
+        except Exception:
+            pass
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:
             await DbManger().rm_complete_task(self.message.link)
 
