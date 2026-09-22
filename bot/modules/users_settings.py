@@ -250,12 +250,6 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 LSUFFIX=escape(trun(lsuffix)), LREMNAME=escape(trun(lremname)), 
                 LDUMP=ldump, METADATA=escape(trun(metadata)),
                 ATTACHMENT=escape(trun(lattachment)))
-
-        if await _thumb_exists(user_id):
-            ph_url = _get_thumb_url(user_id)
-            if ph_url:
-                text = f'<a href="{ph_url}">\u200b</a>' + text
-
         buttons.ibutton("Back", f"userset {user_id} back", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
@@ -347,10 +341,6 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         elif key == 'thumb':
             set_exist = await _thumb_exists(user_id)
             text += f"➲ <b>Custom Thumbnail :</b> <i>{'' if set_exist else 'Not'} Exists</i>\n\n"
-            if set_exist:
-                ph_url = _get_thumb_url(user_id)
-                if ph_url:
-                    text = f'<a href="{ph_url}">\u200b</a>' + text
         elif key == 'yt_opt':
             set_exist = 'Not Exists' if (val:=user_dict.get('yt_opt', config_dict.get('YT_DLP_OPTIONS', ''))) == '' else val
             text += f"➲ <b>YT-DLP Options :</b> <code>{escape(trun(set_exist, 600))}</code>\n\n"
@@ -1343,7 +1333,6 @@ async def set_thumb_cmd(client, message):
     reply_text = "\u2705 Custom Thumbnail saved successfully!"
     ph_url = _get_thumb_url(user_id)
     if ph_url:
-        reply_text = f'<a href="{ph_url}">\u200b</a>' + reply_text
         await sendMessage(message, reply_text, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True, prefer_large_media=True))
     else:
         await sendMessage(message, reply_text, disable_web_page_preview=True)
