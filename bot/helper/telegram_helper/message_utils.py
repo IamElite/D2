@@ -48,8 +48,8 @@ def _wallpaper_list():
             lst = [str(v).strip()]
     if not lst:
         lst = _wallpaper_default
-    dis = set(config_dict.get('WALLPAPER_DISABLED') or [])
-    on = [u for u in lst if u not in dis]
+    modes = config_dict.get('WALLPAPER_MODE') or []
+    on = [u for i, u in enumerate(lst) if not (i < len(modes) and modes[i] == 'disable')]
     return on or lst
 def _extract_wallpaper(d):
     try:

@@ -43,7 +43,7 @@ default_values = {'AUTO_DELETE_MESSAGE_DURATION': 30,
                   'RSS_DELAY': 600,
                   'STATUS_UPDATE_INTERVAL': 5,
                   'WALLPAPER_URL': ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080'],
-                  'WALLPAPER_DISABLED': [],
+                  'WALLPAPER_MODE': [],
                   'WALLPAPER_MULTIPLIER': 2,
                   'SEARCH_LIMIT': 0,
                   'UPSTREAM_BRANCH': 'srmlx',
@@ -256,7 +256,7 @@ async def load_config():
         return [p.strip() for p in _re_w.split(r'[,\s]+', raw) if p.strip()]
     _wall_def = ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080']
     WALLPAPER_URL = _parse_w(environ.get('WALLPAPER_URL', '')) or _wall_def
-    WALLPAPER_DISABLED = _parse_w(environ.get('WALLPAPER_DISABLED', ''))
+    WALLPAPER_MODE = []
     WALLPAPER_MULTIPLIER = environ.get('WALLPAPER_MULTIPLIER', '')
     if len(WALLPAPER_MULTIPLIER) == 0:
         WALLPAPER_MULTIPLIER = 2
@@ -761,7 +761,7 @@ async def load_config():
                         'STATUS_UPDATE_INTERVAL': STATUS_UPDATE_INTERVAL,
                         'WALLPAPER_MULTIPLIER': WALLPAPER_MULTIPLIER,
                         'WALLPAPER_URL': WALLPAPER_URL,
-                        'WALLPAPER_DISABLED': WALLPAPER_DISABLED,
+                        'WALLPAPER_MODE': WALLPAPER_MODE,
                         'STOP_DUPLICATE': STOP_DUPLICATE,
                         'SUDO_USERS': SUDO_USERS,
                         'TELEGRAM_API': TELEGRAM_API,
@@ -1112,11 +1112,11 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
         msg = f'Qbittorrent Options | Page: {int(START/10)+1} | State: {STATE}'
     elif key == 'wallitem':
         urls = [str(x).strip() for x in (config_dict.get('WALLPAPER_URL') or []) if str(x).strip()]
-        disabled = set(config_dict.get('WALLPAPER_DISABLED') or [])
+        modes = config_dict.get('WALLPAPER_MODE') or []
         i = WALL_IDX if 0 <= WALL_IDX < len(urls) else 0
         globals()['WALL_IDX'] = i
         url = urls[i] if urls else ''
-        on = bool(url) and url not in disabled
+        on = bool(url) and not (i < len(modes) and modes[i] == 'disable')
         msg = '㊂ <b><u>Wallpaper URL Settings :</u></b>\n\n'
         msg += f'➲ <b>URL :</b> <code>{escape(url)}</code>\n'
         msg += f'➲ <b>Status :</b> <i>{"Enabled" if on else "Disabled"}</i>\n\n'
@@ -1131,49 +1131,57 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
         buttons.ibutton('Back', 'botset editvar WALLPAPER_URL', position='footer')
         buttons.ibutton('Close', 'botset close', position='footer')
     elif edit_type == 'editvar':
-        msg = f'<b>Variable:</b> <code>{key}</code>\n\n'
-        msg += f'<b>Description:</b> {default_desp.get(key, "No Description Provided")}\n\n'
-        if mess.chat.type == ChatType.PRIVATE:
-            msg += f'<b>Value:</b> <spoiler> {config_dict.get(key, "None")} </spoiler>\n\n'
-        else:
-            buttons.ibutton('View Var Value',
-                            f"botset showvar {key}", position="header")
         if key == 'WALLPAPER_URL' and not edit_mode:
+            msg = '㊂ <b><u>WALLPAPER_URL :</u></b>\n\n'
+            msg += '➲ <b>Description :</b> <i>Random wallpaper source for status preview.</i>\n\n'
             buttons.ibutton(f'Mode: {WALL_MODE.capitalize()}', 'botset wallmode', position='header')
             urls = [str(x).strip() for x in (config_dict.get('WALLPAPER_URL') or []) if str(x).strip()]
-            disabled = set(config_dict.get('WALLPAPER_DISABLED') or [])
+            modes = config_dict.get('WALLPAPER_MODE') or []
             if WALL_START >= len(urls):
                 globals()['WALL_START'] = 0
             page = urls[WALL_START:WALL_START + 12]
             for offset, u in enumerate(page):
                 gi = WALL_START + offset
-                mark = '❌' if u in disabled else '✅'
-                lab = u.split('//', 1)[-1]
-                if len(lab) > 36:
-                    lab = lab[:33] + '...'
+                mark = '❌' if gi < len(modes) and modes[gi] == 'disable' else '✅'
+                h = u.split('//', 1)[-1].split('/')[0].split('?')[0]
+                p = h.split('.')
+                if p and p[0] in ('api', 'www'):
+                    p = p[1:]
+                lab = p[0] if p else h
                 cb = f'botset wallitem {gi}' if WALL_MODE == 'edit' else f'botset walltgl {gi}'
                 buttons.ibutton(f'{mark} {lab}', cb)
             if len(urls) > 12:
                 for x in range(0, len(urls), 12):
                     buttons.ibutton(f'{x // 12 + 1}', f'botset wallpage {x // 12}', position='footer')
-        buttons.ibutton('Back', "botset back var", position="footer")
-        if key not in bool_vars:
-            if not edit_mode:
-                buttons.ibutton('Edit Value', f"botset editvar {key} edit")
-            else:
-                buttons.ibutton('Stop Edit', f"botset editvar {key}")
-        if key not in ['TELEGRAM_HASH', 'TELEGRAM_API', 'OWNER_ID', 'BOT_TOKEN', 'USER_SESSION_STRING'] and key not in bool_vars:
+            buttons.ibutton('Back', "botset back var", position="footer")
             buttons.ibutton('Reset', f"botset resetvar {key}")
-        buttons.ibutton('Close', "botset close", position="footer")
-        if edit_mode and key in ['SUDO_USERS', 'CMD_SUFFIX', 'OWNER_ID', 'USER_SESSION_STRING', 'TELEGRAM_HASH',
-                                 'TELEGRAM_API', 'AUTHORIZED_CHATS', 'DATABASE_URL', 'BOT_TOKEN', 'DOWNLOAD_DIR']:
-            msg += '<b>Note:</b> Restart required for this edit to take effect!\n\n'
-        if edit_mode and key not in bool_vars:
-            msg += '<i>Send a valid value for the above Var.</i> <b>Timeout:</b> 60 sec'
-        if key in bool_vars:
-            msg += '<i>Choose a valid value for the above Var</i>'
-            buttons.ibutton('True', f"botset boolvar {key} on")
-            buttons.ibutton('False', f"botset boolvar {key} off")
+            buttons.ibutton('Close', "botset close", position="footer")
+        else:
+            msg = f'<b>Variable:</b> <code>{key}</code>\n\n'
+            msg += f'<b>Description:</b> {default_desp.get(key, "No Description Provided")}\n\n'
+            if mess.chat.type == ChatType.PRIVATE:
+                msg += f'<b>Value:</b> <spoiler> {config_dict.get(key, "None")} </spoiler>\n\n'
+            else:
+                buttons.ibutton('View Var Value',
+                                f"botset showvar {key}", position="header")
+            buttons.ibutton('Back', "botset back var", position="footer")
+            if key not in bool_vars:
+                if not edit_mode:
+                    buttons.ibutton('Edit Value', f"botset editvar {key} edit")
+                else:
+                    buttons.ibutton('Stop Edit', f"botset editvar {key}")
+            if key not in ['TELEGRAM_HASH', 'TELEGRAM_API', 'OWNER_ID', 'BOT_TOKEN', 'USER_SESSION_STRING'] and key not in bool_vars:
+                buttons.ibutton('Reset', f"botset resetvar {key}")
+            buttons.ibutton('Close', "botset close", position="footer")
+            if edit_mode and key in ['SUDO_USERS', 'CMD_SUFFIX', 'OWNER_ID', 'USER_SESSION_STRING', 'TELEGRAM_HASH',
+                                     'TELEGRAM_API', 'AUTHORIZED_CHATS', 'DATABASE_URL', 'BOT_TOKEN', 'DOWNLOAD_DIR']:
+                msg += '<b>Note:</b> Restart required for this edit to take effect!\n\n'
+            if edit_mode and key not in bool_vars:
+                msg += '<i>Send a valid value for the above Var.</i> <b>Timeout:</b> 60 sec'
+            if key in bool_vars:
+                msg += '<i>Choose a valid value for the above Var</i>'
+                buttons.ibutton('True', f"botset boolvar {key} on")
+                buttons.ibutton('False', f"botset boolvar {key} off")
     elif edit_type == 'editaria':
         buttons.ibutton('Back', "botset back aria")
         if key != 'newkey':
@@ -1291,11 +1299,14 @@ async def edit_variable(_, message, pre_message, key):
     if DATABASE_URL:
         await DbManger().update_config({key: value})
     if key == 'WALLPAPER_URL':
-        pruned = sorted(set(config_dict.get('WALLPAPER_DISABLED') or []) & set(value))
-        if pruned != list(config_dict.get('WALLPAPER_DISABLED') or []):
-            config_dict['WALLPAPER_DISABLED'] = pruned
+        modes = list(config_dict.get('WALLPAPER_MODE') or [])
+        while len(modes) < len(value):
+            modes.append('enable')
+        modes = modes[:len(value)]
+        if modes != list(config_dict.get('WALLPAPER_MODE') or []):
+            config_dict['WALLPAPER_MODE'] = modes
             if DATABASE_URL:
-                await DbManger().update_config({'WALLPAPER_DISABLED': pruned})
+                await DbManger().update_config({'WALLPAPER_MODE': modes})
     if key in ['SEARCH_PLUGINS', 'SEARCH_API_LINK']:
         await initiate_search_tools()
     elif key in ['QUEUE_ALL', 'QUEUE_DOWNLOAD', 'QUEUE_UPLOAD']:
@@ -1331,18 +1342,11 @@ async def edit_wall_url(_, message, pre_message, index):
     if not new.startswith(('http://', 'https://')) or not (0 <= index < len(urls)):
         await update_buttons(pre_message, 'wallitem', None, False)
         return
-    old = urls[index]
     urls[index] = new
     config_dict['WALLPAPER_URL'] = urls
-    dis = set(config_dict.get('WALLPAPER_DISABLED') or [])
-    was_off = old in dis
-    dis.discard(old)
-    if was_off:
-        dis.add(new)
-    config_dict['WALLPAPER_DISABLED'] = sorted(dis)
     await update_buttons(pre_message, 'wallitem', None, False)
     if DATABASE_URL:
-        await DbManger().update_config({'WALLPAPER_URL': urls, 'WALLPAPER_DISABLED': config_dict['WALLPAPER_DISABLED']})
+        await DbManger().update_config({'WALLPAPER_URL': urls})
 
 
 async def edit_aria(_, message, pre_message, key):
@@ -1557,16 +1561,14 @@ async def edit_bot_settings(client, query):
         urls = [str(x).strip() for x in (config_dict.get('WALLPAPER_URL') or []) if str(x).strip()]
         i = int(data[2])
         if 0 <= i < len(urls):
-            u = urls[i]
-            dis = set(config_dict.get('WALLPAPER_DISABLED') or [])
-            if u in dis:
-                dis.discard(u)
-            else:
-                dis.add(u)
-            config_dict['WALLPAPER_DISABLED'] = sorted(dis)
-            await query.answer('Enabled' if u not in dis else 'Disabled')
+            modes = list(config_dict.get('WALLPAPER_MODE') or [])
+            while len(modes) <= i:
+                modes.append('enable')
+            modes[i] = 'disable' if modes[i] != 'disable' else 'enable'
+            config_dict['WALLPAPER_MODE'] = modes
+            await query.answer('Enabled' if modes[i] == 'enable' else 'Disabled')
             if DATABASE_URL:
-                await DbManger().update_config({'WALLPAPER_DISABLED': config_dict['WALLPAPER_DISABLED']})
+                await DbManger().update_config({'WALLPAPER_MODE': modes})
         else:
             await query.answer('Invalid', show_alert=True)
         await update_buttons(message, 'WALLPAPER_URL', 'editvar', False)
@@ -1605,17 +1607,17 @@ async def edit_bot_settings(client, query):
         urls = [str(x).strip() for x in (config_dict.get('WALLPAPER_URL') or []) if str(x).strip()]
         i = int(data[2])
         if 0 <= i < len(urls):
-            u = urls[i]
             urls.pop(i)
             if not urls:
                 urls = ['https://api.aniwallpaper.workers.dev/random?type=girls']
             config_dict['WALLPAPER_URL'] = urls
-            dis = set(config_dict.get('WALLPAPER_DISABLED') or [])
-            dis.discard(u)
-            config_dict['WALLPAPER_DISABLED'] = sorted(dis)
+            modes = list(config_dict.get('WALLPAPER_MODE') or [])
+            if i < len(modes):
+                modes.pop(i)
+            config_dict['WALLPAPER_MODE'] = modes
             await query.answer('Deleted')
             if DATABASE_URL:
-                await DbManger().update_config({'WALLPAPER_URL': urls, 'WALLPAPER_DISABLED': config_dict['WALLPAPER_DISABLED']})
+                await DbManger().update_config({'WALLPAPER_URL': urls, 'WALLPAPER_MODE': modes})
         else:
             await query.answer('Invalid', show_alert=True)
         await update_buttons(message, 'WALLPAPER_URL', 'editvar', False)
