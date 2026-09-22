@@ -38,7 +38,7 @@ default_values = {'AUTO_DELETE_MESSAGE_DURATION': 30,
                   'LEECH_SPLIT_SIZE': MAX_SPLIT_SIZE,
                   'RSS_DELAY': 600,
                   'STATUS_UPDATE_INTERVAL': 5,
-                  'WALLPAPER_URL': 'https://api.aniwallpaper.workers.dev/random?type=girls',
+                  'WALLPAPER_URL': ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080'],
                   'WALLPAPER_MULTIPLIER': 2,
                   'SEARCH_LIMIT': 0,
                   'UPSTREAM_BRANCH': 'srmlx',
@@ -228,10 +228,29 @@ async def load_config():
                 Interval.clear()
                 Interval.append(setInterval(STATUS_UPDATE_INTERVAL, update_all_messages))
 
-    WALLPAPER_URL = environ.get('WALLPAPER_URL', '')
-    if len(WALLPAPER_URL) == 0:
-        WALLPAPER_URL = 'https://api.aniwallpaper.workers.dev/random?type=girls'
-
+    import re as _re_w, json as _json_w, ast as _ast_w
+    def _parse_w(raw):
+        if isinstance(raw, list):
+            return [str(x).strip() for x in raw if str(x).strip()]
+        raw = str(raw or '').strip()
+        if not raw:
+            return []
+        if raw.startswith('['):
+            try:
+                arr = _json_w.loads(raw)
+                if isinstance(arr, list):
+                    return [str(x).strip() for x in arr if str(x).strip()]
+            except:
+                pass
+            try:
+                arr = _ast_w.literal_eval(raw)
+                if isinstance(arr, list):
+                    return [str(x).strip() for x in arr if str(x).strip()]
+            except:
+                pass
+        return [p.strip() for p in _re_w.split(r'[,\s]+', raw) if p.strip()]
+    _wall_def = ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080']
+    WALLPAPER_URL = _parse_w(environ.get('WALLPAPER_URL', '')) or _wall_def
     WALLPAPER_MULTIPLIER = environ.get('WALLPAPER_MULTIPLIER', '')
     if len(WALLPAPER_MULTIPLIER) == 0:
         WALLPAPER_MULTIPLIER = 2
@@ -1199,7 +1218,26 @@ async def edit_variable(_, message, pre_message, key):
         if value < 1:
             value = 1
     elif key == 'WALLPAPER_URL':
-        value = value.strip()
+        import re as _re_w2, json as _json_w2, ast as _ast_w2
+        raw = str(value).strip()
+        lst = []
+        if raw.startswith('['):
+            try:
+                arr = _json_w2.loads(raw)
+                if isinstance(arr, list):
+                    lst = [str(x).strip() for x in arr if str(x).strip()]
+            except:
+                pass
+            if not lst:
+                try:
+                    arr = _ast_w2.literal_eval(raw)
+                    if isinstance(arr, list):
+                        lst = [str(x).strip() for x in arr if str(x).strip()]
+                except:
+                    pass
+        if not lst:
+            lst = [p.strip() for p in _re_w2.split(r'[,\s]+', raw) if p.strip()]
+        value = lst or ['https://api.aniwallpaper.workers.dev/random?type=girls']
     elif value.isdigit():
         value = int(value)
     config_dict[key] = value

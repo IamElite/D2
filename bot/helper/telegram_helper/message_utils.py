@@ -34,15 +34,85 @@ from ..ext_utils.bot_utils import get_readable_message, setInterval, sync_to_asy
 from .button_build import ButtonMaker
 from ..ext_utils.exceptions import TgLinkException
 _status_tick = 0
-_status_base = (config_dict.get('WALLPAPER_URL') or 'https://api.aniwallpaper.workers.dev/random?type=girls').strip()
-_status_url = _status_base
-def _status_lpo(increment=True):
-    global _status_tick, _status_url, _status_base
-    base = (config_dict.get('WALLPAPER_URL') or 'https://api.aniwallpaper.workers.dev/random?type=girls').strip()
-    if base != _status_base:
-        _status_base = base
-        _status_url = base
-        _status_tick = 0
+_status_url = 'https://api.aniwallpaper.workers.dev/random?type=girls'
+_wallpaper_default = ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080']
+def _wallpaper_list():
+    v = config_dict.get('WALLPAPER_URL')
+    if isinstance(v, list):
+        lst = [str(x).strip() for x in v if str(x).strip()]
+        if lst:
+            return lst
+    if isinstance(v, str):
+        import re as _re
+        lst = [p.strip() for p in _re.split(r'[,\s]+', v.strip()) if p.strip()]
+        if lst:
+            return lst
+        if str(v).strip().startswith('http'):
+            return [str(v).strip()]
+    return _wallpaper_default
+def _extract_wallpaper(d):
+    try:
+        if isinstance(d, dict):
+            if 'results' in d and isinstance(d['results'], list) and d['results']:
+                u = d['results'][0].get('url') or d['results'][0].get('image')
+                if u:
+                    return u
+            if 'images' in d and isinstance(d['images'], list) and d['images']:
+                u = d['images'][0].get('url')
+                if u:
+                    return u
+            if 'items' in d and isinstance(d['items'], list) and d['items']:
+                u = d['items'][0].get('url') or d['items'][0].get('image')
+                if u:
+                    return u
+            if 'data' in d and isinstance(d['data'], list) and d['data']:
+                f = d['data'][0]
+                if isinstance(f, dict):
+                    u = f.get('url') or f.get('image')
+                    if u:
+                        return u
+                elif isinstance(f, str) and f.startswith('http'):
+                    return f
+            if 'url' in d and isinstance(d['url'], str) and d['url'].startswith('http'):
+                return d['url']
+            if 'image' in d and isinstance(d['image'], str) and d['image'].startswith('http'):
+                return d['image']
+            import re as _re
+            m = _re.search(r'https?://[^\s\"\'<>]+\.(?:jpg|jpeg|png|webp|gif)', str(d))
+            if m:
+                return m.group(0)
+        elif isinstance(d, list) and d:
+            f = d[0]
+            if isinstance(f, dict):
+                return f.get('url') or f.get('image')
+            if isinstance(f, str) and f.startswith('http'):
+                return f
+    except:
+        pass
+    return None
+async def _resolve_wallpaper(base):
+    if not any(h in base for h in ('nekos.best','waifu.im','prexzy','nerdwaifus','waifuland','ritiin')):
+        return base
+    try:
+        from aiohttp import ClientSession, ClientTimeout
+        async with ClientSession(timeout=ClientTimeout(total=7)) as s:
+            async with s.get(base) as r:
+                ct = r.headers.get('Content-Type','')
+                if 'image' in ct:
+                    return base
+                try:
+                    j = await r.json()
+                except:
+                    txt = await r.text()
+                    import re as _re
+                    m = _re.search(r'https?://[^\s\"\'<>]+\.(?:jpg|jpeg|png|webp|gif)', txt)
+                    return m.group(0) if m else base
+                img = _extract_wallpaper(j)
+                return img if img and img.startswith('http') else base
+    except:
+        return base
+async def _status_lpo(increment=True):
+    global _status_tick, _status_url
     if increment:
         _status_tick += 1
         try:
@@ -52,8 +122,13 @@ def _status_lpo(increment=True):
         if mult < 1:
             mult = 1
         if _status_tick % mult == 0:
-            sep = '&' if '?' in base else '?'
-            _status_url = f"{base}{sep}c={_status_tick}{int(time())}"
+            lst = _wallpaper_list()
+            base = rchoice(lst)
+            resolved = await _resolve_wallpaper(base)
+            if resolved == base:
+                sep = '&' if '?' in base else '?'
+                resolved = f"{base}{sep}c={_status_tick}{int(time())}"
+            _status_url = resolved
     return LinkPreviewOptions(url=_status_url, show_above_text=True, prefer_large_media=True)
 
 
@@ -424,7 +499,7 @@ async def update_all_messages(force=False):
     msg, buttons = await sync_to_async(get_readable_message, downloads)
     if msg is None:
         return
-    lpo = _status_lpo()
+    lpo = await _status_lpo()
     async with status_reply_dict_lock:
         for chat_id in list(status_reply_dict.keys()):
             if status_reply_dict[chat_id] and msg != status_reply_dict[chat_id][0].text:
@@ -458,7 +533,8 @@ async def sendStatusMessage(msg):
             message = status_reply_dict[chat_id][0]
             await deleteMessage(message)
             del status_reply_dict[chat_id]
-        if message := await sendMessage(msg, progress, buttons, link_preview_options=_status_lpo(increment=False)):
+        lpo = await _status_lpo(increment=False)
+        if message := await sendMessage(msg, progress, buttons, link_preview_options=lpo):
             if hasattr(message, 'caption'):
                 message.caption = progress
             else:

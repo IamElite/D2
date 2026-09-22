@@ -478,10 +478,31 @@ if len(STATUS_UPDATE_INTERVAL) == 0:
 else:
     STATUS_UPDATE_INTERVAL = int(STATUS_UPDATE_INTERVAL)
 
-WALLPAPER_URL = environ.get('WALLPAPER_URL', '')
-if len(WALLPAPER_URL) == 0:
-    WALLPAPER_URL = 'https://api.aniwallpaper.workers.dev/random?type=girls'
-
+import re as _re_wall, json as _json_wall, ast as _ast_wall
+_wallpaper_default = ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080']
+def _parse_wallpaper(raw):
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    raw = str(raw).strip()
+    if not raw:
+        return []
+    if raw.startswith('['):
+        try:
+            arr = _json_wall.loads(raw)
+            if isinstance(arr, list):
+                return [str(x).strip() for x in arr if str(x).strip()]
+        except:
+            pass
+        try:
+            arr = _ast_wall.literal_eval(raw)
+            if isinstance(arr, list):
+                return [str(x).strip() for x in arr if str(x).strip()]
+        except:
+            pass
+    return [p.strip() for p in _re_wall.split(r'[,\s]+', raw) if p.strip()]
+WALLPAPER_URL = _parse_wallpaper(environ.get('WALLPAPER_URL', '')) or _wallpaper_default
 WALLPAPER_MULTIPLIER = environ.get('WALLPAPER_MULTIPLIER', '')
 if len(WALLPAPER_MULTIPLIER) == 0:
     WALLPAPER_MULTIPLIER = 2
