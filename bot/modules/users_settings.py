@@ -28,6 +28,25 @@ from ..helper.mirror_utils.upload_utils.ddlserver.gofile import Gofile
 from ..helper.themes import BotTheme
 from .autorename import validate_autorename_format
 
+async def _thumb_exists(uid: int) -> bool:
+    import os
+    from aiofiles.os import path as _p, makedirs as _mk
+    from aiofiles import open as _o
+    for cand in (f"Thumbnails/{uid}.jpg", f"thumbnails/{uid}.jpg", f"Thumbnail/{uid}.jpg", f"thumbnail/{uid}.jpg"):
+        if await _p.exists(cand):
+            if cand != f"Thumbnails/{uid}.jpg" and await _p.exists(cand):
+                try:
+                    if not await _p.exists('Thumbnails'):
+                        await _mk('Thumbnails')
+                    async with _o(cand, 'rb') as s:
+                        d = await s.read()
+                    async with _o(f"Thumbnails/{uid}.jpg", 'wb+') as d2:
+                        await d2.write(d)
+                except Exception:
+                    pass
+            return True
+    return False
+
 def trun(text, limit=60):
     text = str(text)
     return text[:limit] + "..." if len(text) > limit else text
@@ -193,7 +212,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         dailytlle = get_readable_file_size(config_dict['DAILY_LEECH_LIMIT'] * 1024**3) if config_dict['DAILY_LEECH_LIMIT'] else "️∞"
         dailyll = get_readable_file_size(await getdailytasks(user_id, check_leech=True)) if config_dict['DAILY_LEECH_LIMIT'] and user_id != OWNER_ID else "∞"
 
-        thumbmsg = "Exists" if await aiopath.exists(thumbpath) else "Not Exists"
+        thumbmsg = "Exists" if await _thumb_exists(user_id) else "Not Exists"
         buttons.ibutton(f"{'✅️' if thumbmsg == 'Exists' else ''} Thumbnail", f"userset {user_id} thumb")
         
         split_size = get_readable_file_size(config_dict['LEECH_SPLIT_SIZE']) + ' (Default)' if user_dict.get('split_size', '') == '' else get_readable_file_size(user_dict['split_size'])
@@ -237,7 +256,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
                 LDUMP=ldump, METADATA=escape(trun(metadata)),
                 ATTACHMENT=escape(trun(lattachment)))
 
-        if await aiopath.exists(thumbpath):
+        if await _thumb_exists(user_id):
             ph_url = _get_thumb_url(user_id)
             if ph_url:
                 text = f'<a href="{ph_url}">\u200b</a>' + text
@@ -331,7 +350,7 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             set_exist = await aiopath.exists(rclone_path)
             text += f"➲ <b>RClone.Conf File :</b> <i>{'' if set_exist else 'Not'} Exists</i>\n\n"
         elif key == 'thumb':
-            set_exist = await aiopath.exists(thumbpath)
+            set_exist = await _thumb_exists(user_id)
             text += f"➲ <b>Custom Thumbnail :</b> <i>{'' if set_exist else 'Not'} Exists</i>\n\n"
             if set_exist:
                 ph_url = _get_thumb_url(user_id)
@@ -436,8 +455,7 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     text, button = await get_user_settings(from_user, key, edit_type, edit_mode)
     target_msg = query if sdirect else query.message
     if key in ('leech', 'thumb'):
-        thumb_path = f"Thumbnails/{from_user.id}.jpg"
-        if await aiopath.exists(thumb_path):
+        if await _thumb_exists(from_user.id):
             ph_url = _get_thumb_url(from_user.id)
             if ph_url:
                 await editMessage(target_msg, text, button, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True))

@@ -26,34 +26,79 @@ class DbManger:
     async def db_load(self):
         if self.__err:
             return
-        # Save bot settings
         await self.__db.settings.config.update_one({'_id': bot_id}, {'$set': config_dict}, upsert=True)
-        # Save Aria2c options
         if await self.__db.settings.aria2c.find_one({'_id': bot_id}) is None:
             await self.__db.settings.aria2c.update_one({'_id': bot_id}, {'$set': aria2_options}, upsert=True)
-        # Save qbittorrent options
         if await self.__db.settings.qbittorrent.find_one({'_id': bot_id}) is None:
             await self.__db.settings.qbittorrent.update_one({'_id': bot_id}, {'$set': qbit_options}, upsert=True)
-        # User Data
         if await self.__db.users[bot_id].find_one():
             rows = self.__db.users[bot_id].find({})
-            # return a dict ==> {_id, is_sudo, is_auth, as_doc, thumb, yt_opt, media_group, equal_splits, split_size, rclone}
             async for row in rows:
                 uid = row['_id']
                 del row['_id']
                 thumb_path = f'Thumbnails/{uid}.jpg'
                 rclone_path = f'wcl/{uid}.conf'
-                if row.get('thumb'):
-                    if not await aiopath.exists('Thumbnails'):
-                        await makedirs('Thumbnails')
-                    async with aiopen(thumb_path, 'wb+') as f:
-                        await f.write(row['thumb'])
-                    row['thumb'] = thumb_path
+                thumb_bin = row.get('thumb')
+                if thumb_bin:
+                    try:
+                        if isinstance(thumb_bin, (bytes, bytearray)):
+                            if not await aiopath.exists('Thumbnails'):
+                                await makedirs('Thumbnails')
+                            async with aiopen(thumb_path, 'wb+') as f:
+                                await f.write(thumb_bin)
+                            row['thumb'] = thumb_path
+                        elif isinstance(thumb_bin, str) and thumb_bin:
+                            for cand in (thumb_bin, f'thumbnails/{uid}.jpg', f'Thumbnails/{uid}.jpg', f'thumbnail/{uid}.jpg', f'Thumbnail/{uid}.jpg'):
+                                if await aiopath.exists(cand):
+                                    if cand != thumb_path:
+                                        if not await aiopath.exists('Thumbnails'):
+                                            await makedirs('Thumbnails')
+                                        async with aiopen(cand, 'rb') as src:
+                                            data = await src.read()
+                                        async with aiopen(thumb_path, 'wb+') as dst:
+                                            await dst.write(data)
+                                    row['thumb'] = thumb_path
+                                    break
+                            else:
+                                row['thumb'] = thumb_path
+                        else:
+                            row['thumb'] = thumb_path
+                    except Exception:
+                        row['thumb'] = thumb_path
+                else:
+                    for cand in (f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg'):
+                        if await aiopath.exists(cand):
+                            if not await aiopath.exists('Thumbnails'):
+                                await makedirs('Thumbnails')
+                            async with aiopen(cand, 'rb') as src:
+                                data = await src.read()
+                            async with aiopen(thumb_path, 'wb+') as dst:
+                                await dst.write(data)
+                            try:
+                                await self.__db.users[bot_id].update_one({'_id': uid}, {'$set': {'thumb': data}}, upsert=True)
+                            except Exception:
+                                pass
+                            row['thumb'] = thumb_path
+                            break
                 if row.get('rclone'):
                     if not await aiopath.exists('wcl'):
                         await makedirs('wcl')
-                    async with aiopen(rclone_path, 'wb+') as f:
-                        await f.write(row['rclone'])
+                    try:
+                        if isinstance(row['rclone'], (bytes, bytearray)):
+                            async with aiopen(rclone_path, 'wb+') as f:
+                                await f.write(row['rclone'])
+                        else:
+                            rclone_bin = row['rclone']
+                            if isinstance(rclone_bin, str) and await aiopath.exists(rclone_bin):
+                                async with aiopen(rclone_bin, 'rb') as src:
+                                    data = await src.read()
+                                async with aiopen(rclone_path, 'wb+') as dst:
+                                    await dst.write(data)
+                                row['rclone'] = rclone_path
+                            else:
+                                row['rclone'] = rclone_path
+                    except Exception:
+                        pass
                     row['rclone'] = rclone_path
                 user_data[uid] = row
             LOGGER.info("Users data has been imported from Database")
