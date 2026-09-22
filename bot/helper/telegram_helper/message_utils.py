@@ -34,12 +34,26 @@ from ..ext_utils.bot_utils import get_readable_message, setInterval, sync_to_asy
 from .button_build import ButtonMaker
 from ..ext_utils.exceptions import TgLinkException
 _status_tick = 0
-_status_url = "https://api.aniwallpaper.workers.dev/random?type=girls"
-def _status_lpo():
-    global _status_tick, _status_url
-    _status_tick += 1
-    if _status_tick % 2 == 0:
-        _status_url = f"https://api.aniwallpaper.workers.dev/random?type=girls&c={_status_tick}{int(time())}"
+_status_base = (config_dict.get('WALLPAPER_URL') or 'https://api.aniwallpaper.workers.dev/random?type=girls').strip()
+_status_url = _status_base
+def _status_lpo(increment=True):
+    global _status_tick, _status_url, _status_base
+    base = (config_dict.get('WALLPAPER_URL') or 'https://api.aniwallpaper.workers.dev/random?type=girls').strip()
+    if base != _status_base:
+        _status_base = base
+        _status_url = base
+        _status_tick = 0
+    if increment:
+        _status_tick += 1
+        try:
+            mult = int(config_dict.get('WALLPAPER_MULTIPLIER', 2) or 2)
+        except:
+            mult = 2
+        if mult < 1:
+            mult = 1
+        if _status_tick % mult == 0:
+            sep = '&' if '?' in base else '?'
+            _status_url = f"{base}{sep}c={_status_tick}{int(time())}"
     return LinkPreviewOptions(url=_status_url, show_above_text=True, prefer_large_media=True)
 
 
@@ -410,10 +424,11 @@ async def update_all_messages(force=False):
     msg, buttons = await sync_to_async(get_readable_message, downloads)
     if msg is None:
         return
+    lpo = _status_lpo()
     async with status_reply_dict_lock:
         for chat_id in list(status_reply_dict.keys()):
             if status_reply_dict[chat_id] and msg != status_reply_dict[chat_id][0].text:
-                rmsg = await editMessage(status_reply_dict[chat_id][0], msg, buttons, link_preview_options=_status_lpo())
+                rmsg = await editMessage(status_reply_dict[chat_id][0], msg, buttons, link_preview_options=lpo)
                 if isinstance(rmsg, str) and rmsg.startswith('Telegram says: [400'):
                     del status_reply_dict[chat_id]
                     continue
@@ -443,7 +458,7 @@ async def sendStatusMessage(msg):
             message = status_reply_dict[chat_id][0]
             await deleteMessage(message)
             del status_reply_dict[chat_id]
-        if message := await sendMessage(msg, progress, buttons, link_preview_options=_status_lpo()):
+        if message := await sendMessage(msg, progress, buttons, link_preview_options=_status_lpo(increment=False)):
             if hasattr(message, 'caption'):
                 message.caption = progress
             else:

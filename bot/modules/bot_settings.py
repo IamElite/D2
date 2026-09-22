@@ -38,6 +38,8 @@ default_values = {'AUTO_DELETE_MESSAGE_DURATION': 30,
                   'LEECH_SPLIT_SIZE': MAX_SPLIT_SIZE,
                   'RSS_DELAY': 600,
                   'STATUS_UPDATE_INTERVAL': 5,
+                  'WALLPAPER_URL': 'https://api.aniwallpaper.workers.dev/random?type=girls',
+                  'WALLPAPER_MULTIPLIER': 2,
                   'SEARCH_LIMIT': 0,
                   'UPSTREAM_BRANCH': 'srmlx',
                   'BOT_THEME': 'minimal',
@@ -225,6 +227,16 @@ async def load_config():
                 Interval[0].cancel()
                 Interval.clear()
                 Interval.append(setInterval(STATUS_UPDATE_INTERVAL, update_all_messages))
+
+    WALLPAPER_URL = environ.get('WALLPAPER_URL', '')
+    if len(WALLPAPER_URL) == 0:
+        WALLPAPER_URL = 'https://api.aniwallpaper.workers.dev/random?type=girls'
+
+    WALLPAPER_MULTIPLIER = environ.get('WALLPAPER_MULTIPLIER', '')
+    if len(WALLPAPER_MULTIPLIER) == 0:
+        WALLPAPER_MULTIPLIER = 2
+    else:
+        WALLPAPER_MULTIPLIER = int(WALLPAPER_MULTIPLIER)
 
     AUTO_DELETE_MESSAGE_DURATION = environ.get(
         'AUTO_DELETE_MESSAGE_DURATION', '')
@@ -722,6 +734,8 @@ async def load_config():
                         'SOURCE_LINK': SOURCE_LINK,
                         'STATUS_LIMIT': STATUS_LIMIT,
                         'STATUS_UPDATE_INTERVAL': STATUS_UPDATE_INTERVAL,
+                        'WALLPAPER_MULTIPLIER': WALLPAPER_MULTIPLIER,
+                        'WALLPAPER_URL': WALLPAPER_URL,
                         'STOP_DUPLICATE': STOP_DUPLICATE,
                         'SUDO_USERS': SUDO_USERS,
                         'TELEGRAM_API': TELEGRAM_API,
@@ -1180,6 +1194,12 @@ async def edit_variable(_, message, pre_message, key):
     elif key == 'INDEX_URL':
         list_drives_dict['Main'] = {"drive_id": config_dict['GDRIVE_ID'], "index_link": value}
         categories_dict['Root'] = {"drive_id": config_dict['GDRIVE_ID'], "index_link": value}
+    elif key == 'WALLPAPER_MULTIPLIER':
+        value = int(value)
+        if value < 1:
+            value = 1
+    elif key == 'WALLPAPER_URL':
+        value = value.strip()
     elif value.isdigit():
         value = int(value)
     config_dict[key] = value
