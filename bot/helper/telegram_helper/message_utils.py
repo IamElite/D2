@@ -33,6 +33,14 @@ from ... import config_dict, user_data, categories_dict, bot_cache, LOGGER, bot_
 from ..ext_utils.bot_utils import get_readable_message, setInterval, sync_to_async, download_image_url, fetch_user_tds, fetch_user_dumps, new_thread
 from .button_build import ButtonMaker
 from ..ext_utils.exceptions import TgLinkException
+_status_tick = 0
+_status_url = "https://api.aniwallpaper.workers.dev/random?type=girls"
+def _status_lpo():
+    global _status_tick, _status_url
+    _status_tick += 1
+    if _status_tick % 2 == 0:
+        _status_url = f"https://api.aniwallpaper.workers.dev/random?type=girls&c={_status_tick}{int(time())}"
+    return LinkPreviewOptions(url=_status_url, show_above_text=True, prefer_large_media=True)
 
 
 def _chat_id_of(message):
@@ -397,8 +405,6 @@ async def update_all_messages(force=False):
             return
         for chat_id in list(status_reply_dict.keys()):
             status_reply_dict[chat_id][1] = time()
-
-
     async with download_dict_lock:
         downloads = list(download_dict.values())
     msg, buttons = await sync_to_async(get_readable_message, downloads)
@@ -407,7 +413,7 @@ async def update_all_messages(force=False):
     async with status_reply_dict_lock:
         for chat_id in list(status_reply_dict.keys()):
             if status_reply_dict[chat_id] and msg != status_reply_dict[chat_id][0].text:
-                rmsg = await editMessage(status_reply_dict[chat_id][0], msg, buttons, 'IMAGES')
+                rmsg = await editMessage(status_reply_dict[chat_id][0], msg, buttons, link_preview_options=_status_lpo())
                 if isinstance(rmsg, str) and rmsg.startswith('Telegram says: [400'):
                     del status_reply_dict[chat_id]
                     continue
@@ -437,7 +443,7 @@ async def sendStatusMessage(msg):
             message = status_reply_dict[chat_id][0]
             await deleteMessage(message)
             del status_reply_dict[chat_id]
-        if message := await sendMessage(msg, progress, buttons, photo='IMAGES'):
+        if message := await sendMessage(msg, progress, buttons, link_preview_options=_status_lpo()):
             if hasattr(message, 'caption'):
                 message.caption = progress
             else:
