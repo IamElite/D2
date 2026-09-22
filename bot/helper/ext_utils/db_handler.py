@@ -54,7 +54,7 @@ class DbManger:
                                     break
                     except: pass
                     row['thumb'] = thumb_path
-                elif any(await aiopath.exists(c) for c in (f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg')):
+                else:
                     for c in (f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg'):
                         if await aiopath.exists(c):
                             try:

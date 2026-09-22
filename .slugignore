@@ -1,0 +1,8 @@
+.git
+__pycache__
+*.pyc
+Thumbnails
+wcl
+brain.md
+performance_audit.md
+tools
