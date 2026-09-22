@@ -38,18 +38,19 @@ _status_url = 'https://api.aniwallpaper.workers.dev/random?type=girls'
 _wallpaper_default = ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080']
 def _wallpaper_list():
     v = config_dict.get('WALLPAPER_URL')
+    lst = None
     if isinstance(v, list):
-        lst = [str(x).strip() for x in v if str(x).strip()]
-        if lst:
-            return lst
-    if isinstance(v, str):
+        lst = [str(x).strip() for x in v if str(x).strip()] or None
+    if lst is None and isinstance(v, str):
         import re as _re
-        lst = [p.strip() for p in _re.split(r'[,\s]+', v.strip()) if p.strip()]
-        if lst:
-            return lst
-        if str(v).strip().startswith('http'):
-            return [str(v).strip()]
-    return _wallpaper_default
+        lst = [p.strip() for p in _re.split(r'[,\s]+', v.strip()) if p.strip()] or None
+        if lst is None and str(v).strip().startswith('http'):
+            lst = [str(v).strip()]
+    if not lst:
+        lst = _wallpaper_default
+    dis = set(config_dict.get('WALLPAPER_DISABLED') or [])
+    on = [u for u in lst if u not in dis]
+    return on or lst
 def _extract_wallpaper(d):
     try:
         if isinstance(d, dict):

@@ -503,6 +503,7 @@ def _parse_wallpaper(raw):
             pass
     return [p.strip() for p in _re_wall.split(r'[,\s]+', raw) if p.strip()]
 WALLPAPER_URL = _parse_wallpaper(environ.get('WALLPAPER_URL', '')) or _wallpaper_default
+WALLPAPER_DISABLED = _parse_wallpaper(environ.get('WALLPAPER_DISABLED', ''))
 WALLPAPER_MULTIPLIER = environ.get('WALLPAPER_MULTIPLIER', '')
 if len(WALLPAPER_MULTIPLIER) == 0:
     WALLPAPER_MULTIPLIER = 2
@@ -935,6 +936,7 @@ config_dict = {'ANIME_TEMPLATE': ANIME_TEMPLATE,
                'USE_SERVICE_ACCOUNTS': USE_SERVICE_ACCOUNTS,
                'WALLPAPER_MULTIPLIER': WALLPAPER_MULTIPLIER,
                'WALLPAPER_URL': WALLPAPER_URL,
+               'WALLPAPER_DISABLED': WALLPAPER_DISABLED,
                'WEB_PINCODE': WEB_PINCODE,
                'YT_DLP_OPTIONS': YT_DLP_OPTIONS}
 
