@@ -29,21 +29,16 @@ from ..helper.themes import BotTheme
 from .autorename import validate_autorename_format
 
 async def _thumb_exists(uid: int) -> bool:
-    import os
-    from aiofiles.os import path as _p, makedirs as _mk
-    from aiofiles import open as _o
-    for cand in (f"Thumbnails/{uid}.jpg", f"thumbnails/{uid}.jpg", f"Thumbnail/{uid}.jpg", f"thumbnail/{uid}.jpg"):
-        if await _p.exists(cand):
-            if cand != f"Thumbnails/{uid}.jpg" and await _p.exists(cand):
+    from aiofiles.os import path as p, makedirs as m
+    from aiofiles import open as o
+    for c in (f"Thumbnails/{uid}.jpg", f"thumbnails/{uid}.jpg", f"Thumbnail/{uid}.jpg", f"thumbnail/{uid}.jpg"):
+        if await p.exists(c):
+            if c != f"Thumbnails/{uid}.jpg":
                 try:
-                    if not await _p.exists('Thumbnails'):
-                        await _mk('Thumbnails')
-                    async with _o(cand, 'rb') as s:
-                        d = await s.read()
-                    async with _o(f"Thumbnails/{uid}.jpg", 'wb+') as d2:
-                        await d2.write(d)
-                except Exception:
-                    pass
+                    if not await p.exists('Thumbnails'): await m('Thumbnails')
+                    async with o(c, 'rb') as s: d = await s.read()
+                    async with o(f"Thumbnails/{uid}.jpg", 'wb+') as d2: await d2.write(d)
+                except: pass
             return True
     return False
 
@@ -118,8 +113,8 @@ fname_dict = {'rcc': 'RClone',
              }
 
 def _get_thumb_url(user_id: int) -> str:
-    base = (config_dict.get('BASE_URL') or '').rstrip('/')
-    return f"{base}/thumbnail/{user_id}" if base else ''
+    b = (config_dict.get('BASE_URL') or '').rstrip('/')
+    return f"{b}/thumbnail/{user_id}.jpg" if b else ''
 
 async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None):
     user_id = from_user.id
@@ -458,7 +453,7 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
         if await _thumb_exists(from_user.id):
             ph_url = _get_thumb_url(from_user.id)
             if ph_url:
-                await editMessage(target_msg, text, button, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True))
+                await editMessage(target_msg, text, button, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True, prefer_large_media=True))
                 return
     await editMessage(target_msg, text, button, disable_web_page_preview=True)
 
@@ -736,7 +731,7 @@ async def set_thumb(client, message, pre_event, key, direct=False):
         text, button = await get_user_settings(message.from_user, key, 'leech')
         ph_url = _get_thumb_url(user_id)
         if ph_url:
-            await sendMessage(message, text, button, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True))
+            await sendMessage(message, text, button, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True, prefer_large_media=True))
         else:
             await sendMessage(message, text, button, disable_web_page_preview=True)
     else:
@@ -1349,7 +1344,7 @@ async def set_thumb_cmd(client, message):
     ph_url = _get_thumb_url(user_id)
     if ph_url:
         reply_text = f'<a href="{ph_url}">\u200b</a>' + reply_text
-        await sendMessage(message, reply_text, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True))
+        await sendMessage(message, reply_text, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True, prefer_large_media=True))
     else:
         await sendMessage(message, reply_text, disable_web_page_preview=True)
     

@@ -42,42 +42,27 @@ class DbManger:
                 if thumb_bin:
                     try:
                         if isinstance(thumb_bin, (bytes, bytearray)):
-                            if not await aiopath.exists('Thumbnails'):
-                                await makedirs('Thumbnails')
-                            async with aiopen(thumb_path, 'wb+') as f:
-                                await f.write(thumb_bin)
-                            row['thumb'] = thumb_path
-                        elif isinstance(thumb_bin, str) and thumb_bin:
-                            for cand in (thumb_bin, f'thumbnails/{uid}.jpg', f'Thumbnails/{uid}.jpg', f'thumbnail/{uid}.jpg', f'Thumbnail/{uid}.jpg'):
-                                if await aiopath.exists(cand):
-                                    if cand != thumb_path:
-                                        if not await aiopath.exists('Thumbnails'):
-                                            await makedirs('Thumbnails')
-                                        async with aiopen(cand, 'rb') as src:
-                                            data = await src.read()
-                                        async with aiopen(thumb_path, 'wb+') as dst:
-                                            await dst.write(data)
-                                    row['thumb'] = thumb_path
+                            if not await aiopath.exists('Thumbnails'): await makedirs('Thumbnails')
+                            async with aiopen(thumb_path, 'wb+') as f: await f.write(thumb_bin)
+                        elif isinstance(thumb_bin, str):
+                            for c in (thumb_bin, f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg'):
+                                if await aiopath.exists(c):
+                                    if c != thumb_path:
+                                        if not await aiopath.exists('Thumbnails'): await makedirs('Thumbnails')
+                                        async with aiopen(c, 'rb') as s: d = await s.read()
+                                        async with aiopen(thumb_path, 'wb+') as d2: await d2.write(d)
                                     break
-                            else:
-                                row['thumb'] = thumb_path
-                        else:
-                            row['thumb'] = thumb_path
-                    except Exception:
-                        row['thumb'] = thumb_path
-                else:
-                    for cand in (f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg'):
-                        if await aiopath.exists(cand):
-                            if not await aiopath.exists('Thumbnails'):
-                                await makedirs('Thumbnails')
-                            async with aiopen(cand, 'rb') as src:
-                                data = await src.read()
-                            async with aiopen(thumb_path, 'wb+') as dst:
-                                await dst.write(data)
+                    except: pass
+                    row['thumb'] = thumb_path
+                elif any(await aiopath.exists(c) for c in (f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg')):
+                    for c in (f'thumbnails/{uid}.jpg', f'Thumbnail/{uid}.jpg', f'thumbnail/{uid}.jpg'):
+                        if await aiopath.exists(c):
                             try:
-                                await self.__db.users[bot_id].update_one({'_id': uid}, {'$set': {'thumb': data}}, upsert=True)
-                            except Exception:
-                                pass
+                                if not await aiopath.exists('Thumbnails'): await makedirs('Thumbnails')
+                                async with aiopen(c, 'rb') as s: d = await s.read()
+                                async with aiopen(thumb_path, 'wb+') as d2: await d2.write(d)
+                                await self.__db.users[bot_id].update_one({'_id': uid}, {'$set': {'thumb': d}}, upsert=True)
+                            except: pass
                             row['thumb'] = thumb_path
                             break
                 if row.get('rclone'):
