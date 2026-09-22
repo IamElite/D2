@@ -138,10 +138,6 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
         buttons.ibutton("Close", f"userset {user_id} close")
 
         text = BotTheme('USER_SETTING', NAME=name, ID=user_id, USERNAME=f'@{from_user.username}', LANG=Language.get(lc).display_name() if (lc := from_user.language_code) else "N/A", DC=from_user.dc_id)
-        if await aiopath.exists(thumbpath):
-            ph_url = await _get_thumb_ph_url(thumbpath, user_id)
-            if ph_url:
-                text = f'<a href="{ph_url}">\u200b</a>' + text
         
         button = buttons.build_menu(1)
     elif key == 'universal':
@@ -453,11 +449,6 @@ async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None)
             buttons.ibutton("Back", f"userset {user_id} back {edit_type}", "footer")
         buttons.ibutton("Close", f"userset {user_id} close", "footer")
         button = buttons.build_menu(2)
-    thumb_exists = await aiopath.exists(thumbpath)
-    if thumb_exists:
-        ph_url = await _get_thumb_ph_url(thumbpath, user_id)
-        if ph_url and not text.startswith(f'<a href="{ph_url}">'):
-            text = f'<a href="{ph_url}">\u200b</a>' + text
     return text, button
 
 
@@ -465,11 +456,14 @@ async def update_user_settings(query, key=None, edit_type=None, edit_mode=None, 
     from_user = msg.from_user if sdirect else query.from_user
     text, button = await get_user_settings(from_user, key, edit_type, edit_mode)
     target_msg = query if sdirect else query.message
-    thumb_path = f"Thumbnails/{from_user.id}.jpg"
-    thumb_exists = await aiopath.exists(thumb_path)
-    ph_url = await _get_thumb_ph_url(thumb_path, from_user.id) if thumb_exists else ''
-    disable_web_page_preview = not bool(ph_url)
-    await editMessage(target_msg, text, button, disable_web_page_preview=disable_web_page_preview)
+    if key in ('leech', 'thumb'):
+        thumb_path = f"Thumbnails/{from_user.id}.jpg"
+        if await aiopath.exists(thumb_path):
+            ph_url = await _get_thumb_ph_url(thumb_path, from_user.id)
+            if ph_url:
+                await editMessage(target_msg, text, button, link_preview_options=LinkPreviewOptions(url=ph_url, show_above_text=True))
+                return
+    await editMessage(target_msg, text, button, disable_web_page_preview=True)
 
 
 async def user_settings(client, message):
@@ -581,10 +575,7 @@ async def user_settings(client, message):
         from_user = message.from_user
         handler_dict[from_user.id] = False
         msg, button = await get_user_settings(from_user)
-        thumb_path = f"Thumbnails/{from_user.id}.jpg"
-        thumb_exists = await aiopath.exists(thumb_path)
-        ph_url = await _get_thumb_ph_url(thumb_path, from_user.id) if thumb_exists else ''
-        await sendMessage(message, msg, button, disable_web_page_preview=not bool(ph_url))
+        await sendMessage(message, msg, button, disable_web_page_preview=True)
 
 
 async def set_custom(client, message, pre_event, key, direct=False):
