@@ -432,7 +432,7 @@ def get_readable_message(downloads=None):
                 ud['max_ul'] = speed_in_bytes_per_second
 
     if PAGES > 1:
-        msg += f"┠ <b>Page:</b> {PAGE_NO}/{PAGES}\n"
+        msg += f"<b>Page:</b> {PAGE_NO}/{PAGES}\n"
     msg += BotTheme('FOOTER')
     if tasks > STATUS_LIMIT:
         if config_dict['BOT_MAX_TASKS']:
@@ -440,8 +440,8 @@ def get_readable_message(downloads=None):
         else:
             msg += BotTheme('TASKS', Tasks=tasks)
     buttons = ButtonMaker()
-    buttons.ibutton("List/Menu", "status list", position="header")
-    buttons.ibutton("↻ Refresh", "status ref", position="header")
+    buttons.ibutton("☰", "status list", position="header")
+    buttons.ibutton("↻", "status ref", position="header")
     button = buttons.build_menu(2)
     cpu, ram, d_stat = get_bot_stats()
     msg += BotTheme('Cpu', cpu=cpu)
