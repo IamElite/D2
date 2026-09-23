@@ -431,10 +431,10 @@ def get_readable_message(downloads=None):
             if isinstance(ud, dict) and speed_in_bytes_per_second > (ud.get('max_ul') or 0):
                 ud['max_ul'] = speed_in_bytes_per_second
 
-    if PAGES > 1:
-        msg += f"<b>Page:</b> {PAGE_NO}/{PAGES}\n"
     msg += BotTheme('FOOTER')
-    if tasks > STATUS_LIMIT:
+    if PAGES > 1:
+        msg += f"┠ PAGE: {PAGE_NO} / {PAGES} | TASK: {tasks}\n"
+    elif tasks > STATUS_LIMIT:
         if config_dict['BOT_MAX_TASKS']:
             msg += BotTheme('BOT_TASKS', Tasks=tasks, Ttask=config_dict['BOT_MAX_TASKS'], Free=config_dict['BOT_MAX_TASKS']-tasks)
         else:
@@ -442,6 +442,9 @@ def get_readable_message(downloads=None):
     buttons = ButtonMaker()
     buttons.ibutton("☰", "status list", position="header")
     buttons.ibutton("↻", "status ref", position="header")
+    if PAGES > 1:
+        buttons.ibutton("◀", "status pre", position="footer")
+        buttons.ibutton("▶", "status nex", position="footer")
     button = buttons.build_menu(2)
     cpu, ram, d_stat = get_bot_stats()
     msg += BotTheme('Cpu', cpu=cpu)

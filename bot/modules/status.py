@@ -49,13 +49,16 @@ async def status_pages(_, query):
     data = query.data.split()
     if "list" in data:
         try:
-            from ..helper.ext_utils.bot_utils import MirrorStatus, get_readable_file_size
+            from ..helper.ext_utils.bot_utils import MirrorStatus, get_readable_file_size, get_bot_stats
+            from ..helper.telegram_helper.button_build import ButtonMaker
+            from .. import download_dict as _dd
             from psutil import cpu_percent, disk_usage, virtual_memory
-            from time import time as _t
-            from .. import botStartTime, download_dict as _dd
-            counts = {"Download": 0, "Upload": 0, "Seed": 0, "Archive": 0, "Extract": 0, "Split": 0, "QueueDl": 0, "QueueUp": 0, "Clone": 0, "CheckUp": 0, "Pause": 0, "Metadata": 0}
+            from time import time as _t2
+            from .. import botStartTime
+            counts = {"Download": 0, "Upload": 0, "Seed": 0, "Archive": 0, "Extract": 0, "Split": 0, "QueueDl": 0, "QueueUp": 0, "Clone": 0, "CheckUp": 0, "Pause": 0, "SamVideo": 0, "Convert": 0, "FFmpeg": 0}
             dl = 0
             ul = 0
+            seed = 0
             for dl_obj in list(_dd.values()):
                 try:
                     st = dl_obj.status()
@@ -83,28 +86,49 @@ async def status_pages(_, query):
                     counts["CheckUp"] += 1
                 elif st == MirrorStatus.STATUS_PAUSED:
                     counts["Pause"] += 1
-                elif st == MirrorStatus.STATUS_METADATA:
-                    counts["Metadata"] += 1
                 else:
                     counts["Download"] += 1
                 try:
-                    spd = dl_obj.speed() if st != MirrorStatus.STATUS_SEEDING else dl_obj.upload_speed()
-                    if "K" in spd:
-                        b = float(spd.split("K")[0]) * 1024
-                    elif "M" in spd:
-                        b = float(spd.split("M")[0]) * 1048576
-                    elif "G" in spd:
-                        b = float(spd.split("G")[0]) * 1073741824
-                    else:
-                        b = 0
-                    if st == MirrorStatus.STATUS_DOWNLOADING:
-                        dl += b
-                    elif st in [MirrorStatus.STATUS_UPLOADING, MirrorStatus.STATUS_SEEDING]:
+                    spd = dl_obj.speed() if hasattr(dl_obj, 'speed') else "0B/s"
+                    if st == MirrorStatus.STATUS_SEEDING and hasattr(dl_obj, 'upload_speed'):
+                        spd = dl_obj.upload_speed()
+                        if "K" in spd:
+                            b = float(spd.split("K")[0]) * 1024
+                        elif "M" in spd:
+                            b = float(spd.split("M")[0]) * 1048576
+                        elif "G" in spd:
+                            b = float(spd.split("G")[0]) * 1073741824
+                        else:
+                            b = 0
+                        seed += b
                         ul += b
+                    else:
+                        if "K" in spd:
+                            b = float(spd.split("K")[0]) * 1024
+                        elif "M" in spd:
+                            b = float(spd.split("M")[0]) * 1048576
+                        elif "G" in spd:
+                            b = float(spd.split("G")[0]) * 1073741824
+                        else:
+                            b = 0
+                        if st == MirrorStatus.STATUS_DOWNLOADING:
+                            dl += b
+                        elif st == MirrorStatus.STATUS_UPLOADING:
+                            ul += b
+                        elif st == MirrorStatus.STATUS_SEEDING:
+                            seed += b
                 except:
                     pass
-            overview = f"㊂ <b>Tasks Overview</b>\n\n┎ <b>Download:</b> {counts['Download']} | <b>Upload:</b> {counts['Upload']}\n┠ <b>Seed:</b> {counts['Seed']} | <b>Archive:</b> {counts['Archive']}\n┠ <b>Extract:</b> {counts['Extract']} | <b>Split:</b> {counts['Split']}\n┠ <b>QueueDL:</b> {counts['QueueDl']} | <b>QueueUP:</b> {counts['QueueUp']}\n┠ <b>Clone:</b> {counts['Clone']} | <b>CheckUp:</b> {counts['CheckUp']}\n┠ <b>Paused:</b> {counts['Pause']} | <b>Metadata:</b> {counts['Metadata']}\n┖ <b>Total:</b> {len(_dd)}\n\n┟ <b>DL:</b> {get_readable_file_size(dl)}/s | <b>UL:</b> {get_readable_file_size(ul)}/s"
-            await query.answer(overview, show_alert=True)
+            cpu, ram, d_st = get_bot_stats()
+            from ..helper.ext_utils.bot_utils import get_readable_time
+            from time import time as _tt
+            up = get_readable_time(int(_tt() - botStartTime))
+            overview = f"㊂ Tasks Overview :\n       \n╭ Download: {counts['Download']} | Upload: {counts['Upload']}\n┊ Seed: {counts['Seed']} | Archive: {counts['Archive']}\n┊ Extract: {counts['Extract']} | Split: {counts['Split']}\n┊ QueueDL: {counts['QueueDl']} | QueueUP: {counts['QueueUp']}\n┊ Clone: {counts['Clone']} | CheckUp: {counts['CheckUp']}\n┊ Paused: {counts['Pause']} | SamVideo: {counts['SamVideo']}\n╰ Convert: {counts['Convert']} | FFmpeg: {counts['FFmpeg']}\n  \n╭ Total Tasks: {len(_dd)}\n┊ Total DL Spd: {get_readable_file_size(dl)}/s\n┊ Total UL Spd: {get_readable_file_size(ul)}/s\n╰ Total Seed Spd: {get_readable_file_size(seed)}/s\n  \n❑ Bot Stats\n┠ CPU: {cpu}% | F: {get_readable_file_size(d_st.free)} [{round(100 - d_st.percent, 1)}%]\n┠ RAM: {ram}% | UP: {up}\n┖ DL: {get_readable_file_size(dl)}/s | UL: {get_readable_file_size(ul)}/s"
+
+            btn = ButtonMaker()
+            btn.ibutton("← Back", "status back", position="header")
+            await editMessage(query.message, overview, btn.build_menu(1))
+            await query.answer()
         except Exception as e:
             await query.answer(f"Overview error: {e}", show_alert=True)
         return
@@ -122,6 +146,8 @@ async def status_pages(_, query):
         await update_all_messages(True)
     elif "ps" in data:
         await turn_page(data)
+        await update_all_messages(True)
+    elif "back" in data:
         await update_all_messages(True)
     elif "close" in data:
         await delete_all_messages()
