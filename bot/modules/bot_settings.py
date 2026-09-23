@@ -1063,16 +1063,24 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
     elif key == 'hyperbots':
         return await _hyper_bots_menu()
     elif key == 'var':
-        # Helper Token is dedicated dashboard — hide from Config Variables (as requested)
         _hidden_vars = {'HELPER_TOKENS', 'HELPER_PAUSE'}
         _all_keys = [k for k in OrderedDict(sorted(config_dict.items())).keys() if k not in _hidden_vars]
         for k in _all_keys[START:10+START]:
-            buttons.ibutton(k, f"botset editvar {k}")
+            if k == 'WALLPAPER_URL':
+                buttons.ibutton(k, f"botset editvar {k}")
+            elif STATE == 'view':
+                buttons.ibutton(k, f"botset showvar {k}")
+            else:
+                buttons.ibutton(k, f"botset editvar {k} edit")
+        if STATE == 'view':
+            buttons.ibutton('Edit', "botset edit var")
+        else:
+            buttons.ibutton('View', "botset view var")
         buttons.ibutton('Back', "botset back")
         buttons.ibutton('Close', "botset close")
         for x in range(0, len(_all_keys)-1, 10):
             buttons.ibutton(f'{int(x/10)+1}', f"botset start var {x}", position='footer')
-        msg = f'<b>Config Variables</b> | <b>Page: {int(START/10)+1}</b>'
+        msg = f'<b>Config Variables</b> | <b>Page: {int(START/10)+1}</b> | <b>State: {STATE}</b>'
     elif key == 'private':
         buttons.ibutton('Back', "botset back")
         buttons.ibutton('Close', "botset close")
@@ -1157,13 +1165,15 @@ async def get_buttons(key=None, edit_type=None, edit_mode=None, mess=None):
             buttons.ibutton('Reset', f"botset resetvar {key}")
             buttons.ibutton('Close', "botset close", position="footer")
         else:
+            value = config_dict.get(key, "None")
+            if value == "":
+                value = "None"
+            if isinstance(value, list):
+                value = ", ".join(str(x) for x in value)
             msg = f'<b>Variable:</b> <code>{key}</code>\n\n'
             msg += f'<b>Description:</b> {default_desp.get(key, "No Description Provided")}\n\n'
-            if mess.chat.type == ChatType.PRIVATE:
-                msg += f'<b>Value:</b> <spoiler> {config_dict.get(key, "None")} </spoiler>\n\n'
-            else:
-                buttons.ibutton('View Var Value',
-                                f"botset showvar {key}", position="header")
+            msg += f'<b>Current Value:</b> <code>{escape(str(value))}</code>\n\n'
+            buttons.ibutton('View Value', f"botset showvar {key}", position="header")
             buttons.ibutton('Back', "botset back var", position="footer")
             if key not in bool_vars:
                 if not edit_mode:
