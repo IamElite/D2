@@ -47,7 +47,7 @@ async def mirror_status(_, message):
 async def status_pages(_, query):
     user_id = query.from_user.id
     data = query.data.split()
-    if data[1] == 'ref':
+    if "ref" in data:
         bot_cache.setdefault('status_refresh', {})
         if user_id in (refresh_status := bot_cache['status_refresh']) and (curr := (time() - refresh_status[user_id])) < 7:
             return await query.answer(f'Already Refreshed! Try after {get_readable_time(7 - curr)}', show_alert=True)
@@ -56,10 +56,13 @@ async def status_pages(_, query):
         await editMessage(query.message, f"{(await user_info(user_id)).mention(style='html')}, <i>Refreshing Status...</i>")
         await sleep(1.5)
         await update_all_messages(True)
-    elif data[1] in ['nex', 'pre']:
+    elif "nex" in data or "pre" in data:
         await turn_page(data)
         await update_all_messages(True)
-    elif data[1] == 'close':
+    elif "ps" in data:
+        await turn_page(data)
+        await update_all_messages(True)
+    elif "close" in data:
         await delete_all_messages()
     await query.answer()
 

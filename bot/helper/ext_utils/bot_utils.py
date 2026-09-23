@@ -61,8 +61,9 @@ _EMBED_DISCOVERY_DEFAULT = {'letsjerk.tv', 'letsjerk.com'}
 
 SIZE_UNITS   = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
 STATUS_START = 0
-PAGES        = 1
-PAGE_NO      = 1
+PAGES = 1
+PAGE_NO = 1
+PAGE_STEP = 1
 
 
 class MirrorStatus:
@@ -432,17 +433,20 @@ def get_readable_message(downloads=None):
 
     msg += BotTheme('FOOTER')
     buttons = ButtonMaker()
-    buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref")
     if tasks > STATUS_LIMIT:
         if config_dict['BOT_MAX_TASKS']:
             msg += BotTheme('BOT_TASKS', Tasks=tasks, Ttask=config_dict['BOT_MAX_TASKS'], Free=config_dict['BOT_MAX_TASKS']-tasks)
         else:
             msg += BotTheme('TASKS', Tasks=tasks)
-        buttons = ButtonMaker()
-        buttons.ibutton(BotTheme('PREVIOUS'), "status pre")
-        buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref")
-        buttons.ibutton(BotTheme('NEXT'), "status nex")
-    button = buttons.build_menu(3)
+        buttons.ibutton(BotTheme('PREVIOUS'), "status pre", position="header")
+        buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref", position="header")
+        buttons.ibutton(BotTheme('NEXT'), "status nex", position="header")
+        if tasks > 30:
+            for i in [1, 2, 4, 6, 8, 10, 15]:
+                buttons.ibutton(str(i), f"status ps {i}", position="footer")
+    else:
+        buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref", position="header")
+    button = buttons.build_menu(8)
     cpu, ram, d_stat = get_bot_stats()
     msg += BotTheme('Cpu', cpu=cpu)
     msg += BotTheme('FREE', free=get_readable_file_size(d_stat.free), free_p=round(100 - d_stat.percent, 1))
@@ -455,22 +459,46 @@ def get_readable_message(downloads=None):
 
 async def turn_page(data):
     STATUS_LIMIT = config_dict['STATUS_LIMIT']
-    global STATUS_START, PAGE_NO
+    global STATUS_START, PAGE_NO, PAGE_STEP
     async with download_dict_lock:
-        if data[1] == "nex":
+        step = PAGE_STEP
+        if "ps" in data:
+            try:
+                idx = data.index("ps")
+                step = int(data[idx + 1])
+                globals()['PAGE_STEP'] = step
+                return
+            except:
+                pass
+        act = data[-1] if data[-1] in ["nex", "pre"] else (data[2] if len(data) > 2 and data[2] in ["nex", "pre"] else None)
+        if act == "nex":
             if PAGE_NO == PAGES:
                 STATUS_START = 0
                 PAGE_NO = 1
             else:
-                STATUS_START += STATUS_LIMIT
-                PAGE_NO += 1
-        elif data[1] == "pre":
+                for _ in range(step):
+                    if PAGE_NO == PAGES:
+                        break
+                    STATUS_START += STATUS_LIMIT
+                    PAGE_NO += 1
+                    if PAGE_NO > PAGES:
+                        STATUS_START = 0
+                        PAGE_NO = 1
+                        break
+        elif act == "pre":
             if PAGE_NO == 1:
                 STATUS_START = STATUS_LIMIT * (PAGES - 1)
                 PAGE_NO = PAGES
             else:
-                STATUS_START -= STATUS_LIMIT
-                PAGE_NO -= 1
+                for _ in range(step):
+                    if PAGE_NO == 1:
+                        break
+                    STATUS_START -= STATUS_LIMIT
+                    PAGE_NO -= 1
+                    if PAGE_NO < 1:
+                        STATUS_START = STATUS_LIMIT * (PAGES - 1)
+                        PAGE_NO = PAGES
+                        break
 
 
 def clock_fmt(seconds):
