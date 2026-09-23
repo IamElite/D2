@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from traceback import format_exc
-from asyncio import sleep
+from asyncio import sleep, Lock, create_task
 from aiofiles.os import remove as aioremove
 from random import choice as rchoice
 from time import time
@@ -36,6 +36,11 @@ from ..ext_utils.exceptions import TgLinkException
 _status_tick = 0
 _status_url = 'https://api.aniwallpaper.workers.dev/random?type=girls'
 _wallpaper_default = ['https://api.aniwallpaper.workers.dev/random?type=girls','https://api.icatw.site/api/v1/images/random.jpg?category=anime&orientation=landscape','https://api.waifu.im/images?IncludedTags=waifu&Orientation=LANDSCAPE','https://picsum.photos/1920/1080']
+_wall_cache_dir = "Thumbnails/wallcache"
+_wall_history = []
+_wall_next = None
+_wall_next_time = 0
+_wall_task = None
 def _wallpaper_list():
     v = config_dict.get('WALLPAPER_URL')
     lst = None
@@ -112,8 +117,113 @@ async def _resolve_wallpaper(base):
                 return img if img and img.startswith('http') else base
     except:
         return base
+async def _wall_ensure():
+    try:
+        import os
+        os.makedirs(_wall_cache_dir, exist_ok=True)
+        os.makedirs("Thumbnails", exist_ok=True)
+    except:
+        pass
+async def _wall_cleanup():
+    try:
+        import os, time as _tm
+        from aiofiles.os import listdir, remove
+        from aiofiles.os import path as _pt
+        if not await _pt.isdir(_wall_cache_dir):
+            return
+        files = await listdir(_wall_cache_dir)
+        if len(files) > 14:
+            full = []
+            for f in files:
+                fp = os.path.join(_wall_cache_dir, f)
+                try:
+                    full.append((fp, os.path.getmtime(fp)))
+                except:
+                    pass
+            full.sort(key=lambda x: x[1])
+            for fp,_ in full[:len(full)-14]:
+                try:
+                    await remove(fp)
+                except:
+                    pass
+            files = await listdir(_wall_cache_dir)
+        now = _tm.time()
+        for f in files:
+            fp = os.path.join(_wall_cache_dir, f)
+            try:
+                if now - os.path.getmtime(fp) > 86400:
+                    await remove(fp)
+            except:
+                pass
+    except:
+        pass
+def _wall_pick():
+    lst = _wallpaper_list()
+    hist = _wall_history[-5:]
+    cand = [u for u in lst if u not in hist and u != _status_url] or [u for u in lst if u not in hist] or lst
+    return rchoice(cand)
+async def _wall_prefetch():
+    global _wall_next, _wall_next_time
+    try:
+        await _wall_ensure()
+        base = _wall_pick()
+        resolved = await _resolve_wallpaper(base)
+        if resolved == base:
+            sep = '&' if '?' in base else '?'
+            resolved = f"{base}{sep}c={int(time())}{_status_tick}"
+        if resolved in _wall_history[-4:]:
+            cand = [u for u in _wallpaper_list() if u not in _wall_history[-4:] and u != resolved] or _wallpaper_list()
+            base2 = rchoice(cand)
+            resolved2 = await _resolve_wallpaper(base2)
+            if resolved2 not in _wall_history[-4:]:
+                resolved = resolved2
+        _wall_next = resolved
+        _wall_next_time = time()
+        try:
+            import os
+            from aiohttp import ClientSession, ClientTimeout
+            from aiofiles import open as _aiopen
+            name = resolved.split('/')[-1].split('?')[0][:24] or f"wall{int(time())}"
+            if '.' not in name:
+                name += ".jpg"
+            path = os.path.join(_wall_cache_dir, f"{int(time())}_{name}")
+            async with ClientSession(timeout=ClientTimeout(total=7)) as s:
+                async with s.get(resolved) as r:
+                    if r.status == 200 and 'image' in r.headers.get('Content-Type',''):
+                        async with _aiopen(path, 'wb') as f:
+                            async for chunk in r.content.iter_chunked(8192):
+                                await f.write(chunk)
+            await _wall_cleanup()
+        except:
+            pass
+    except:
+        pass
+async def _wall_schedule():
+    global _wall_task
+    try:
+        if _wall_task and not _wall_task.done():
+            _wall_task.cancel()
+    except:
+        pass
+    try:
+        interval = int(config_dict.get('STATUS_UPDATE_INTERVAL', 5) or 5)
+        mult = int(config_dict.get('WALLPAPER_MULTIPLIER', 2) or 2)
+        if mult < 1:
+            mult = 1
+        remain = mult - (_status_tick % mult)
+        if remain == 0:
+            remain = mult
+        delay = remain * interval - 3
+        if delay < 1:
+            delay = 1
+        async def _delayed():
+            await sleep(delay)
+            await _wall_prefetch()
+        _wall_task = create_task(_delayed())
+    except:
+        pass
 async def _status_lpo(increment=True):
-    global _status_tick, _status_url
+    global _status_tick, _status_url, _wall_next
     if increment:
         _status_tick += 1
         try:
@@ -123,13 +233,49 @@ async def _status_lpo(increment=True):
         if mult < 1:
             mult = 1
         if _status_tick % mult == 0:
-            lst = _wallpaper_list()
-            base = rchoice(lst)
-            resolved = await _resolve_wallpaper(base)
-            if resolved == base:
-                sep = '&' if '?' in base else '?'
-                resolved = f"{base}{sep}c={_status_tick}{int(time())}"
-            _status_url = resolved
+            if _wall_next and (time() - _wall_next_time) < 180:
+                _status_url = _wall_next
+                _wall_history.append(_status_url)
+                if len(_wall_history) > 10:
+                    _wall_history.pop(0)
+                _wall_next = None
+                try:
+                    create_task(_wall_prefetch())
+                except:
+                    pass
+            else:
+                base = _wall_pick()
+                resolved = await _resolve_wallpaper(base)
+                if resolved == base:
+                    sep = '&' if '?' in base else '?'
+                    resolved = f"{base}{sep}c={_status_tick}{int(time())}"
+                if resolved in _wall_history[-4:]:
+                    cand = [u for u in _wallpaper_list() if u not in _wall_history[-4:] and u != resolved] or _wallpaper_list()
+                    base2 = rchoice(cand)
+                    resolved2 = await _resolve_wallpaper(base2)
+                    if resolved2 not in _wall_history[-4:]:
+                        resolved = resolved2
+                _status_url = resolved
+                _wall_history.append(_status_url)
+                if len(_wall_history) > 10:
+                    _wall_history.pop(0)
+                try:
+                    await _wall_ensure()
+                    await _wall_cleanup()
+                except:
+                    pass
+                try:
+                    await _wall_schedule()
+                except:
+                    pass
+            try:
+                create_task(_wall_cleanup())
+            except:
+                pass
+        try:
+            await _wall_schedule()
+        except:
+            pass
     return LinkPreviewOptions(url=_status_url, show_above_text=True, prefer_large_media=True)
 
 
@@ -543,6 +689,12 @@ async def sendStatusMessage(msg):
         status_reply_dict[chat_id] = [message, time()]
         if not Interval:
             Interval.append(setInterval(config_dict['STATUS_UPDATE_INTERVAL'], update_all_messages))
+            try:
+                await _wall_ensure()
+                create_task(_wall_prefetch())
+                await _wall_schedule()
+            except:
+                pass
     
 
 async def open_category_btns(message):
