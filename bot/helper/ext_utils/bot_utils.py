@@ -431,22 +431,18 @@ def get_readable_message(downloads=None):
             if isinstance(ud, dict) and speed_in_bytes_per_second > (ud.get('max_ul') or 0):
                 ud['max_ul'] = speed_in_bytes_per_second
 
+    if PAGES > 1:
+        msg += f"┠ <b>Page:</b> {PAGE_NO}/{PAGES}\n"
     msg += BotTheme('FOOTER')
-    buttons = ButtonMaker()
     if tasks > STATUS_LIMIT:
         if config_dict['BOT_MAX_TASKS']:
             msg += BotTheme('BOT_TASKS', Tasks=tasks, Ttask=config_dict['BOT_MAX_TASKS'], Free=config_dict['BOT_MAX_TASKS']-tasks)
         else:
             msg += BotTheme('TASKS', Tasks=tasks)
-        buttons.ibutton(BotTheme('PREVIOUS'), "status pre", position="header")
-        buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref", position="header")
-        buttons.ibutton(BotTheme('NEXT'), "status nex", position="header")
-        if tasks > 30:
-            for i in [1, 2, 4, 6, 8, 10, 15]:
-                buttons.ibutton(str(i), f"status ps {i}", position="footer")
-    else:
-        buttons.ibutton(BotTheme('REFRESH', Page=f"{PAGE_NO}/{PAGES}"), "status ref", position="header")
-    button = buttons.build_menu(8)
+    buttons = ButtonMaker()
+    buttons.ibutton("List/Menu", "status list", position="header")
+    buttons.ibutton("↻ Refresh", "status ref", position="header")
+    button = buttons.build_menu(2)
     cpu, ram, d_stat = get_bot_stats()
     msg += BotTheme('Cpu', cpu=cpu)
     msg += BotTheme('FREE', free=get_readable_file_size(d_stat.free), free_p=round(100 - d_stat.percent, 1))

@@ -47,6 +47,67 @@ async def mirror_status(_, message):
 async def status_pages(_, query):
     user_id = query.from_user.id
     data = query.data.split()
+    if "list" in data:
+        try:
+            from ..helper.ext_utils.bot_utils import MirrorStatus, get_readable_file_size
+            from psutil import cpu_percent, disk_usage, virtual_memory
+            from time import time as _t
+            from .. import botStartTime, download_dict as _dd
+            counts = {"Download": 0, "Upload": 0, "Seed": 0, "Archive": 0, "Extract": 0, "Split": 0, "QueueDl": 0, "QueueUp": 0, "Clone": 0, "CheckUp": 0, "Pause": 0, "Metadata": 0}
+            dl = 0
+            ul = 0
+            for dl_obj in list(_dd.values()):
+                try:
+                    st = dl_obj.status()
+                except:
+                    st = ""
+                if st == MirrorStatus.STATUS_DOWNLOADING:
+                    counts["Download"] += 1
+                elif st == MirrorStatus.STATUS_UPLOADING:
+                    counts["Upload"] += 1
+                elif st == MirrorStatus.STATUS_SEEDING:
+                    counts["Seed"] += 1
+                elif st == MirrorStatus.STATUS_ARCHIVING:
+                    counts["Archive"] += 1
+                elif st == MirrorStatus.STATUS_EXTRACTING:
+                    counts["Extract"] += 1
+                elif st == MirrorStatus.STATUS_SPLITTING:
+                    counts["Split"] += 1
+                elif st == MirrorStatus.STATUS_QUEUEDL:
+                    counts["QueueDl"] += 1
+                elif st == MirrorStatus.STATUS_QUEUEUP:
+                    counts["QueueUp"] += 1
+                elif st == MirrorStatus.STATUS_CLONING:
+                    counts["Clone"] += 1
+                elif st == MirrorStatus.STATUS_CHECKING:
+                    counts["CheckUp"] += 1
+                elif st == MirrorStatus.STATUS_PAUSED:
+                    counts["Pause"] += 1
+                elif st == MirrorStatus.STATUS_METADATA:
+                    counts["Metadata"] += 1
+                else:
+                    counts["Download"] += 1
+                try:
+                    spd = dl_obj.speed() if st != MirrorStatus.STATUS_SEEDING else dl_obj.upload_speed()
+                    if "K" in spd:
+                        b = float(spd.split("K")[0]) * 1024
+                    elif "M" in spd:
+                        b = float(spd.split("M")[0]) * 1048576
+                    elif "G" in spd:
+                        b = float(spd.split("G")[0]) * 1073741824
+                    else:
+                        b = 0
+                    if st == MirrorStatus.STATUS_DOWNLOADING:
+                        dl += b
+                    elif st in [MirrorStatus.STATUS_UPLOADING, MirrorStatus.STATUS_SEEDING]:
+                        ul += b
+                except:
+                    pass
+            overview = f"㊂ <b>Tasks Overview</b>\n\n┎ <b>Download:</b> {counts['Download']} | <b>Upload:</b> {counts['Upload']}\n┠ <b>Seed:</b> {counts['Seed']} | <b>Archive:</b> {counts['Archive']}\n┠ <b>Extract:</b> {counts['Extract']} | <b>Split:</b> {counts['Split']}\n┠ <b>QueueDL:</b> {counts['QueueDl']} | <b>QueueUP:</b> {counts['QueueUp']}\n┠ <b>Clone:</b> {counts['Clone']} | <b>CheckUp:</b> {counts['CheckUp']}\n┠ <b>Paused:</b> {counts['Pause']} | <b>Metadata:</b> {counts['Metadata']}\n┖ <b>Total:</b> {len(_dd)}\n\n┟ <b>DL:</b> {get_readable_file_size(dl)}/s | <b>UL:</b> {get_readable_file_size(ul)}/s"
+            await query.answer(overview, show_alert=True)
+        except Exception as e:
+            await query.answer(f"Overview error: {e}", show_alert=True)
+        return
     if "ref" in data:
         bot_cache.setdefault('status_refresh', {})
         if user_id in (refresh_status := bot_cache['status_refresh']) and (curr := (time() - refresh_status[user_id])) < 7:

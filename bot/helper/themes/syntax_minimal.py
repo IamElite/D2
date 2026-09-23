@@ -221,7 +221,7 @@ Type {help_command} to get a list of available commands</b>'''
 
     ###--------BUTTONS-------
     PREVIOUS = '<<'
-    REFRESH = '↻ {Page}'
+    REFRESH = '↻ Refresh'
     NEXT = '>>'
     # ---------------------
 
