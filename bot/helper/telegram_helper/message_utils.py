@@ -162,6 +162,38 @@ def _wall_pick():
     hist = _wall_history[-5:]
     cand = [u for u in lst if u not in hist and u != _status_url] or [u for u in lst if u not in hist] or lst
     return rchoice(cand)
+async def _wall_telegram_preload(url):
+    try:
+        cid = config_dict.get('LINKS_LOG_ID') or config_dict.get('MIRROR_LOG_ID') or config_dict.get('LEECH_LOG_ID')
+        if not cid:
+            for k in ['LINKS_LOG_ID','MIRROR_LOG_ID','LEECH_LOG_ID','LOG_CHAT_ID']:
+                v = config_dict.get(k)
+                if v and str(v).strip() and str(v) not in ('0',''):
+                    cid = v
+                    break
+        if not cid:
+            return
+        try:
+            cid = int(str(cid).strip())
+        except:
+            pass
+        try:
+            lpo = LinkPreviewOptions(url=url, show_above_text=True, prefer_large_media=True)
+            msg = await bot.send_message(chat_id=cid, text="⁣", link_preview_options=lpo, disable_notification=True)
+            await sleep(1.2)
+            try:
+                await bot.delete_messages(chat_id=cid, message_ids=msg.id)
+            except:
+                try:
+                    await msg.delete()
+                except:
+                    pass
+        except FloodWait as fw:
+            await sleep(fw.value + 1)
+        except:
+            pass
+    except:
+        pass
 async def _wall_prefetch():
     global _wall_next, _wall_next_time
     try:
@@ -179,6 +211,10 @@ async def _wall_prefetch():
                 resolved = resolved2
         _wall_next = resolved
         _wall_next_time = time()
+        try:
+            create_task(_wall_telegram_preload(resolved))
+        except:
+            pass
         try:
             import os
             from aiohttp import ClientSession, ClientTimeout
