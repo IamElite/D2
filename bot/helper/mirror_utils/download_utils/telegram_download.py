@@ -108,12 +108,32 @@ class TelegramDownloadHelper:
         msg_id = getattr(message, 'id', None)
         if not chat_id or not msg_id:
             return message
-        for target_client in [self.__client, bot, user]:
+        candidates = []
+        if self.__client:
+            candidates.append((self.__client, self.__client_idx))
+        if bot and bot not in [c for c,_ in candidates]:
+            candidates.append((bot, 0))
+        if user and user not in [c for c,_ in candidates]:
+            candidates.append((user, -999))
+        try:
+            from ...telegram_helper.tg_transfer import helper_bots, helper_users
+            for idx, c in helper_bots.items():
+                if c not in [x for x,_ in candidates]:
+                    candidates.append((c, idx))
+            for idx, c in helper_users.items():
+                if c not in [x for x,_ in candidates]:
+                    candidates.append((c, -idx))
+        except Exception:
+            pass
+        for target_client, idx in candidates:
             if not target_client:
                 continue
             try:
                 ref = await target_client.get_messages(chat_id, msg_id)
                 if ref and getattr(ref, 'media', None):
+                    if target_client is not self.__client:
+                        self.__client = target_client
+                        self.__client_idx = idx if idx != -999 else None
                     return ref
             except Exception as e:
                 em = str(e).upper()
