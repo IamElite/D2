@@ -271,7 +271,17 @@ class TelegramDownloadHelper:
                 _hdl._hyperdl_fails = 0
             except Exception:
                 pass
-            message = await self.__refresh_message(message)
+            fresh = await self.__refresh_message(message)
+            if fresh and getattr(fresh, 'media', None):
+                message = fresh
+                fm = getattr(message, message.media.value) if message.media else None
+                if fm:
+                    gid = fm.file_unique_id
+                    size = fm.file_size
+                    if filename == "":
+                        fn = getattr(fm, 'file_name', None)
+                        if fn and fn != 'None':
+                            name = fn
             await sleep(0.5)
         else:
             try:
