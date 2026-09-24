@@ -266,8 +266,19 @@ class TelegramDownloadHelper:
         else:
             self.__client, self.__client_idx = pick_download_client('bot', message)
         if from_queue:
+            try:
+                import bot.helper.ext_utils.hyperdl_utils as _hdl
+                _hdl._hyperdl_fails = 0
+            except Exception:
+                pass
             message = await self.__refresh_message(message)
             await sleep(0.5)
+        else:
+            try:
+                import bot.helper.ext_utils.hyperdl_utils as _hdl2
+                _hdl2._hyperdl_fails = 0
+            except Exception:
+                pass
         await self.__onDownloadStart(name, size, gid, from_queue)
         await self.__download(message, path)
 

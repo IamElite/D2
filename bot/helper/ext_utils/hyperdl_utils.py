@@ -70,12 +70,13 @@ class HypertgDownload(HypertgTransfer):
 
     async def download_media(self, client, message, path, progress=None, cancelled=None):
         try:
+            global _hyperdl_fails
+            _hyperdl_fails = 0
             try:
                 media = media_of(message)
             except Exception:
                 media = getattr(message, getattr(message, "media", None) and message.media.value, None)
             size = getattr(media, "file_size", 0) or 0
-            global _hyperdl_fails
             _force_on = environ.get('HYPERDL', '').lower() == '1'
             _force_off = environ.get('HYPERDL', '').lower() == '0'
             use_pipeline = (size >= PIPELINE_MIN_SIZE and ctr256_decrypt is not None
@@ -90,13 +91,14 @@ class HypertgDownload(HypertgTransfer):
                         _hyperdl_fails = 0
                         return out
                     LOGGER.info("HyperDL pipeline fallback -> download_media size=%s", size)
-                    _hyperdl_fails += 1
                 except StopTransmission:
                     raise
                 except Exception as e:
                     em = str(e).upper()
                     LOGGER.warning("HyperDL pipeline err %s -> native", e)
-                    if "FILE_REFERENCE" not in em and "TOKEN" not in em and "CHANNEL_INVALID" not in em and "CHANNEL" not in em:
+                    if "FILE_REFERENCE" in em or "FILE_REFERENCE_EXPIRED" in em or "TOKEN" in em or "CHANNEL_INVALID" in em or "CHANNEL" in em:
+                        _hyperdl_fails = 0
+                    elif "FILE_REFERENCE" not in em and "TOKEN" not in em and "CHANNEL_INVALID" not in em and "CHANNEL" not in em:
                         _hyperdl_fails += 1
             try:
                 return await wait_for(client.download_media(message=message, file_name=path, progress=progress), 600)
