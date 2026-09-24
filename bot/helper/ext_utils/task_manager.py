@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from time import time
-from asyncio import Event
-
+from asyncio import Event, Semaphore
 from ... import bot_cache, config_dict, queued_dl, queued_up, non_queued_up, non_queued_dl, active_tasks, queue_dict_lock, LOGGER, user_data, download_dict
 from ..mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from .fs_utils import get_base_name, check_storage_threshold
@@ -9,15 +8,35 @@ from .bot_utils import get_user_tasks, getdailytasks, sync_to_async, get_telegra
 from ..telegram_helper.message_utils import forcesub, check_botpm
 from ..telegram_helper.filters import CustomFilters
 from ..themes import BotTheme
-
+_dl_sem = None
+_up_sem = None
+_dl_limit_cache = None
+_up_limit_cache = None
+def _dl_limit():
+    a = config_dict.get('QUEUE_ALL') or 0
+    d = config_dict.get('QUEUE_DOWNLOAD') or 0
+    if a and d:
+        return min(a, d)
+    return a or d
+def _up_limit():
+    a = config_dict.get('QUEUE_ALL') or 0
+    u = config_dict.get('QUEUE_UPLOAD') or 0
+    if a and u:
+        return min(a, u)
+    return a or u
+def _ensure_sem():
+    global _dl_sem, _up_sem, _dl_limit_cache, _up_limit_cache
+    dl = _dl_limit()
+    up = _up_limit()
+    if dl != _dl_limit_cache:
+        _dl_sem = Semaphore(dl) if dl else None
+        _dl_limit_cache = dl
+    if up != _up_limit_cache:
+        _up_sem = Semaphore(up) if up else None
+        _up_limit_cache = up
 
 async def stop_duplicate_check(name, listener):
-    if (
-        not config_dict['STOP_DUPLICATE']
-        or listener.isLeech
-        or listener.upPath != 'gd'
-        or listener.select
-    ):
+    if not config_dict['STOP_DUPLICATE'] or listener.isLeech or listener.upPath != 'gd' or listener.select:
         return False, None
     LOGGER.info(f'Checking File/Folder if already in Drive: {name}')
     if listener.compress:
@@ -34,33 +53,32 @@ async def stop_duplicate_check(name, listener):
             button = await get_telegraph_list(telegraph_content)
             return msg, button
     return False, None
-    
 
 async def timeval_check(user_id):
     bot_cache.setdefault('time_interval', {})
-    if (time_interval := bot_cache['time_interval'].get(user_id, False)) and (time() - time_interval) < (UTI := config_dict['USER_TIME_INTERVAL']): 
+    if (time_interval := bot_cache['time_interval'].get(user_id, False)) and (time() - time_interval) < (UTI := config_dict['USER_TIME_INTERVAL']):
         return UTI - (time() - time_interval)
     bot_cache['time_interval'][user_id] = time()
     return None
 
-
 async def is_queued(uid):
-    all_limit = config_dict['QUEUE_ALL']
-    dl_limit = config_dict['QUEUE_DOWNLOAD']
-    event = None
-    added_to_queue = False
-    if all_limit or dl_limit:
+    _ensure_sem()
+    dl_lim = _dl_limit()
+    if not dl_lim:
         async with queue_dict_lock:
-            if (all_limit and len(active_tasks) >= all_limit) \
-                    or (dl_limit and len(non_queued_dl) >= dl_limit):
-                added_to_queue = True
-                event = Event()
-                queued_dl[uid] = event
-            else:
-                non_queued_dl.add(uid)
-                active_tasks.add(uid)
-    return added_to_queue, event
-
+            non_queued_dl.add(uid)
+            active_tasks.add(uid)
+        return False, None
+    async with queue_dict_lock:
+        if _dl_sem and _dl_sem.locked() or len(active_tasks) >= dl_lim or len(non_queued_dl) >= dl_lim:
+            event = Event()
+            queued_dl[uid] = event
+            return True, event
+        if _dl_sem and _dl_sem._value > 0:
+            _dl_sem._value -= 1
+        non_queued_dl.add(uid)
+        active_tasks.add(uid)
+        return False, None
 
 def start_dl_from_queued(uid):
     queued_dl[uid].set()
@@ -68,40 +86,47 @@ def start_dl_from_queued(uid):
     non_queued_dl.add(uid)
     active_tasks.add(uid)
 
-
 def start_up_from_queued(uid):
     queued_up[uid].set()
     del queued_up[uid]
     non_queued_up.add(uid)
 
-
 async def start_from_queued():
-    all_limit = config_dict['QUEUE_ALL']
-    dl_limit = config_dict['QUEUE_DOWNLOAD']
-    up_limit = config_dict['QUEUE_UPLOAD']
+    _ensure_sem()
     async with queue_dict_lock:
-        if queued_up and (not up_limit or len(non_queued_up) < up_limit):
-            room = (up_limit - len(non_queued_up)) if up_limit else len(queued_up)
+        up_lim = _up_limit()
+        if queued_up and (not up_lim or len(non_queued_up) < up_lim):
+            room = (up_lim - len(non_queued_up)) if up_lim else len(queued_up)
             for uid in list(queued_up.keys()):
                 if room <= 0:
                     break
+                if _up_sem and _up_sem._value == 0:
+                    break
+                if _up_sem and _up_sem._value > 0:
+                    _up_sem._value -= 1
                 start_up_from_queued(uid)
                 room -= 1
         if queued_dl:
+            dl_lim = _dl_limit()
             rooms = []
-            if all_limit:
-                rooms.append(all_limit - len(active_tasks))
-            if dl_limit:
-                rooms.append(dl_limit - len(non_queued_dl))
+            if dl_lim:
+                rooms.append(dl_lim - len(active_tasks))
+                rooms.append(dl_lim - len(non_queued_dl))
             room = min(rooms) if rooms else len(queued_dl)
+            if room <= 0:
+                return
             for uid in list(queued_dl.keys()):
                 if room <= 0:
                     break
+                if _dl_sem and _dl_sem._value == 0:
+                    break
+                if _dl_sem and _dl_sem._value > 0:
+                    _dl_sem._value -= 1
                 start_dl_from_queued(uid)
                 room -= 1
 
-
 async def finish_task_slot(uid):
+    _ensure_sem()
     async with queue_dict_lock:
         if uid in queued_dl:
             queued_dl[uid].set()
@@ -109,9 +134,21 @@ async def finish_task_slot(uid):
         if uid in queued_up:
             queued_up[uid].set()
             del queued_up[uid]
+        was_dl = uid in non_queued_dl or uid in active_tasks
+        was_up = uid in non_queued_up
         non_queued_dl.discard(uid)
         non_queued_up.discard(uid)
         active_tasks.discard(uid)
+        if was_dl and _dl_sem:
+            try:
+                _dl_sem.release()
+            except ValueError:
+                pass
+        if was_up and _up_sem:
+            try:
+                _up_sem.release()
+            except ValueError:
+                pass
     await start_from_queued()
     try:
         import gc
@@ -119,10 +156,9 @@ async def finish_task_slot(uid):
     except Exception:
         pass
 
-
 async def limit_checker(size, listener, isTorrent=False, isMega=False, isDriveLink=False, isYtdlp=False, isPlayList=None):
     LOGGER.info('Checking Size Limit of link/file/folder/tasks...')
-    user_id = listener.message.from_user.id 
+    user_id = listener.message.from_user.id
     if await CustomFilters.sudo('', listener.message):
         return
     limit_exceeded = ''
@@ -158,20 +194,17 @@ async def limit_checker(size, listener, isTorrent=False, isMega=False, isDriveLi
         limit = DIRECT_LIMIT * 1024**3
         if size > limit:
             limit_exceeded = f'Direct limit is {get_readable_file_size(limit)}'
-
     if not limit_exceeded:
         if (LEECH_LIMIT := config_dict['LEECH_LIMIT']) and listener.isLeech:
             limit = LEECH_LIMIT * 1024**3
             if size > limit:
                 limit_exceeded = f'Leech limit is {get_readable_file_size(limit)}'
-        
         if (STORAGE_THRESHOLD := config_dict['STORAGE_THRESHOLD']) and not listener.isClone:
             arch = any([listener.compress, listener.extract])
             limit = STORAGE_THRESHOLD * 1024**3
             acpt = await sync_to_async(check_storage_threshold, size, limit, arch)
             if not acpt:
                 limit_exceeded = f'You must leave {get_readable_file_size(limit)} free storage.'
-
         if config_dict['DAILY_TASK_LIMIT'] and config_dict['DAILY_TASK_LIMIT'] <= await getdailytasks(user_id):
             limit_exceeded = f"Daily Total Task Limit: {config_dict['DAILY_TASK_LIMIT']}\nYou have exhausted all your Daily Task Limits."
         else:
@@ -179,14 +212,14 @@ async def limit_checker(size, listener, isTorrent=False, isMega=False, isDriveLi
             LOGGER.info(f"User: {user_id} | Daily Tasks: {ttask}")
         if (DAILY_MIRROR_LIMIT := config_dict['DAILY_MIRROR_LIMIT']) and not listener.isLeech:
             limit = DAILY_MIRROR_LIMIT * 1024**3
-            if (size >= (limit - await getdailytasks(user_id, check_mirror=True)) or limit <= await getdailytasks(user_id, check_mirror=True)):
+            if size >= (limit - await getdailytasks(user_id, check_mirror=True)) or limit <= await getdailytasks(user_id, check_mirror=True):
                 limit_exceeded = f'Daily Mirror Limit is {get_readable_file_size(limit)}\nYou have exhausted all your Daily Mirror Limit.'
             elif not listener.isLeech:
                 msize = await getdailytasks(user_id, upmirror=size, check_mirror=True)
                 LOGGER.info(f"User : {user_id} | Daily Mirror Size : {get_readable_file_size(msize)}")
         if (DAILY_LEECH_LIMIT := config_dict['DAILY_LEECH_LIMIT']) and listener.isLeech:
             limit = DAILY_LEECH_LIMIT * 1024**3
-            if (size >= (limit - await getdailytasks(user_id, check_leech=True)) or limit <= await getdailytasks(user_id, check_leech=True)):
+            if size >= (limit - await getdailytasks(user_id, check_leech=True)) or limit <= await getdailytasks(user_id, check_leech=True):
                 limit_exceeded = f'Daily Leech Limit is {get_readable_file_size(limit)}\nYou have exhausted all your Daily Leech Limit.'
             elif listener.isLeech:
                 lsize = await getdailytasks(user_id, upleech=size, check_leech=True)
@@ -196,7 +229,6 @@ async def limit_checker(size, listener, isTorrent=False, isMega=False, isDriveLi
             return f"{limit_exceeded}.\nYour List/File/Folder size is {get_readable_file_size(size)}."
         elif isPlayList != 0:
             return f"{limit_exceeded}.\nYour playlist has {isPlayList} files."
-
 
 async def task_utils(message):
     LOGGER.info('Running Task Manager ...')
