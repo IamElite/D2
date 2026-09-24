@@ -232,6 +232,7 @@ class TelegramDownloadHelper:
                     await sendMessage(self.__listener.message, limit_exceeded)
                     await delete_links(self.__listener.message)
                     return
+                from_queue = False
                 added_to_queue, event = await is_queued(self.__listener.uid)
                 if added_to_queue:
                     LOGGER.info(f"Added to Queue/Download: {name}")
