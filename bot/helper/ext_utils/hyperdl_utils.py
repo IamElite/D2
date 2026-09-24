@@ -94,10 +94,14 @@ class HypertgDownload(HypertgTransfer):
                 except StopTransmission:
                     raise
                 except Exception as e:
+                    em = str(e).upper()
                     LOGGER.warning("HyperDL pipeline err %s -> native", e)
-                    if "FILE_REFERENCE" not in str(e).upper() and "TOKEN" not in str(e).upper():
+                    if "FILE_REFERENCE" not in em and "TOKEN" not in em and "CHANNEL_INVALID" not in em and "CHANNEL" not in em:
                         _hyperdl_fails += 1
-            return await client.download_media(message=message, file_name=path, progress=progress)
+            try:
+                return await wait_for(client.download_media(message=message, file_name=path, progress=progress), 600)
+            except AsyncTimeout:
+                raise RuntimeError("native GetFile timeout")
         finally:
             try:
                 await self._close_all()
@@ -109,14 +113,26 @@ class HypertgDownload(HypertgTransfer):
         if ctr256_decrypt is not None:
             kwargs["cdn_supported"] = True
         try:
-            r = await wait_for(
-                sess.invoke(raw.functions.upload.GetFile(precise=True, **kwargs)),
-                20,
-            )
+            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(precise=True, **kwargs)), 22)
         except TypeError:
-            r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 20)
+            try:
+                r = await wait_for(sess.invoke(raw.functions.upload.GetFile(**kwargs)), 22)
+            except AsyncTimeout:
+                raise RuntimeError("GetFile timeout")
+            except Exception as e:
+                if "CHANNEL_INVALID" in str(e).upper():
+                    return None
+                raise
         except AsyncTimeout:
+            try:
+                await sess.stop()
+            except Exception:
+                pass
             raise RuntimeError("GetFile timeout")
+        except Exception as e:
+            if "CHANNEL_INVALID" in str(e).upper() or "CHANNEL" in str(e).upper():
+                return None
+            raise
         if isinstance(r, raw.types.upload.File):
             return r.bytes
         if isinstance(r, raw.types.upload.FileCdnRedirect):

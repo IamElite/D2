@@ -103,17 +103,23 @@ class TelegramDownloadHelper:
                 pass
 
     async def __refresh_message(self, message):
-        try:
-            chat = getattr(message, 'chat', None)
-            chat_id = getattr(chat, 'id', None)
-            msg_id = getattr(message, 'id', None)
-            target_client = self.__client or bot
-            if chat_id and msg_id and target_client:
+        chat = getattr(message, 'chat', None)
+        chat_id = getattr(chat, 'id', None)
+        msg_id = getattr(message, 'id', None)
+        if not chat_id or not msg_id:
+            return message
+        for target_client in [self.__client, bot, user]:
+            if not target_client:
+                continue
+            try:
                 ref = await target_client.get_messages(chat_id, msg_id)
                 if ref and getattr(ref, 'media', None):
                     return ref
-        except Exception as e:
-            LOGGER.warning(f'Refresh message error: {e}')
+            except Exception as e:
+                em = str(e).upper()
+                if "CHANNEL_INVALID" in em or "CHANNEL" in em:
+                    continue
+                LOGGER.warning(f'Refresh message error: {e}')
         return message
 
     async def __download(self, message, path):
@@ -166,14 +172,27 @@ class TelegramDownloadHelper:
                         self.__client_idx = None
                     self.__client = bot
                 emsg = str(e)
-                if 'FILE_REFERENCE' in emsg.upper() or 'TOKEN' in emsg.upper() or 'file reference' in emsg.lower():
+                up = emsg.upper()
+                if 'FILE_REFERENCE' in up or 'TOKEN' in up or 'FILE REFERENCE' in up:
                     LOGGER.info(f'Refreshing expired file reference on attempt {attempt}')
                     message = await self.__refresh_message(message)
                     await sleep(1)
                     continue
+                if 'CHANNEL_INVALID' in up or ('CHANNEL' in up and 'INVALID' in up):
+                    message = await self.__refresh_message(message)
+                    await sleep(0.8)
+                    continue
+                if 'TIMEOUT' in up or 'TIMED OUT' in up:
+                    await sleep(2 + attempt)
+                    try:
+                        if self.__client and hasattr(self.__client, 'get_messages'):
+                            await self.__client.get_messages(message.chat.id, message.id)
+                    except Exception:
+                        pass
+                    continue
                 if 'FLOOD_WAIT' in emsg or 'flood' in emsg.lower():
                     import re as _re
-                    m = _re.search(r'(\d+)\s*seconds?', emsg)
+                    m = _re.search(r'(\\d+)\\s*seconds?', emsg)
                     v = int(m.group(1)) if m else 10
                     if v > 90:
                         LOGGER.error(f'TG flood {v}s — task stop (baad me resend)')

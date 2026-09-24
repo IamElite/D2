@@ -155,8 +155,8 @@ async def _start_helper_bots_locked(tokens: str):
             no_updates=True,
             in_memory=True,
             sleep_threshold=60,
-            max_concurrent_transmissions=28,
-            workers=4,
+            max_concurrent_transmissions=100,
+            workers=10,
         )
         try:
             sig = _sig(Client.__init__).parameters
@@ -174,8 +174,8 @@ async def _start_helper_bots_locked(tokens: str):
             no_updates=True,
             in_memory=True,
             sleep_threshold=60,
-            max_concurrent_transmissions=28,
-            workers=4,
+            max_concurrent_transmissions=100,
+            workers=10,
         )
         try:
             sig = _sig2(Client.__init__).parameters
