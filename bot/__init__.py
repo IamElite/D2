@@ -51,8 +51,8 @@ def _early_patch_wzgram():
         return None
 
     try:
-        bot_rate = _os.environ.get('TG_UP_RATE_LIMIT', '300')
-        bot_pool = _os.environ.get('TG_UP_POOL', '14')
+        bot_rate = _os.environ.get('TG_UP_RATE_LIMIT', '30')
+        bot_pool = _os.environ.get('TG_UP_POOL', '8')
         path = _find_save_file()
         if not path:
             print('[TG patch] pyrogram save_file.py not found (wzgram missing?) — skipped')
@@ -60,25 +60,22 @@ def _early_patch_wzgram():
         with open(path, 'r', encoding='utf-8') as fh:
             src = fh.read()
         matched = []
-
         def _rl(m):
             old = int(m.group(2))
-            if old < 100:                      # raise low caps (bot 40 / user 50), keep 300
+            if old != int(bot_rate):
                 matched.append(f'rate {old}->{bot_rate}')
                 return f'{m.group(1)}{bot_rate}{m.group(3)}'
             return m.group(0)
         src, _ = _re.subn(r'(\brate_limit\s*=\s*)(\d+)(\s*(?:#.*)?)$', _rl, src, flags=_re.M)
-
         def _pl(m):
             old = int(m.group(1))
-            if old < int(bot_pool):
+            if old != int(bot_pool):
                 matched.append(f'pool {old}->{bot_pool}')
                 return f'pool_size = min({bot_pool}, POOL_SIZE)'
             return m.group(0)
         src, _ = _re.subn(r'pool_size\s*=\s*min\(\s*(\d+)\s*,\s*POOL_SIZE\s*\)', _pl, src)
-
-        src2 = src.replace('Queue(1)', 'Queue(16)')
-        src2 = src2.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 2')
+        src2 = src.replace('Queue(1)', 'Queue(8)').replace('Queue(16)', 'Queue(8)')
+        src2 = src2.replace('workers_count = 8 if is_big else 2', 'workers_count = 4 if is_big else 1').replace('workers_count = 4 if is_big else 1', 'workers_count = 4 if is_big else 1')
         legacy = src2 != src
         src = src2
 

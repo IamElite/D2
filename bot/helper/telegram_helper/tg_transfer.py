@@ -1,6 +1,9 @@
-from asyncio import Event, Lock, gather, sleep
+from asyncio import Event, Lock, Queue, Semaphore, gather, sleep
 from time import time as now_ts
 from pyrogram import raw, utils
+DC_SEM = Semaphore(12)
+helper_pool = Queue()
+_pool_ready = False
 from pyrogram.errors import AuthBytesInvalid
 from pyrogram.file_id import FileType, ThumbnailSource
 from pyrogram.session import Auth, Session
@@ -31,9 +34,34 @@ def media_of(message):
     raise ValueError(
         f"No downloadable media in msg {message.id} (type: {message.media})"
     )
+_cb_until = {}
+_rr_idx = 0
+async def fill_helper_pool():
+    global _pool_ready
+    while not helper_pool.empty():
+        try:
+            helper_pool.get_nowait()
+        except Exception:
+            break
+    for k in list(helper_bots.keys()):
+        if k != 0:
+            await helper_pool.put(k)
+    for k in list(helper_users.keys()):
+        await helper_pool.put(-k)
+    _pool_ready = True
+def _is_circuit_open(idx):
+    until = _cb_until.get(idx, 0)
+    if until and now_ts() < until:
+        return True
+    if until and now_ts() >= until:
+        _cb_until.pop(idx, None)
+    return False
+def _trip_circuit(idx, sec=8):
+    _cb_until[idx] = now_ts() + sec
 def reset_work_loads():
-    global _global_work_loads
+    global _global_work_loads, _rr_idx
     _global_work_loads = None
+    _rr_idx = 0
 def get_global_work_loads():
     global _global_work_loads
     if _global_work_loads is None:
@@ -49,10 +77,30 @@ def get_global_work_loads():
             )
     return _global_work_loads
 def pick_hyper_client():
+    global _rr_idx
     loads = get_global_work_loads()
     if not loads:
         return bot, None
-    idx = min(loads, key=loads.get)
+    if _pool_ready and not helper_pool.empty():
+        for _ in range(helper_pool.qsize()):
+            try:
+                qidx = helper_pool.get_nowait()
+                helper_pool.put_nowait(qidx)
+                if qidx in loads and not _is_circuit_open(qidx):
+                    loads[qidx] = loads.get(qidx, 0) + 1
+                    if qidx == 0:
+                        return bot, 0
+                    if qidx < 0:
+                        return helper_users.get(-qidx, user), qidx
+                    return helper_bots.get(qidx, bot), qidx
+            except Exception:
+                break
+    candidates = [k for k in loads if not _is_circuit_open(k)]
+    if not candidates:
+        candidates = list(loads.keys())
+    candidates.sort(key=lambda k: loads.get(k, 0))
+    idx = candidates[_rr_idx % len(candidates)]
+    _rr_idx = (_rr_idx + 1) % max(1, len(candidates))
     loads[idx] = loads.get(idx, 0) + 1
     if idx == 0:
         return bot, 0

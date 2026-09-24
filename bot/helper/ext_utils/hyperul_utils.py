@@ -18,7 +18,11 @@ except ImportError:
 
 from ... import TELEGRAM_API, TELEGRAM_HASH, LOGGER as ROOT, bot, user, config_dict
 from ..telegram_helper.tg_transfer import (
+    DC_SEM,
     HypertgTransfer,
+    _is_circuit_open,
+    _trip_circuit,
+    fill_helper_pool,
     helper_bots,
     helper_loads,
     helper_users,
@@ -151,8 +155,8 @@ async def _start_helper_bots_locked(tokens: str):
             no_updates=True,
             in_memory=True,
             sleep_threshold=60,
-            max_concurrent_transmissions=100,
-            workers=10,
+            max_concurrent_transmissions=28,
+            workers=4,
         )
         try:
             sig = _sig(Client.__init__).parameters
@@ -170,8 +174,8 @@ async def _start_helper_bots_locked(tokens: str):
             no_updates=True,
             in_memory=True,
             sleep_threshold=60,
-            max_concurrent_transmissions=100,
-            workers=10,
+            max_concurrent_transmissions=28,
+            workers=4,
         )
         try:
             sig = _sig2(Client.__init__).parameters
@@ -304,11 +308,12 @@ async def _start_helper_bots_locked(tokens: str):
             user_idx += 1
         await sleep(1.5)
     reset_work_loads()
-    # reset_user loads already cleared via helper_user_loads handling in reset_work_loads? ensure manual
     try:
-        # ensure global loads reflect both bots and users
+        await fill_helper_pool()
+    except Exception:
+        pass
+    try:
         from ..telegram_helper.tg_transfer import reset_work_loads as _rwl
-        # already called, but helper_users handled via get_global_work_loads
         pass
     except Exception:
         pass
@@ -425,58 +430,67 @@ class HypertgUpload(HypertgTransfer):
         progress=None,
     ):
         if user_only:
-            candidates = {k: self.work_loads[k] for k in self.clients if k < 0}
+            candidates = {k: self.work_loads[k] for k in self.clients if k < 0 and not _is_circuit_open(k)}
             idx = min(candidates, key=candidates.get) if candidates else self._pick_client()
         else:
             idx = self._pick_client()
+        if _is_circuit_open(idx):
+            await sleep(0.6)
+        await sleep(0.35 * (idx % 3))
         client = self.clients.get(idx) or bot
         self.work_loads[idx] = self.work_loads.get(idx, 0) + 1
         ROOT.info(f"HypertgUL _hyper_send via client idx={idx} key={key} file={self._up_file}")
         try:
-            kwargs = {
-                "chat_id": chat_id,
-                "disable_notification": True,
-                "progress": progress or self._progress,
-                "progress_args": (file_path,),
-            }
-            if cap_mono:
-                kwargs["caption"] = cap_mono
-            if reply_to_message_id:
-                kwargs["reply_to_message_id"] = reply_to_message_id
-            elif thread_id:
-                kwargs["message_thread_id"] = thread_id
-            if reply_markup is not None:
-                kwargs["reply_markup"] = reply_markup
-            if key == "videos":
-                if duration:
-                    kwargs["duration"] = duration
-                if width:
-                    kwargs["width"] = width
-                if height:
-                    kwargs["height"] = height
-                if thumb:
-                    kwargs["video_cover"] = thumb
-                    kwargs["thumb"] = thumb
-                kwargs["supports_streaming"] = True
-                kwargs["video"] = file_path
-            elif key == "audios":
-                if duration:
-                    kwargs["duration"] = duration
-                if artist:
-                    kwargs["performer"] = artist
-                if title:
-                    kwargs["title"] = title
-                if thumb:
-                    kwargs["thumb"] = thumb
-                kwargs["audio"] = file_path
-            elif key == "photos":
-                kwargs["photo"] = file_path
-            else:
-                if thumb:
-                    kwargs["thumb"] = thumb
-                kwargs["document"] = file_path
-                kwargs["force_document"] = True
-            return await self._try_send(key, client, kwargs)
+            async with DC_SEM:
+                kwargs = {
+                    "chat_id": chat_id,
+                    "disable_notification": True,
+                    "progress": progress or self._progress,
+                    "progress_args": (file_path,),
+                }
+                if cap_mono:
+                    kwargs["caption"] = cap_mono
+                if reply_to_message_id:
+                    kwargs["reply_to_message_id"] = reply_to_message_id
+                elif thread_id:
+                    kwargs["message_thread_id"] = thread_id
+                if reply_markup is not None:
+                    kwargs["reply_markup"] = reply_markup
+                if key == "videos":
+                    if duration:
+                        kwargs["duration"] = duration
+                    if width:
+                        kwargs["width"] = width
+                    if height:
+                        kwargs["height"] = height
+                    if thumb:
+                        kwargs["video_cover"] = thumb
+                        kwargs["thumb"] = thumb
+                    kwargs["supports_streaming"] = True
+                    kwargs["video"] = file_path
+                elif key == "audios":
+                    if duration:
+                        kwargs["duration"] = duration
+                    if artist:
+                        kwargs["performer"] = artist
+                    if title:
+                        kwargs["title"] = title
+                    if thumb:
+                        kwargs["thumb"] = thumb
+                    kwargs["audio"] = file_path
+                elif key == "photos":
+                    kwargs["photo"] = file_path
+                else:
+                    if thumb:
+                        kwargs["thumb"] = thumb
+                    kwargs["document"] = file_path
+                    kwargs["force_document"] = True
+                return await self._try_send(key, client, kwargs)
+        except Exception as e:
+            em = str(e).upper()
+            if any(x in em for x in ("CONNECTION", "RESET", "TIMEOUT", "DC", "CHUNK")):
+                _trip_circuit(idx, 10)
+            raise
         finally:
             self.work_loads[idx] = max(0, self.work_loads.get(idx, 1) - 1)
 
