@@ -1,5 +1,5 @@
 import asyncio
-import io
+import os
 from time import time as _now
 from html import escape
 from datetime import datetime, timezone
@@ -37,8 +37,7 @@ async def _build(uid, total, failed):
     foot = "\n<i>Report generated for bulk tasks — only visible to you (DM). Setting: Universal → Failed Report = Enabled</i>"
     return head + body + foot
 async def _send(uid, text, tag):
-    from ..telegram_helper.message_utils import sendCustomMsg, sendFile
-    from io import BytesIO
+    from ..telegram_helper.message_utils import sendCustomMsg
     if len(text.encode()) <= 3800:
         try:
             await sendCustomMsg(uid, text)
@@ -46,12 +45,21 @@ async def _send(uid, text, tag):
         except Exception:
             return
     if len(text.encode()) > 8000:
-        bio = BytesIO(text.encode())
-        bio.name = f"failed_report_{tag[:6]}_{int(_now())}.txt"
+        path = f"failed_report_{tag[:6]}_{int(_now())}.txt"
+        with open(path, "w") as f:
+            f.write(text)
         try:
-            await sendFile(uid, bio, caption=f"<b>⚠️ Failed Tasks Report</b> — Bulk {escape(_tag(tag))} ({len(_bulk_tracker.get(tag, {}).get('failed', []))} failed)")
+            await bot.send_document(chat_id=uid, document=path, caption=f"<b>⚠️ Failed Tasks Report</b> — Bulk {escape(_tag(tag))} ({len(_bulk_tracker.get(tag, {}).get('failed', []))} failed)")
+            try:
+                os.remove(path)
+            except Exception:
+                pass
             return
         except Exception:
+            try:
+                os.remove(path)
+            except Exception:
+                pass
             pass
     parts = []
     cur = ""
@@ -82,15 +90,23 @@ async def _send_retask_txt(tag, failed):
         if not links:
             return
         content = "\n".join(links)
-        file = io.BytesIO(content.encode())
-        file.seek(0)
-        file.name = f"Failed_{cancel_id}.txt"
+        path = f"Failed_{cancel_id}.txt"
+        with open(path, "w") as f:
+            f.write(content)
         log_id = config_dict.get('MIRROR_LOG_ID') or config_dict.get('LINKS_LOG_ID')
         if not log_id:
+            try:
+                os.remove(path)
+            except Exception:
+                pass
             return
         btn = ButtonMaker()
         btn.ibutton("🔄 Retask Failed", f"retask_{cancel_id}")
-        sent = await bot.send_document(chat_id=log_id, document=file, file_name=file.name, caption=f"<b>Failed Links</b> — <code>{len(links)}</code> links", reply_markup=btn.build_menu(1))
+        sent = await bot.send_document(chat_id=log_id, document=path, caption=f"<b>Failed Links</b> — <code>{len(links)}</code> links", reply_markup=btn.build_menu(1))
+        try:
+            os.remove(path)
+        except Exception:
+            pass
         if not sent:
             return
         if DATABASE_URL:
@@ -108,6 +124,10 @@ async def _send_retask_txt(tag, failed):
                 pass
     except Exception as e:
         LOGGER.error(f"retask txt failed {e}")
+        try:
+            os.remove(f"Failed_{tag}.txt")
+        except Exception:
+            pass
 async def _maybe(tag):
     d = _bulk_tracker.get(tag)
     if not d or d.get("sent"):
@@ -169,6 +189,7 @@ async def get_display_name(listener, fallback=""):
     except Exception:
         return fallback or getattr(listener, "newname", "") or getattr(listener, "name", "") or "File"
 async def handle_retask_callback(client, query):
+    path = ""
     try:
         data = query.data or ""
         if not data.startswith("retask_"):
@@ -190,30 +211,31 @@ async def handle_retask_callback(client, query):
             return
         chat_id = doc.get("chat_id")
         message_id = doc.get("message_id")
+        path = f"Failed_{cancel_id}.txt"
         try:
             msg = await bot.get_messages(chat_id, message_id)
             if not msg or not msg.document:
                 await query.answer("File not found", show_alert=True)
                 return
-            bio = await bot.download_media(msg, in_memory=True)
-            if isinstance(bio, (bytes, bytearray)):
-                bio = io.BytesIO(bio)
-            if bio is None:
-                await query.answer("Download failed", show_alert=True)
+            await bot.download_media(msg, file_name=path)
+            try:
+                with open(path, "r") as f:
+                    content = f.read()
+            except Exception:
+                await query.answer("Read failed", show_alert=True)
                 return
-            bio.seek(0)
-            content = bio.read().decode(errors="ignore")
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+            path = ""
             lines = [l.strip() for l in content.splitlines() if l.strip() and "http" in l.strip()]
             if not lines:
                 await query.answer("No links found", show_alert=True)
                 return
             await query.answer(f"Retasking {len(lines)} links...", show_alert=False)
             try:
-                from ..ext_utils.bot_utils import is_url, is_mega_link, is_gdrive_link, is_telegram_link
-                from ... import DOWNLOAD_DIR
-                from ..telegram_helper.message_utils import sendMessage
                 from pyrogram.enums import ChatType
-                import shlex
                 for line in lines:
                     try:
                         txt = line.strip()
@@ -276,9 +298,19 @@ async def handle_retask_callback(client, query):
                 conn.close()
             except Exception:
                 pass
+            try:
+                if path and os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
     except Exception as e:
         try:
             await query.answer(f"Error {e}", show_alert=True)
+        except Exception:
+            pass
+        try:
+            if path and os.path.exists(path):
+                os.remove(path)
         except Exception:
             pass
 try:
