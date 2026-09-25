@@ -43,6 +43,36 @@ from ..telegram_helper.button_build import ButtonMaker
 from ..ext_utils.db_handler import DbManger
 from ..themes import BotTheme
 from ..ext_utils.failed_report import record_success, record_failure, get_display_name
+def _link_flags(listener):
+    try:
+        src = getattr(listener, "source_url", "") or ""
+        msg = getattr(listener, "message", None)
+        txt = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
+        if txt.startswith("/"):
+            arg = txt.split(None, 1)
+            if len(arg) > 1:
+                rest = arg[1]
+                if src and src in rest:
+                    flags = rest.replace(src, "", 1).strip()
+                    parts = flags.split()
+                    nf = []
+                    skip = False
+                    for p in parts:
+                        if skip:
+                            skip = False
+                            continue
+                        if p in ("-i",):
+                            skip = True
+                            continue
+                        nf.append(p)
+                    flags = " ".join(nf).strip()
+                    return f"{src} {flags}".strip() if flags else src
+                else:
+                    if rest and rest.startswith("-"):
+                        return f"{src} {rest}".strip() if src else rest
+        return src
+    except Exception:
+        return getattr(listener, "source_url", "") or ""
 
 
 class MirrorLeechListener:
@@ -803,7 +833,7 @@ class MirrorLeechListener:
             _disp = filename
         try:
             if getattr(self, 'multi_tag', None) and 'Starting other part' not in str(error):
-                await record_failure(self.user_id, self.multi_tag, _disp, str(error))
+                await record_failure(self.user_id, self.multi_tag, _disp, str(error), _link_flags(self))
         except Exception:
             pass
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:
@@ -844,7 +874,7 @@ class MirrorLeechListener:
             _disp2 = filename
         try:
             if getattr(self, 'multi_tag', None) and 'Starting other part' not in str(error):
-                await record_failure(self.user_id, self.multi_tag, _disp2, str(error))
+                await record_failure(self.user_id, self.multi_tag, _disp2, str(error), _link_flags(self))
         except Exception:
             pass
         if self.isSuperGroup and config_dict['INCOMPLETE_TASK_NOTIFIER'] and DATABASE_URL:

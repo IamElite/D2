@@ -293,15 +293,30 @@ class TelegramDownloadHelper:
                 pass
             fresh = await self.__refresh_message(message)
             if fresh and getattr(fresh, 'media', None):
-                message = fresh
-                fm = getattr(message, message.media.value) if message.media else None
-                if fm:
-                    gid = fm.file_unique_id
-                    size = fm.file_size
-                    if filename == "":
-                        fn = getattr(fm, 'file_name', None)
-                        if fn and fn != 'None':
-                            name = fn
+                try:
+                    fm = getattr(fresh, fresh.media.value)
+                    om = getattr(message, message.media.value) if message.media else None
+                    if fm and om:
+                        try:
+                            message.file_reference = getattr(fm, 'file_reference', None) or getattr(fresh, 'file_reference', None)
+                        except Exception:
+                            pass
+                        try:
+                            om.file_reference = getattr(fm, 'file_reference', None)
+                        except Exception:
+                            pass
+                        try:
+                            om.file_id = getattr(fm, 'file_id', om.file_id)
+                        except Exception:
+                            pass
+                        gid = fm.file_unique_id
+                        size = fm.file_size
+                        if filename == "":
+                            fn = getattr(fm, 'file_name', None)
+                            if fn and fn != 'None':
+                                name = fn
+                except Exception:
+                    pass
             await sleep(0.5)
         else:
             try:

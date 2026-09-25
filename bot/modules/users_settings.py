@@ -114,7 +114,10 @@ fname_dict = {'rcc': 'RClone',
 
 def _get_thumb_url(user_id: int) -> str:
     b = (config_dict.get('BASE_URL') or '').rstrip('/')
-    return f"{b}/thumbnail/{user_id}.jpg" if b else ''
+    if not b:
+        return ''
+    u = f"{b}/thumbnail/{user_id}.jpg"
+    return f"{u}{'&' if '?' in u else '?'}t={int(time())}"
 
 async def get_user_settings(from_user, key=None, edit_type=None, edit_mode=None):
     user_id = from_user.id
