@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from time import time
-from asyncio import Event, Semaphore
+from asyncio import Event
 from ... import bot_cache, config_dict, queued_dl, queued_up, non_queued_up, non_queued_dl, active_tasks, queue_dict_lock, LOGGER, user_data, download_dict
 from ..mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from .fs_utils import get_base_name, check_storage_threshold
@@ -8,10 +8,6 @@ from .bot_utils import get_user_tasks, getdailytasks, sync_to_async, get_telegra
 from ..telegram_helper.message_utils import forcesub, check_botpm
 from ..telegram_helper.filters import CustomFilters
 from ..themes import BotTheme
-_dl_sem = None
-_up_sem = None
-_dl_limit_cache = None
-_up_limit_cache = None
 def _dl_limit():
     a = config_dict.get('QUEUE_ALL') or 0
     d = config_dict.get('QUEUE_DOWNLOAD') or 0
@@ -24,16 +20,6 @@ def _up_limit():
     if a and u:
         return min(a, u)
     return a or u
-def _ensure_sem():
-    global _dl_sem, _up_sem, _dl_limit_cache, _up_limit_cache
-    dl = _dl_limit()
-    up = _up_limit()
-    if dl != _dl_limit_cache:
-        _dl_sem = Semaphore(dl) if dl else None
-        _dl_limit_cache = dl
-    if up != _up_limit_cache:
-        _up_sem = Semaphore(up) if up else None
-        _up_limit_cache = up
 
 async def stop_duplicate_check(name, listener):
     if not config_dict['STOP_DUPLICATE'] or listener.isLeech or listener.upPath != 'gd' or listener.select:
@@ -62,7 +48,6 @@ async def timeval_check(user_id):
     return None
 
 async def is_queued(uid):
-    _ensure_sem()
     dl_lim = _dl_limit()
     if not dl_lim:
         async with queue_dict_lock:
@@ -70,12 +55,10 @@ async def is_queued(uid):
             active_tasks.add(uid)
         return False, None
     async with queue_dict_lock:
-        if _dl_sem and _dl_sem.locked() or len(active_tasks) >= dl_lim or len(non_queued_dl) >= dl_lim:
+        if len(active_tasks) >= dl_lim or len(non_queued_dl) >= dl_lim:
             event = Event()
             queued_dl[uid] = event
             return True, event
-        if _dl_sem and _dl_sem._value > 0:
-            _dl_sem._value -= 1
         non_queued_dl.add(uid)
         active_tasks.add(uid)
         return False, None
@@ -92,41 +75,36 @@ def start_up_from_queued(uid):
     non_queued_up.add(uid)
 
 async def start_from_queued():
-    _ensure_sem()
     async with queue_dict_lock:
         up_lim = _up_limit()
         if queued_up and (not up_lim or len(non_queued_up) < up_lim):
             room = (up_lim - len(non_queued_up)) if up_lim else len(queued_up)
-            for uid in list(queued_up.keys()):
-                if room <= 0:
-                    break
-                if _up_sem and _up_sem._value == 0:
-                    break
-                if _up_sem and _up_sem._value > 0:
-                    _up_sem._value -= 1
-                start_up_from_queued(uid)
-                room -= 1
+            for uid in list(queued_up.keys())[:room]:
+                queued_up[uid].set()
+                del queued_up[uid]
+                non_queued_up.add(uid)
         if queued_dl:
             dl_lim = _dl_limit()
-            rooms = []
-            if dl_lim:
-                rooms.append(dl_lim - len(active_tasks))
-                rooms.append(dl_lim - len(non_queued_dl))
-            room = min(rooms) if rooms else len(queued_dl)
+            if not dl_lim:
+                for uid in list(queued_dl.keys()):
+                    queued_dl[uid].set()
+                    del queued_dl[uid]
+                    non_queued_dl.add(uid)
+                    active_tasks.add(uid)
+                return
+            room = dl_lim - len(active_tasks)
+            alt = dl_lim - len(non_queued_dl)
+            if alt < room:
+                room = alt
             if room <= 0:
                 return
-            for uid in list(queued_dl.keys()):
-                if room <= 0:
-                    break
-                if _dl_sem and _dl_sem._value == 0:
-                    break
-                if _dl_sem and _dl_sem._value > 0:
-                    _dl_sem._value -= 1
-                start_dl_from_queued(uid)
-                room -= 1
+            for uid in list(queued_dl.keys())[:room]:
+                queued_dl[uid].set()
+                del queued_dl[uid]
+                non_queued_dl.add(uid)
+                active_tasks.add(uid)
 
 async def finish_task_slot(uid):
-    _ensure_sem()
     async with queue_dict_lock:
         if uid in queued_dl:
             queued_dl[uid].set()
@@ -134,22 +112,15 @@ async def finish_task_slot(uid):
         if uid in queued_up:
             queued_up[uid].set()
             del queued_up[uid]
-        was_dl = uid in non_queued_dl or uid in active_tasks
-        was_up = uid in non_queued_up
         non_queued_dl.discard(uid)
         non_queued_up.discard(uid)
         active_tasks.discard(uid)
-        if was_dl and _dl_sem:
-            try:
-                _dl_sem.release()
-            except ValueError:
-                pass
-        if was_up and _up_sem:
-            try:
-                _up_sem.release()
-            except ValueError:
-                pass
     await start_from_queued()
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
     try:
         import gc
         gc.collect()
