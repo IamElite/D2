@@ -225,6 +225,13 @@ class TelegramDownloadHelper:
             await self.__onDownloadError('Cancelled by user!')
             return
         if download is not None:
+            try:
+                from aiofiles.os import path as aiopath
+                if not await aiopath.exists(path) or await aiopath.getsize(path) == 0:
+                    await self.__onDownloadError('Downloaded file size is zero - file reference expired')
+                    return
+            except Exception:
+                pass
             await self.__onDownloadComplete()
         elif last_err is not None:
             await self.__onDownloadError(str(last_err))
@@ -285,45 +292,38 @@ class TelegramDownloadHelper:
             self.__decrypter = decrypter
         else:
             self.__client, self.__client_idx = pick_download_client('bot', message)
-        if from_queue:
+        try:
+            import bot.helper.ext_utils.hyperdl_utils as _hdl
+            _hdl._hyperdl_fails = 0
+        except Exception:
+            pass
+        fresh = await self.__refresh_message(message)
+        if fresh and getattr(fresh, 'media', None):
             try:
-                import bot.helper.ext_utils.hyperdl_utils as _hdl
-                _hdl._hyperdl_fails = 0
+                fm = getattr(fresh, fresh.media.value)
+                om = getattr(message, message.media.value) if message.media else None
+                if fm and om:
+                    try:
+                        message.file_reference = getattr(fm, 'file_reference', None) or getattr(fresh, 'file_reference', None)
+                    except Exception:
+                        pass
+                    try:
+                        om.file_reference = getattr(fm, 'file_reference', None)
+                    except Exception:
+                        pass
+                    try:
+                        om.file_id = getattr(fm, 'file_id', om.file_id)
+                    except Exception:
+                        pass
+                    gid = fm.file_unique_id
+                    size = fm.file_size
+                    if filename == "":
+                        fn = getattr(fm, 'file_name', None)
+                        if fn and fn != 'None':
+                            name = fn
             except Exception:
                 pass
-            fresh = await self.__refresh_message(message)
-            if fresh and getattr(fresh, 'media', None):
-                try:
-                    fm = getattr(fresh, fresh.media.value)
-                    om = getattr(message, message.media.value) if message.media else None
-                    if fm and om:
-                        try:
-                            message.file_reference = getattr(fm, 'file_reference', None) or getattr(fresh, 'file_reference', None)
-                        except Exception:
-                            pass
-                        try:
-                            om.file_reference = getattr(fm, 'file_reference', None)
-                        except Exception:
-                            pass
-                        try:
-                            om.file_id = getattr(fm, 'file_id', om.file_id)
-                        except Exception:
-                            pass
-                        gid = fm.file_unique_id
-                        size = fm.file_size
-                        if filename == "":
-                            fn = getattr(fm, 'file_name', None)
-                            if fn and fn != 'None':
-                                name = fn
-                except Exception:
-                    pass
-            await sleep(0.5)
-        else:
-            try:
-                import bot.helper.ext_utils.hyperdl_utils as _hdl2
-                _hdl2._hyperdl_fails = 0
-            except Exception:
-                pass
+        await sleep(0.5)
         await self.__onDownloadStart(name, size, gid, from_queue)
         await self.__download(message, path)
 

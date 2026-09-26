@@ -143,13 +143,13 @@ class MtprotoPool:
         ck = self._resolve_key(client_key)
         cache_key = (ck, dc_id, slot)
         s = self._sessions.get(cache_key)
-        if s and s.is_started.is_set():
+        if s and getattr(getattr(s, "is_started", None), "is_set", lambda: False)():
             return s
         if cache_key not in self._locks:
             self._locks[cache_key] = Lock()
         async with self._locks[cache_key]:
             s = self._sessions.get(cache_key)
-            if s and s.is_started.is_set():
+            if s and getattr(getattr(s, "is_started", None), "is_set", lambda: False)():
                 return s
             if s:
                 try:
