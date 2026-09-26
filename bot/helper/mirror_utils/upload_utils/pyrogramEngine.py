@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""wzgram / pyrogram leech uploader (rewrite).
-
-Same TgUploader API for tasks_listener. send_* kwargs filtered by
-inspect.signature so wzgram extra/missing args cannot crash.
-Thumb, caption, remux, leech-log, bot-PM, dumps, media-group kept.
-"""
 from traceback import format_exc
 from logging import getLogger, ERROR
 from inspect import signature
@@ -15,7 +9,8 @@ from PIL import Image
 from pyrogram import StopTransmission
 from pyrogram.types import InputMediaVideo, InputMediaDocument, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait, PeerIdInvalid, ChannelInvalid
-from asyncio import sleep
+import asyncio
+from asyncio import sleep, wait_for
 from re import match as re_match
 from natsort import natsorted
 from aioshutil import copy
@@ -376,7 +371,6 @@ class TgUploader:
         if not await self.__msg_to_reply():
             return
         isDeleted = False
-        # One walk up-front: it both keeps the old order and gives the stage a real total.
         pending = []
         for dirpath, _, files in sorted(await sync_to_async(walk, self.__path)):
             if dirpath.endswith('/yt-dlp-thumb'):
@@ -463,8 +457,16 @@ class TgUploader:
         thumb = self.__thumb
         self.__is_corrupted = False
         key = 'documents'
+        is_corrupt = False
         try:
-            is_video, is_audio, is_image = await get_document_type(self.__up_path)
+            try:
+                is_video, is_audio, is_image = await wait_for(get_document_type(self.__up_path), timeout=10)
+            except asyncio.TimeoutError:
+                is_video, is_audio, is_image = False, False, False
+                is_corrupt = True
+            except Exception:
+                is_video, is_audio, is_image = False, False, False
+                is_corrupt = True
             if self.__leech_utils['thumb']:
                 thumb = await self.get_custom_thumb(self.__leech_utils['thumb'])
             if not is_image and thumb is None:
@@ -488,7 +490,7 @@ class TgUploader:
             duration = width = height = 0
             artist = title = ""
             buttons = None
-            if self.__as_doc or force_document or (not is_video and not is_audio and not is_image):
+            if self.__as_doc or force_document or is_corrupt or (not is_video and not is_audio and not is_image):
                 key = 'documents'
                 if is_video and thumb is None:
                     thumb = await take_ss(self.__up_path, None)
@@ -497,39 +499,72 @@ class TgUploader:
                 buttons = await self.__buttons(self.__up_path, is_video)
             elif is_video:
                 key = 'videos'
-                duration = (await get_media_info(self.__up_path))[0]
-                if not duration:
-                    # TG-pipeline holes / moov-issues: same-container index rebuild (fast) — duration wapas
+                try:
+                    duration = (await wait_for(get_media_info(self.__up_path), timeout=10))[0]
+                except asyncio.TimeoutError:
+                    duration = 0
+                    is_corrupt = True
+                except Exception:
+                    duration = 0
+                    is_corrupt = True
+                if is_corrupt:
+                    key = 'documents'
+                    if self.__is_cancelled:
+                        return
+                    buttons = await self.__buttons(self.__up_path, is_video)
+                elif not duration:
                     healed = await repair_moov(self.__up_path)
                     if healed:
                         if healed != self.__up_path:
                             await aioremove(self.__up_path)
                             self.__up_path = healed
-                        duration = (await get_media_info(self.__up_path))[0]
+                        try:
+                            duration = (await wait_for(get_media_info(self.__up_path), timeout=10))[0]
+                        except asyncio.TimeoutError:
+                            duration = 0
+                        except Exception:
+                            duration = 0
                         LOGGER.info(f'Media healed (index rebuild): {ospath.basename(self.__up_path)}')
-                if thumb is None:
-                    thumb = await take_ss(self.__up_path, duration)
-                if thumb is not None:
-                    with Image.open(thumb) as img:
-                        width, height = img.size
-                else:
-                    width, height = 480, 320
-                if not self.__up_path.upper().endswith(("MKV", "MP4")):
-                    dirpath, file_ = self.__up_path.rsplit('/', 1)
-                    new_path = ospath.join(dirpath, f"{ospath.splitext(file_)[0]}.mp4")
-                    if await remux_container(self.__up_path, new_path):
-                        if not (self.__listener.seed and not self.__listener.newDir):
-                            await aioremove(self.__up_path)
-                        self.__up_path = new_path
-                if self.__is_cancelled:
-                    return
-                buttons = await self.__buttons(self.__up_path, True)
+                if not is_corrupt:
+                    if thumb is None:
+                        thumb = await take_ss(self.__up_path, duration)
+                    if thumb is not None:
+                        with Image.open(thumb) as img:
+                            width, height = img.size
+                    else:
+                        width, height = 480, 320
+                    if not self.__up_path.upper().endswith(("MKV", "MP4")):
+                        dirpath, file_ = self.__up_path.rsplit('/', 1)
+                        new_path = ospath.join(dirpath, f"{ospath.splitext(file_)[0]}.mp4")
+                        if await remux_container(self.__up_path, new_path):
+                            if not (self.__listener.seed and not self.__listener.newDir):
+                                await aioremove(self.__up_path)
+                            self.__up_path = new_path
+                    if self.__is_cancelled:
+                        return
+                    buttons = await self.__buttons(self.__up_path, True)
             elif is_audio:
                 key = 'audios'
-                duration, artist, title = await get_media_info(self.__up_path)
-                if self.__is_cancelled:
-                    return
-                buttons = await self.__buttons(self.__up_path)
+                try:
+                    duration, artist, title = await wait_for(get_media_info(self.__up_path), timeout=10)
+                except asyncio.TimeoutError:
+                    is_corrupt = True
+                    key = 'documents'
+                    duration, artist, title = 0, "", ""
+                    if self.__is_cancelled:
+                        return
+                    buttons = await self.__buttons(self.__up_path, is_video)
+                except Exception:
+                    is_corrupt = True
+                    key = 'documents'
+                    duration, artist, title = 0, "", ""
+                    if self.__is_cancelled:
+                        return
+                    buttons = await self.__buttons(self.__up_path, is_video)
+                if not is_corrupt:
+                    if self.__is_cancelled:
+                        return
+                    buttons = await self.__buttons(self.__up_path)
             else:
                 key = 'photos'
                 if self.__is_cancelled:
