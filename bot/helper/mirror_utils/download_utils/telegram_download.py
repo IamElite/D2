@@ -244,7 +244,28 @@ class TelegramDownloadHelper:
             await self.__onDownloadError('No valid media type in the replied message')
             return
         async with global_lock:
-            download = media.file_unique_id not in GLOBAL_GID
+            if media.file_unique_id in GLOBAL_GID:
+                async with download_dict_lock:
+                    active = False
+                    for v in download_dict.values():
+                        try:
+                            if hasattr(v, 'gid'):
+                                if v.gid() == media.file_unique_id[:12] or v.gid() == media.file_unique_id:
+                                    active = True
+                                    break
+                            if hasattr(v, 'name') and callable(getattr(v, 'name')):
+                                if v.name() == (getattr(media, 'file_name', '') or ''):
+                                    active = True
+                                    break
+                        except Exception:
+                            continue
+                if not active:
+                    GLOBAL_GID.discard(media.file_unique_id)
+                    download = True
+                else:
+                    download = False
+            else:
+                download = True
         if not download:
             await self.__onDownloadError('File already being downloaded!')
             return
@@ -329,4 +350,11 @@ class TelegramDownloadHelper:
 
     async def cancel_download(self):
         self.__is_cancelled = True
+        async with global_lock:
+            try:
+                GLOBAL_GID.discard(self.__id)
+                if hasattr(self.__listener, 'size'):
+                    pass
+            except Exception:
+                pass
         LOGGER.info(f'Cancelling download via User: [ Name: {self.name} ID: {self.__id} ]')
